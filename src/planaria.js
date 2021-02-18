@@ -41,8 +41,6 @@ class Planaria {
       }
     }
 
-    this.token = 'eyJhbGciOiJFUzI1NksiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIxSk13SGZEVXY5QUJUbkhrVlVpVmFudktyd1JwbXFhOUZKIiwiaXNzdWVyIjoiZ2VuZXJpYy1iaXRhdXRoIn0.SDJmY3FxcnFkeTJHWTBROXRpOHB4QVN6MHlvdWEzY05FSXdzc0M3ZU44VEVQSHc2ZStMcldSekNyQkp0M2NSbDJOcER5N3N5S2lrQ1JGK3NVakNyUHdJPQ'
-
     const headers = {
       'Content-type': 'application/json; charset=utf-8',
       token: this.token
