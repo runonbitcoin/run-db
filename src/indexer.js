@@ -30,8 +30,10 @@ class Indexer {
     this.network = network
     this.startHeight = startHeight
 
+    const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
+
     this.database = new Database(db)
-    this.downloader = new Downloader(this.api.fetch.bind(this.api), numParallelDownloads)
+    this.downloader = new Downloader(fetchFunction, numParallelDownloads)
     this.trustlist = new Set(DEFAULT_TRUSTLIST)
     this.graph = new Graph(this.trustlist)
     this.executor = new Executor(network, numParallelExecutes)
