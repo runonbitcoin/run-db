@@ -21,9 +21,13 @@ class MatterCloud {
     this.suffix = apiKey ? `?api_key=${apiKey}` : ''
   }
 
-  async connect (height, network) { }
+  async connect (height, network) {
+    if (network !== 'main') throw new Error(`Network not supported with MatterCloud: ${network}`)
+  }
 
-  async disconnect () { }
+  async disconnect () {
+    // No-op
+  }
 
   async fetch (txid) {
     const response = await axios.get(`https://media.bitcoinfiles.org/tx/${txid}/raw${this.suffix}`)

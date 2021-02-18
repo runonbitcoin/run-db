@@ -18,17 +18,17 @@ const Bitcoind = require('./bitcoind')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-let crawler = null
+let api = null
 switch (API) {
-  case 'mattercloud': crawler = new MatterCloud(MATTERCLOUD_KEY); break
-  case 'planaria': crawler = new Planaria(PLANARIA_TOKEN); break
-  case 'bitcoind': crawler = new Bitcoind(RPC_PORT, RPC_USER, RPC_PASS); break
-  case 'none': crawler = { connect: null, disconnect: null, fetch: null, getNextBlock: null }; break
+  case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY); break
+  case 'planaria': api = new Planaria(PLANARIA_TOKEN); break
+  case 'bitcoind': api = new Bitcoind(RPC_PORT, RPC_USER, RPC_PASS); break
+  case 'none': api = { connect: null, disconnect: null, fetch: null, getNextBlock: null }; break
   default: throw new Error(`Unknown API: ${API}`)
 }
 
 const logger = console
-const indexer = new Indexer(DB, crawler, NETWORK, FETCH_LIMIT, WORKERS, logger, START_HEIGHT)
+const indexer = new Indexer(DB, api, NETWORK, FETCH_LIMIT, WORKERS, logger, START_HEIGHT)
 const server = new Server(indexer, logger, PORT)
 
 // ------------------------------------------------------------------------------------------------

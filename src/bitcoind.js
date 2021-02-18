@@ -15,9 +15,13 @@ class Bitcoind {
     this.rcpPass = rcpPass
   }
 
-  async connect (height, network) { }
+  async connect (height, network) {
+    throw new Error('Not implemented')
+  }
 
-  async disconnect () { }
+  async disconnect () {
+    throw new Error('Not implemented')
+  }
 
   async fetch (txid) {
     throw new Error('Not implemented')

@@ -15,13 +15,13 @@ class Api {
   // Stop any connections
   async disconnect () { }
 
-  // Returns the rawtx of the txid, or throws and error
+  // Returns the rawtx of the txid, or throws an error
   async fetch (txid) { throw new Error('Not implemented') }
 
   // Gets the next relevant block of transactions to add
   // currHash may be null
   // If there is a next block, return: { height, hash, txids, txhexs? }
-  // If there is no next block, return null
+  // If there is no next block yet, return null
   // If the current block passed was reorged, return { reorg: true }
   async getNextBlock (currHeight, currHash) { throw new Error('Not implemented') }
 }
