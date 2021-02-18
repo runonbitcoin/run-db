@@ -9,13 +9,12 @@
 // ------------------------------------------------------------------------------------------------
 
 class Downloader {
-  constructor (fetchFunction, network, numParallelDownloads) {
+  constructor (fetchFunction, numParallelDownloads) {
     this.onDownloadTransaction = null
     this.onFailedToDownloadTransaction = null
     this.onRetryingDownload = null
 
     this.fetchFunction = fetchFunction
-    this.network = network
     this.numParallelDownloads = numParallelDownloads
 
     this.queued = new Set() // txid
@@ -59,7 +58,7 @@ class Downloader {
     this.fetching.add(txid)
 
     try {
-      const hex = await this.fetchFunction(txid, this.network)
+      const hex = await this.fetchFunction(txid)
 
       this._onFetchSucceed(txid, hex)
     } catch (e) {

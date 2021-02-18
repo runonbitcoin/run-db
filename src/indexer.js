@@ -31,7 +31,7 @@ class Indexer {
     this.startHeight = startHeight
 
     this.database = new Database(db)
-    this.downloader = new Downloader(this.api.fetch.bind(this.api), network, numParallelDownloads)
+    this.downloader = new Downloader(this.api.fetch.bind(this.api), numParallelDownloads)
     this.trustlist = new Set(DEFAULT_TRUSTLIST)
     this.graph = new Graph(this.trustlist)
     this.executor = new Executor(network, numParallelExecutes)
