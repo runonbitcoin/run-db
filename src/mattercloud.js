@@ -5,6 +5,7 @@
  */
 
 const axios = require('axios')
+const bsv = require('bsv')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -52,8 +53,8 @@ class MatterCloud {
       const prevHash = response.data.header.prevHash
       if (currHash && prevHash !== currHash) return { reorg: true }
 
-      const txids = response.data.tx.map(tx => tx.h)
       const txhexs = response.data.tx.map(tx => tx.raw)
+      const txids = txhexs.map(hex => new bsv.Transaction(hex).hash)
       return { height, hash, txids, txhexs }
     } catch (e) {
       if (e.response && e.response.status === 404) return undefined
