@@ -5,6 +5,7 @@
  */
 
 const { describe, it } = require('mocha')
+const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 
@@ -29,6 +30,8 @@ describe('Crawler', () => {
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
     await indexer.start()
     await indexed(indexer, txid)
+    expect(indexer.status().height).to.equal(1)
+    expect(indexer.status().hash).to.equal('abc')
     await indexer.stop()
   })
 
@@ -43,6 +46,8 @@ describe('Crawler', () => {
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
     await indexer.start()
     await indexed(indexer, txid)
+    expect(indexer.status().height).to.equal(1)
+    expect(indexer.status().hash).to.equal('abc')
     await indexer.stop()
   })
 
