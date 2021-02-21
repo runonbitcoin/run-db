@@ -34,3 +34,4 @@ Create a .env file or set the following environment variables to configure the D
 * `/tx/:txid` - Gets the raw transaction hex for an added transaction
 * `/trust/:txid` - Trusts code in a transaction
 * `/untrusted` - Prints all txids that are not yet trusted
+* `/status` - Prints status information

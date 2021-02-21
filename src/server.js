@@ -37,6 +37,7 @@ class Server {
     app.get('/trust/:txid', this.trust.bind(this))
     app.get('/untrust/:txid', this.untrust.bind(this))
     app.get('/untrusted', this.untrusted.bind(this))
+    app.get('/status', this.status.bind(this))
 
     const listener = app.listen(this.port, () => {
       this.logger.info(`Listening at http://localhost:${listener.address().port}`)
@@ -108,6 +109,13 @@ class Server {
     try {
       const untrusted = this.indexer.untrusted()
       res.send(untrusted.join('\n') + '\n')
+    } catch (e) { next(e) }
+  }
+
+  async status (req, res, next) {
+    try {
+      const status = this.indexer.status()
+      res.send(status)
     } catch (e) { next(e) }
   }
 }

@@ -25,11 +25,12 @@ class Graph {
     return this.transactions.has(txid)
   }
 
-  add (txid, hex, executable, executed) {
+  add (txid, hex, executable, executed, indexed) {
     const tx = this.transactions.get(txid) || {}
     tx.downloaded = tx.downloaded || !!hex
     tx.executable = executable
     tx.executed = executed
+    tx.indexed = indexed
     tx.upstream = tx.upstream || new Set()
     tx.downstream = tx.downstream || new Set()
     this.transactions.set(txid, tx)
@@ -72,9 +73,10 @@ class Graph {
     this._checkIfReadyToExecute(txid, tx)
   }
 
-  setExecuted (txid) {
+  setExecuted (txid, indexed) {
     const tx = this.transactions.get(txid)
     tx.executed = true
+    tx.indexed = indexed
     for (const downtxid of tx.downstream) {
       const downtx = this.transactions.get(downtxid)
       downtx.upstream.delete(txid)
@@ -145,7 +147,7 @@ class Graph {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.setExecuted(txid)
+      this.setExecuted(txid, false)
       if (this.onFailedToParse) this.onFailedToParse(txid)
       return
     }

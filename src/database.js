@@ -32,7 +32,8 @@ class Database {
         hex TEXT,
         height INTEGER,
         executable INTEGER,
-        executed INTEGER
+        executed INTEGER,
+        indexed INTEGER
       )`
     ).run()
 
@@ -70,12 +71,13 @@ class Database {
 
     this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)').run()
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executable, executed) VALUES (?, null, ?, 0, 0)')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executable, executed, indexed) VALUES (?, null, ?, 0, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare('UPDATE tx SET height = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
-    this.getTransactionsStmt = this.db.prepare('SELECT txid, hex, executable, executed FROM tx')
+    this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
+    this.getTransactionsStmt = this.db.prepare('SELECT txid, hex, executable, executed, indexed FROM tx')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
@@ -128,9 +130,13 @@ class Database {
     this.setTransactionExecutedStmt.run(executed ? 1 : 0, txid)
   }
 
+  setTransactionIndexed (txid, indexed) {
+    this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
+  }
+
   forEachTransaction (callback) {
     for (const row of this.getTransactionsStmt.iterate()) {
-      callback(row.txid, row.hex, !!row.executable, !!row.executed)
+      callback(row.txid, row.hex, !!row.executable, !!row.executed, !!row.indexed)
     }
   }
 

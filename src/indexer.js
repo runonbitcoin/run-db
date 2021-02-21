@@ -47,7 +47,7 @@ class Indexer {
     this.executor.onCacheGet = this._onCacheGet.bind(this)
     this.executor.onBlockchainFetch = this._onBlockchainFetch.bind(this)
     this.executor.onTrustlistGet = this._onTrustlistGet.bind(this)
-    this.executor.onExecuted = this._onExecuted.bind(this)
+    this.executor.onIndexed = this._onIndexed.bind(this)
     this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
     this.executor.onMissingDeps = this._onMissingDeps.bind(this)
     this.crawler.onCrawlError = this._onCrawlError.bind(this)
@@ -60,8 +60,8 @@ class Indexer {
     this.database.getTrustlist().forEach(txid => {
       this.trustlist.add(txid)
     })
-    this.database.forEachTransaction((txid, hex, executable, executed) => {
-      this.graph.add(txid, hex, executable, executed)
+    this.database.forEachTransaction((txid, hex, executable, executed, indexed) => {
+      this.graph.add(txid, hex, executable, executed, indexed)
       if (!hex) this.downloader.add(txid)
     })
     this.executor.start()
@@ -93,7 +93,7 @@ class Indexer {
     if (this.graph.has(txid)) {
       this.graph.setExecutable(txid)
     } else {
-      this.graph.add(txid, hex, true, false)
+      this.graph.add(txid, hex, true, false, false)
     }
 
     if (hex) {
@@ -145,6 +145,17 @@ class Indexer {
     return Array.from(this.graph.untrusted)
   }
 
+  status () {
+    return {
+      height: this.crawler.height,
+      hash: this.crawler.hash,
+      indexed: Array.from(this.graph.transactions.values()).filter(tx => tx.indexed).length,
+      downloaded: this.graph.transactions.size,
+      downloading: this.downloader.remaining(),
+      executing: this.graph.remaining.size
+    }
+  }
+
   _onDownloadTransaction (txid, hex) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
     this.database.setTransactionHex(txid, hex)
@@ -166,7 +177,10 @@ class Indexer {
 
   _onFailToParse (txid) {
     this.logger.error('Failed to parse', txid)
-    this.database.setTransactionExecuted(txid, true)
+    this.database.transaction(() => {
+      this.database.setTransactionExecuted(txid, true)
+      this.database.setTransactionIndexed(txid, false)
+    })
   }
 
   _onCacheGet (key) {
@@ -193,11 +207,12 @@ class Indexer {
     return this.trustlist
   }
 
-  _onExecuted (txid, state) {
+  _onIndexed (txid, state) {
     this.logger.info(`Executed ${txid} (${this.graph.remaining.size - 1} remaining)`)
 
     this.database.transaction(() => {
       this.database.setTransactionExecuted(txid, true)
+      this.database.setTransactionIndexed(txid, true)
 
       for (const key of Object.keys(state)) {
         if (key.startsWith('jig://')) {
@@ -214,7 +229,7 @@ class Indexer {
       }
     })
 
-    this.graph.setExecuted(txid)
+    this.graph.setExecuted(txid, true)
 
     if (this.onIndex) this.onIndex(txid)
   }
@@ -222,9 +237,12 @@ class Indexer {
   _onExecuteFailed (txid, e) {
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
 
-    this.database.setTransactionExecuted(txid, true)
+    this.database.transaction(() => {
+      this.database.setTransactionExecuted(txid, true)
+      this.database.setTransactionIndexed(txid, false)
+    })
 
-    this.graph.setExecuted(txid)
+    this.graph.setExecuted(txid, false)
 
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
@@ -275,7 +293,7 @@ class Indexer {
       if (this.graph.has(txid)) {
         this.graph.setExecutable(txid)
       } else {
-        this.graph.add(txid, hex, true, false)
+        this.graph.add(txid, hex, true, false, false)
       }
 
       if (hex) {

@@ -19,7 +19,7 @@ class Executor {
     this.onCacheGet = null
     this.onBlockchainFetch = null
     this.onTrustlistGet = null
-    this.onExecuted = null
+    this.onIndexed = null
     this.onExecuteFailed = null
     this.onMissingDeps = null
 
@@ -81,7 +81,7 @@ class Executor {
     try {
       const state = await Bus.sendRequest(worker, 'execute', txid, hex)
 
-      if (this.onExecuted) this.onExecuted(txid, state)
+      if (this.onIndexed) this.onIndexed(txid, state)
     } catch (e) {
       if (worker.missingDeps.size) {
         if (this.onMissingDeps) this.onMissingDeps(txid, worker.missingDeps)
