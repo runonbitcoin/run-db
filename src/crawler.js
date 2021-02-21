@@ -13,7 +13,7 @@ class Crawler {
     this.api = api
     this.height = null
     this.hash = null
-    this.pollForBlocksInterval = 10000
+    this.pollForNewBlocksInterval = 10000
     this.pollForNewBlocksTimerId = null
     this.rewindCount = 10
     this.started = false
@@ -46,14 +46,17 @@ class Crawler {
 
   async _pollForNewBlocks () {
     if (!this.started) return
+
     try {
       await this._pollForNextBlock()
     } catch (e) {
       if (this.onCrawlError) this.onCrawlError(e)
       // Swallow, we'll retry
     }
+
     if (!this.started) return
-    this.pollForNewBlocksTimerId = setTimeout(this._pollForNewBlocks.bind(this), this.pollForBlocksInterval)
+
+    this.pollForNewBlocksTimerId = setTimeout(this._pollForNewBlocks.bind(this), this.pollForNewBlocksInterval)
   }
 
   async _pollForNextBlock () {
@@ -67,6 +70,7 @@ class Crawler {
 
     if (!this.started) return
     if (this.height !== currHeight) return
+    if (block.height <= this.height) return
 
     if (block.reorg) {
       const newHeight = this.height -= this.rewindCount
