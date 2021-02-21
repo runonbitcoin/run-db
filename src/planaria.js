@@ -7,6 +7,7 @@
 const axios = require('axios')
 const fetch = require('node-fetch')
 const AbortController = require('abort-controller')
+const es = require('event-stream')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -20,70 +21,26 @@ const RUN_VERSION = '05'
 // ------------------------------------------------------------------------------------------------
 
 class Planaria {
-  constructor (token) {
+  constructor (token, logger) {
     this.token = token
+    this.logger = logger
     this.abortController = new AbortController()
+    this.recrawlInterveral = 10000
+
     this.txns = []
+    this.network = null
+    this.recrawlTimerId = null
+    this.lastCrawlHeight = null
   }
 
   async connect (height, network) {
     this.network = network
-
-    const query = {
-      q: {
-        find: {
-          'out.s2': RUN_PREFIX,
-          'out.h3': RUN_VERSION,
-          'blk.i': { $gte: height }
-        },
-        sort: { 'blk.i': 1 },
-        project: { blk: 1, 'tx.h': 1 }
-      }
-    }
-
-    const headers = {
-      'Content-type': 'application/json; charset=utf-8',
-      token: this.token
-    }
-
-    let buffer = ''
-
-    const options = {
-      method: 'post',
-      headers,
-      body: JSON.stringify(query),
-      signal: this.abortController.signal
-    }
-
-    await new Promise((resolve, reject) => {
-      fetch('https://txo.bitbus.network/block', options).then(res => {
-        if (res.error) {
-          reject(res.error)
-          return
-        }
-
-        res.body.on('data', data => {
-          buffer += data.toString('utf8')
-          const lines = buffer.split('\n')
-          buffer = lines[lines.length - 1]
-          for (let i = 0; i < lines.length - 1; i++) {
-            const data = JSON.parse(lines[i])
-            this.txns.push({ txid: data.tx.h, height: data.blk.i, hash: data.blk.h })
-          }
-          resolve()
-        })
-
-        res.body.on('end', () => {
-          if (buffer.length) {
-            const data = JSON.parse(buffer)
-            this.txns.push({ txid: data.tx.h, height: data.blk.i, hash: data.blk.h })
-          }
-        })
-      })
-    })
+    this.lastCrawlHeight = height
+    await this._recrawl()
   }
 
   async disconnect () {
+    clearTimeout(this.recrawlTimerId)
     this.abortController.abort()
   }
 
@@ -115,6 +72,55 @@ class Planaria {
 
     return block
   }
+
+  async _recrawl () {
+    const scheduleRecrawl = () => { this.recrawlTimerId = setTimeout(this._recrawl.bind(this), this.recrawlInterveral) }
+    return this._crawl().then(scheduleRecrawl).catch(e => { this.logger.error(e); scheduleRecrawl() })
+  }
+
+  async _crawl () {
+    this.logger.info(`Crawling BitBus from ${this.lastCrawlHeight}`)
+
+    const query = {
+      q: {
+        find: {
+          'out.s2': RUN_PREFIX,
+          'out.h3': RUN_VERSION,
+          'blk.i': { $gt: this.lastCrawlHeight }
+        },
+        sort: { 'blk.i': 1 },
+        project: { blk: 1, 'tx.h': 1 }
+      }
+    }
+
+    const headers = {
+      'Content-type': 'application/json; charset=utf-8',
+      token: this.token
+    }
+
+    const options = {
+      method: 'post',
+      headers,
+      body: JSON.stringify(query),
+      signal: this.abortController.signal
+    }
+
+    return new Promise((resolve, reject) => {
+      fetch('https://txo.bitbus.network/block', options)
+        .then(res => {
+          res.body.on('end', () => resolve())
+            .pipe(es.split())
+            .pipe(es.mapSync(json => {
+              if (json.length) {
+                const data = JSON.parse(json)
+                this.txns.push({ height: data.blk.i, hash: data.blk.h, txid: data.tx.h })
+                this.lastCrawlHeight = data.blk.i
+              }
+            }))
+        })
+        .catch(e => e.name === 'AbortError' ? resolve() : reject(e))
+    })
+  };
 }
 
 // ------------------------------------------------------------------------------------------------
