@@ -15,8 +15,8 @@ const txns = require('./txns.json')
 
 const fetch = txid => require('./txns.json')[txid]
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const crawled = (indexer, txid) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
-const reorged = (indexer, txid) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })
+const crawled = (indexer) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
+const reorged = (indexer) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })
 
 // ------------------------------------------------------------------------------------------------
 // Crawler
@@ -57,7 +57,8 @@ describe('Crawler', () => {
 
   it('reorg blocks', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
-    let didReorg = false; let didIndex = false
+    let didReorg = false
+    let didIndex = false
     function getNextBlock (height, hash) {
       if (didReorg) return { height: 3, hash: 'def', txids: [] }
       if (height < 5) return { height: height + 1, hash: 'abc' + height, txids: [] }
@@ -83,8 +84,23 @@ describe('Crawler', () => {
 
   // --------------------------------------------------------------------------
 
-  it.skip('reorg while executing', async () => {
-    // TODO
+  it('reorg while executing', async () => {
+    const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
+    let didReorg = false
+    function getNextBlock (height, hash) {
+      if (didReorg) return { height: 3, hash: 'def', txids: [] }
+      if (height < 5) return { height: height + 1, hash: 'abc' + height, txids: [] }
+      if (height === 5) return { height: height + 1, hash: 'abc', txids: [txid] }
+      if (height < 12) return { height: height + 1, hash: 'abc' + height, txids: [] }
+      if (height === 12) { didReorg = true; return { reorg: true } }
+    }
+    const api = { getNextBlock, fetch }
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
+    await indexer.start()
+    await reorged(indexer)
+    expect(await indexer.tx(txid)).to.equal(undefined)
+    expect(await indexer.jig(txid + '_o1')).to.equal(undefined)
+    await indexer.stop()
   })
 })
 

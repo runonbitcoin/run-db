@@ -210,6 +210,9 @@ class Indexer {
   }
 
   _onIndexed (txid, state) {
+    // Check that the tx is still in our graph (ie. not re-orged)
+    if (!this.graph.has(txid)) return
+
     this.logger.info(`Executed ${txid} (${this.graph.remaining.size - 1} remaining)`)
 
     this.database.transaction(() => {
