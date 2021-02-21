@@ -84,11 +84,11 @@ class Database {
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
-    this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ?')
+    this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
 
     this.setBerryStateStmt = this.db.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
     this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
-    this.deleteBerryStatesStmt = this.db.prepare('DELETE FROM berry WHERE location LIKE ? || \'?\'')
+    this.deleteBerryStatesStmt = this.db.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
 
     this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust')
     this.addToTrustlistStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid) VALUES (?)')

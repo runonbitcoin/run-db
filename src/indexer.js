@@ -25,6 +25,8 @@ class Indexer {
 
     this.onIndex = null
     this.onFailToIndex = null
+    this.onBlock = null
+    this.onReorg = null
 
     this.api = api
     this.network = network
@@ -302,6 +304,8 @@ class Indexer {
         this.downloader.add(txid)
       }
     }
+
+    if (this.onBlock) this.onBlock(height)
   }
 
   _onRewindBlocks (newHeight) {
@@ -322,6 +326,8 @@ class Indexer {
         this.database.deleteBerryStates(txid)
       })
     })
+
+    if (this.onReorg) this.onReorg(newHeight)
   }
 }
 
