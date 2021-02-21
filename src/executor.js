@@ -25,6 +25,7 @@ class Executor {
 
     this.workers = []
     this.workerRequests = []
+    this.executing = new Set()
   }
 
   start () {
@@ -69,6 +70,10 @@ class Executor {
   }
 
   async execute (txid, hex) {
+    if (this.executing.has(txid)) return
+
+    this.executing.add(txid)
+
     const worker = await this._requestWorker()
 
     worker.missingDeps = new Set()
@@ -84,6 +89,8 @@ class Executor {
         if (this.onExecuteFailed) this.onExecuteFailed(txid, e)
       }
     } finally {
+      this.executing.delete(txid)
+
       worker.available = true
 
       if (this.workerRequests.length) {
