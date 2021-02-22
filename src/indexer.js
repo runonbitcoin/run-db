@@ -328,6 +328,8 @@ class Indexer {
         this.database.deleteJigStates(txid)
         this.database.deleteBerryStates(txid)
       })
+
+      this.database.setHeightAndHash(newHeight, null)
     })
 
     if (this.onReorg) this.onReorg(newHeight)

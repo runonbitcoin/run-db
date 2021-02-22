@@ -74,6 +74,7 @@ describe('Crawler', () => {
     await indexed(indexer, txid)
     didIndex = true
     await reorged(indexer)
+    expect(indexer.database.getHeight()).to.equal(2)
     await crawled(indexer, 3)
     expect(indexer.status().height).to.equal(3)
     expect(indexer.status().hash).to.equal('def')
