@@ -110,6 +110,7 @@ class Graph {
       }
       for (const downtxid of tx.downstream) {
         const downtx = this.transactions.get(downtxid)
+        downtx.upstream.delete(txid)
         this._updateRemaining(downtxid, downtx)
       }
       this.transactions.delete(txid)
