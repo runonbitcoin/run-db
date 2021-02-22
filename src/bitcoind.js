@@ -30,6 +30,10 @@ class Bitcoind {
   async getNextBlock (currHeight, currHash) {
     throw new Error('Not implemented')
   }
+
+  async listenForMempool (mempoolTxCallback) {
+    // TODO
+  }
 }
 
 // ------------------------------------------------------------------------------------------------

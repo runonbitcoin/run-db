@@ -24,6 +24,11 @@ class Api {
   // If there is no next block yet, return null
   // If the current block passed was reorged, return { reorg: true }
   async getNextBlock (currHeight, currHash) { throw new Error('Not implemented') }
+
+  // Begins listening for mempool transactions
+  // The callback should be called with txid and optionally rawtx when mempool tx is found
+  // The crawler will call this after the block syncing is up-to-date.
+  async listenForMempool (mempoolTxCallback) { }
 }
 
 // ------------------------------------------------------------------------------------------------

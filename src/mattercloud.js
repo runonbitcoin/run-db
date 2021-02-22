@@ -61,6 +61,11 @@ class MatterCloud {
       throw e
     }
   }
+
+  async listenForMempool (mempoolTxCallback) {
+    console.log('Listening for mempool')
+    // TODO
+  }
 }
 
 // ------------------------------------------------------------------------------------------------

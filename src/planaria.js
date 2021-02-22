@@ -87,6 +87,10 @@ class Planaria {
     return block
   }
 
+  async listenForMempool (mempoolTxCallback) {
+    // TODO
+  }
+
   async _recrawl () {
     const scheduleRecrawl = () => { this.recrawlTimerId = setTimeout(this._recrawl.bind(this), this.recrawlInterveral) }
     return this._crawl().then(scheduleRecrawl).catch(e => { this.logger.error(e); scheduleRecrawl() })

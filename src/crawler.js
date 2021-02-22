@@ -66,11 +66,14 @@ class Crawler {
     const currHash = this.hash
 
     const block = this.api.getNextBlock && await this.api.getNextBlock(currHeight, currHash)
-    if (!block) return
 
     if (!this.started) return
     if (this.height !== currHeight) return
-    if (block.height <= this.height) return
+
+    if (!block || block.height <= this.height) {
+      this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
+      return
+    }
 
     if (block.reorg) {
       const newHeight = this.height -= this.rewindCount
@@ -86,11 +89,8 @@ class Crawler {
     setTimeout(() => this._pollForNextBlock(), 0)
   }
 
-  _onMempoolRunTransaction (txid) {
-    // TODO
-  }
-
-  _onNewBlock (hash) {
+  _onMempoolRunTransaction (txid, rawtx) {
+    console.log('MEMPOOL', txid, !!rawtx)
     // TODO
   }
 }
