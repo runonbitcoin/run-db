@@ -285,6 +285,7 @@ class Indexer {
 
         this.database.addNewTransaction(txid, height)
         if (hex) this.database.setTransactionHex(txid, hex)
+        this.database.setTransactionHeight(txid, height)
         this.database.setTransactionExecutable(txid, true)
       }
 
