@@ -55,6 +55,7 @@ class Indexer {
     this.crawler.onCrawlError = this._onCrawlError.bind(this)
     this.crawler.onCrawlBlockTransactions = this._onCrawlBlockTransactions.bind(this)
     this.crawler.onRewindBlocks = this._onRewindBlocks.bind(this)
+    this.crawler.onMempoolTransaction = this._onMempoolTransaction.bind(this)
   }
 
   async start () {
@@ -334,6 +335,10 @@ class Indexer {
     })
 
     if (this.onReorg) this.onReorg(newHeight)
+  }
+
+  _onMempoolTransaction(txid, hex) {
+    this.add(txid, hex, null)
   }
 }
 

@@ -24,6 +24,7 @@ class Crawler {
     this.onCrawlError = null
     this.onCrawlBlockTransactions = null
     this.onRewindBlocks = null
+    this.onMempoolTransaction = null
   }
 
   start (height, hash) {
@@ -95,8 +96,7 @@ class Crawler {
   }
 
   _onMempoolRunTransaction (txid, rawtx) {
-    console.log('MEMPOOL', txid, !!rawtx)
-    // TODO
+    if (this.onMempoolTransaction) this.onMempoolTransaction(txid, rawtx)
   }
 }
 
