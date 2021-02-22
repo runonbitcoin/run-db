@@ -33,5 +33,5 @@ Create a .env file or set the following environment variables to configure the D
 * `/berry/:location` - Gets the state for a berry at a particular location
 * `/tx/:txid` - Gets the raw transaction hex for an added transaction
 * `/trust/:txid` - Trusts code in a transaction
-* `/untrusted` - Prints all txids that are not yet trusted
+* `/untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
 * `/status` - Prints status information

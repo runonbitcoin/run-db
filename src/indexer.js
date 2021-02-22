@@ -144,8 +144,20 @@ class Indexer {
     this.database.removeFromTrustlist(txid)
   }
 
-  untrusted () {
-    return Array.from(this.graph.untrusted)
+  untrusted (txid) {
+    if (!txid) {
+      return Array.from(this.graph.untrusted)
+    }
+
+    const untrusted = new Set()
+    const queue = [txid]
+    while (queue.length) {
+      const next = queue.shift()
+      if (this.graph.untrusted.has(next)) untrusted.add(next)
+      const tx = this.graph.transactions.get(next)
+      if (tx) { Array.from(tx.upstream).forEach(txid => queue.push(txid)) }
+    }
+    return Array.from(untrusted)
   }
 
   status () {
@@ -337,7 +349,7 @@ class Indexer {
     if (this.onReorg) this.onReorg(newHeight)
   }
 
-  _onMempoolTransaction(txid, hex) {
+  _onMempoolTransaction (txid, hex) {
     this.add(txid, hex, null)
   }
 }

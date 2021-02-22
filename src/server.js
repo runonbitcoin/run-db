@@ -36,7 +36,7 @@ class Server {
     app.get('/tx/:txid', this.tx.bind(this))
     app.get('/trust/:txid', this.trust.bind(this))
     app.get('/untrust/:txid', this.untrust.bind(this))
-    app.get('/untrusted', this.untrusted.bind(this))
+    app.get('/untrusted/:txid?', this.untrusted.bind(this))
     app.get('/status', this.status.bind(this))
 
     const listener = app.listen(this.port, () => {
@@ -107,7 +107,7 @@ class Server {
 
   async untrusted (req, res, next) {
     try {
-      const untrusted = this.indexer.untrusted()
+      const untrusted = this.indexer.untrusted(req.params.txid)
       res.send(untrusted.join('\n') + '\n')
     } catch (e) { next(e) }
   }
