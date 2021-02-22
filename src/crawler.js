@@ -17,6 +17,7 @@ class Crawler {
     this.pollForNewBlocksTimerId = null
     this.rewindCount = 10
     this.started = false
+    this.listeningForMempool = false
 
     this.listenForMempoolRunTransactions = null
     this.listenForNewBlocks = null
@@ -40,6 +41,7 @@ class Crawler {
 
   stop () {
     this.started = false
+    this.listeningForMempool = false
     clearTimeout(this.pollForNewBlocksTimerId)
     this.pollForNewBlocksTimerId = null
   }
@@ -71,7 +73,10 @@ class Crawler {
     if (this.height !== currHeight) return
 
     if (!block || block.height <= this.height) {
-      this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
+      if (!this.listeningForMempool) {
+        this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
+        this.listeningForMempool = true
+      }
       return
     }
 
