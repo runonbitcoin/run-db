@@ -6,6 +6,7 @@
 
 const axios = require('axios')
 const bsv = require('bsv')
+const EventSource = require('eventsource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -20,6 +21,7 @@ const RUN_0_6_FILTER = '006a0372756e0105'
 class MatterCloud {
   constructor (apiKey) {
     this.suffix = apiKey ? `?api_key=${apiKey}` : ''
+    this.mempoolEvents = null
   }
 
   async connect (height, network) {
@@ -27,7 +29,10 @@ class MatterCloud {
   }
 
   async disconnect () {
-    // No-op
+    if (this._mempoolEvents) {
+      this.mempoolEvents.close()
+      this.mempoolEvents = null
+    }
   }
 
   async fetch (txid) {
@@ -63,8 +68,17 @@ class MatterCloud {
   }
 
   async listenForMempool (mempoolTxCallback) {
-    console.log('Listening for mempool')
-    // TODO
+    return new Promise((resolve, reject) => {
+      this.mempoolEvents = new EventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
+      this.mempoolEvents.onerror = (e) => reject(e)
+      this.mempoolEvents.onmessage = event => {
+        if (event.type === 'message') {
+          const data = JSON.parse(event.data)
+          if (data === 'connected') { resolve(); return }
+          mempoolTxCallback(data.h, data.raw)
+        }
+      }
+    })
   }
 }
 
