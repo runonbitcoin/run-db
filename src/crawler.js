@@ -19,8 +19,6 @@ class Crawler {
     this.started = false
     this.listeningForMempool = false
 
-    this.listenForMempoolRunTransactions = null
-    this.listenForNewBlocks = null
     this.onCrawlError = null
     this.onCrawlBlockTransactions = null
     this.onRewindBlocks = null
@@ -33,9 +31,6 @@ class Crawler {
     this.started = true
     this.height = height
     this.hash = hash
-
-    if (this.listenForMempoolRunTransactions) this.listenForMempoolRunTransactions(this._onMempoolRunTransaction.bind(this))
-    if (this.listenForNewBlocks) this.listenForNewBlocks(this._onNewBlock.bind(this))
 
     this._pollForNewBlocks()
   }
