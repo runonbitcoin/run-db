@@ -24,6 +24,7 @@ Create a .env file or set the following environment variables to configure the D
 | **WORKERS** | Number of threads used to index | 4
 | **FETCH_LIMIT** | Number of parallel downloads | 20
 | **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
+| **TIMEOUT** | Network timeout in milliseconds | 10000
 
 ## Endpoints
 

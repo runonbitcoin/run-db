@@ -143,8 +143,8 @@ class Planaria {
     return this._crawl()
       .then(scheduleRecrawl)
       .catch(e => {
-        this.logger.error(e);
-        this.logger.info('Retrying crawl in ' + this.recrawlInterveral / 1000 + ' seconds');
+        this.logger.error(e)
+        this.logger.info('Retrying crawl in ' + this.recrawlInterveral / 1000 + ' seconds')
         scheduleRecrawl()
       })
   }

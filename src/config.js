@@ -19,6 +19,9 @@ const PORT = process.env.PORT || 0
 const WORKERS = process.env.WORKERS || 4
 const FETCH_LIMIT = process.env.FETCH_LIMIT || 20
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
+const TIMEOUT = process.env.TIMEOUT || 10000
+
+require('axios').default.defaults.timeout = TIMEOUT
 
 // ----------------------------------------------------------------------------------------
 // Default trustlist
