@@ -8,6 +8,8 @@ const axios = require('axios')
 const fetch = require('node-fetch')
 const AbortController = require('abort-controller')
 const es = require('event-stream')
+global.EventSource = require('eventsource')
+const { default: ReconnectingEventSource } = require('reconnecting-eventsource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -30,6 +32,7 @@ class Planaria {
 
     this.txns = []
     this.network = null
+    this.mempoolEvents = null
     this.recrawlTimerId = null
     this.lastCrawlHeight = null
     this.pendingReorg = false
@@ -44,7 +47,13 @@ class Planaria {
 
   async disconnect () {
     clearTimeout(this.recrawlTimerId)
+
     this.abortController.abort()
+
+    if (this._mempoolEvents) {
+      this.mempoolEvents.close()
+      this.mempoolEvents = null
+    }
   }
 
   async fetch (txid) {
@@ -89,8 +98,44 @@ class Planaria {
   }
 
   async listenForMempool (mempoolTxCallback) {
-    // this.logger.info(`Listening for mempool via BitSocket`)
-    // TODO
+    this.logger.info('Listening for mempool via BitSocket')
+
+    const query = {
+      v: 3,
+      q: {
+        find: {
+          'out.s2': RUN_PREFIX,
+          'out.h3': RUN_VERSION
+        },
+        project: { 'tx.h': 1 }
+      }
+    }
+
+    const b64query = Buffer.from(JSON.stringify(query), 'utf8').toString('base64')
+
+    return new Promise((resolve, reject) => {
+      const url = `https://txo.bitsocket.network/s/${b64query}`
+
+      this.mempoolEvents = new ReconnectingEventSource(url)
+
+      this.mempoolEvents.onerror = (e) => reject(e)
+
+      this.mempoolEvents.onmessage = event => {
+        if (event.type === 'message') {
+          const data = JSON.parse(event.data)
+
+          if (data.type === 'open') {
+            resolve()
+          }
+
+          if (data.type === 'push') {
+            for (let i = 0; i < data.data.length; i++) {
+              mempoolTxCallback(data.data[i].tx.h, null)
+            }
+          }
+        }
+      }
+    })
   }
 
   async _recrawl () {

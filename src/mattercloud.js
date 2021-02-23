@@ -71,13 +71,21 @@ class MatterCloud {
 
   async listenForMempool (mempoolTxCallback) {
     this.logger.info('Listening for mempool via MatterCloud SSE')
+
     return new Promise((resolve, reject) => {
       this.mempoolEvents = new ReconnectingEventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
+
       this.mempoolEvents.onerror = (e) => reject(e)
+
       this.mempoolEvents.onmessage = event => {
         if (event.type === 'message') {
           const data = JSON.parse(event.data)
-          if (data === 'connected') { resolve(); return }
+
+          if (data === 'connected') {
+            resolve()
+            return
+          }
+
           mempoolTxCallback(data.h, data.raw)
         }
       }
