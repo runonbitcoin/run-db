@@ -6,7 +6,8 @@
 
 const axios = require('axios')
 const bsv = require('bsv')
-const EventSource = require('eventsource')
+global.EventSource = require('eventsource')
+const { default: ReconnectingEventSource } = require('reconnecting-eventsource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -69,7 +70,7 @@ class MatterCloud {
 
   async listenForMempool (mempoolTxCallback) {
     return new Promise((resolve, reject) => {
-      this.mempoolEvents = new EventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
+      this.mempoolEvents = new ReconnectingEventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
       this.mempoolEvents.onerror = (e) => reject(e)
       this.mempoolEvents.onmessage = event => {
         if (event.type === 'message') {
