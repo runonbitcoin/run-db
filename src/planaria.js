@@ -140,7 +140,13 @@ class Planaria {
 
   async _recrawl () {
     const scheduleRecrawl = () => { this.recrawlTimerId = setTimeout(this._recrawl.bind(this), this.recrawlInterveral) }
-    return this._crawl().then(scheduleRecrawl).catch(e => { this.logger.error(e); scheduleRecrawl() })
+    return this._crawl()
+      .then(scheduleRecrawl)
+      .catch(e => {
+        this.logger.error(e);
+        this.logger.info('Retrying crawl in ' + this.recrawlInterveral / 1000 + ' seconds');
+        scheduleRecrawl()
+      })
   }
 
   async _crawl () {
