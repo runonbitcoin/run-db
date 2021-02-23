@@ -63,14 +63,14 @@ class Indexer {
     this.database.getTrustlist().forEach(txid => {
       this.trustlist.add(txid)
     })
-    this.database.forEachTransaction((txid, hex, executable, executed, indexed) => {
-      this.graph.add(txid, hex, executable, executed, indexed)
-      if (!hex) this.downloader.add(txid)
-    })
     this.executor.start()
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
+    this.database.forEachTransaction((txid, hex, executable, executed, indexed) => {
+      this.graph.add(txid, hex, executable, executed, indexed)
+      if (!hex) this.downloader.add(txid)
+    })
     this.crawler.start(height, hash)
   }
 
