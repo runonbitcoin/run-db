@@ -22,7 +22,7 @@
     "node-fetch": "^2.6.1",
     "npm": "^7.5.6",
     "reconnecting-eventsource": "^1.1.0",
-    "run-sdk": "^0.6.14"
+    "run-sdk": "^0.6.15"
   },
   "devDependencies": {
     "chai": "^4.3.0",

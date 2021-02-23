@@ -5,7 +5,7 @@
  */
 
 const bsv = require('bsv')
-const Run = require('./run.node.min')
+const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
 // Graph

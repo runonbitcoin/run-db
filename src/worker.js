@@ -1,5 +1,5 @@
 const { parentPort, workerData } = require('worker_threads')
-const Run = require('./run.node.min')
+const Run = require('run-sdk')
 const Bus = require('./bus')
 
 // ------------------------------------------------------------------------------------------------
