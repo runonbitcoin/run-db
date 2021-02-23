@@ -20,8 +20,9 @@ const RUN_0_6_FILTER = '006a0372756e0105'
 // ------------------------------------------------------------------------------------------------
 
 class MatterCloud {
-  constructor (apiKey) {
+  constructor (apiKey, logger) {
     this.suffix = apiKey ? `?api_key=${apiKey}` : ''
+    this.logger = logger
     this.mempoolEvents = null
   }
 
@@ -69,6 +70,7 @@ class MatterCloud {
   }
 
   async listenForMempool (mempoolTxCallback) {
+    this.logger.info('Listening for mempool via MatterCloud SSE')
     return new Promise((resolve, reject) => {
       this.mempoolEvents = new ReconnectingEventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
       this.mempoolEvents.onerror = (e) => reject(e)

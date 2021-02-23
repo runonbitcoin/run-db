@@ -38,6 +38,7 @@ class Planaria {
   async connect (height, network) {
     this.network = network
     this.lastCrawlHeight = height
+    this.logger.info('Crawing for new blocks via BitBus')
     await this._recrawl()
   }
 
@@ -88,6 +89,7 @@ class Planaria {
   }
 
   async listenForMempool (mempoolTxCallback) {
+    // this.logger.info(`Listening for mempool via BitSocket`)
     // TODO
   }
 
@@ -97,8 +99,6 @@ class Planaria {
   }
 
   async _crawl () {
-    this.logger.info(`Crawling BitBus from ${this.lastCrawlHeight}`)
-
     const query = {
       q: {
         find: {
