@@ -102,7 +102,9 @@ class Indexer {
     if (hex) {
       this.graph.setDownloaded(txid, hex)
     } else {
-      this.downloader.add(txid)
+      if (!this.graph.transactions.get(txid).downloaded) {
+        this.downloader.add(txid)
+      }
     }
   }
 
@@ -318,7 +320,9 @@ class Indexer {
       if (hex) {
         this.graph.setDownloaded(txid, hex)
       } else {
-        this.downloader.add(txid)
+        if (!this.graph.transactions.get(txid).downloaded) {
+          this.downloader.add(txid)
+        }
       }
     }
 
