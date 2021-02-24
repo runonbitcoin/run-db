@@ -57,7 +57,7 @@ async function execute (txid, hex) {
 
   run.cache = new Cache()
   run.blockchain = new Blockchain(txid)
-  run.timeout = 10000
+  run.timeout = 300000
   run.client = true
   run.preverify = false
   trustlist.forEach(txid => run.trust(txid))
