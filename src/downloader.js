@@ -19,39 +19,45 @@ class Downloader {
 
     this.queued = new Set() // txid
     this.fetching = new Set() // txid
+    this.waitingToRetry = new Set() // txid
     this.attempts = new Map() // txid -> attempts
   }
 
   stop () {
     this.queued = new Set()
     this.fetching = new Set()
+    this.waitingToRetry = new Set()
     this.attempts = new Map()
   }
 
   add (txid) {
     if (this.has(txid)) return
 
+    this._enqueueFetch(txid)
+  }
+
+  _enqueueFetch (txid) {
     if (this.fetching.size >= this.numParallelDownloads) {
       this.queued.add(txid)
-      return
+    } else {
+      this._fetch(txid)
     }
-
-    this._fetch(txid)
   }
 
   remove (txid) {
     if (!this.has(txid)) return
     this.queued.delete(txid)
     this.fetching.delete(txid)
+    this.waitingToRetry.delete(txid)
     this.attempts.delete(txid)
   }
 
   has (txid) {
-    return this.queued.has(txid) || this.fetching.has(txid)
+    return this.queued.has(txid) || this.fetching.has(txid) || this.waitingToRetry.has(txid)
   }
 
   remaining () {
-    return this.queued.size + this.fetching.size
+    return this.queued.size + this.fetching.size + this.waitingToRetry.size
   }
 
   async _fetch (txid) {
@@ -69,17 +75,17 @@ class Downloader {
   }
 
   _onFetchSucceed (txid, hex) {
-    if (!this.fetching.has(txid)) return
+    if (!this.fetching.delete(txid)) return
 
-    this.fetching.delete(txid)
+    this.attempts.delete(txid)
 
     if (this.onDownloadTransaction) this.onDownloadTransaction(txid, hex)
   }
 
   _onFetchFailed (txid, e) {
-    if (this.onFailedToDownloadTransaction) this.onFailedToDownloadTransaction(txid, e)
+    if (!this.fetching.delete(txid)) return
 
-    this.fetching.delete(txid)
+    if (this.onFailedToDownloadTransaction) this.onFailedToDownloadTransaction(txid, e)
 
     const attempts = (this.attempts.get(txid) || 0) + 1
     const secondsToRetry = Math.pow(2, attempts)
@@ -87,8 +93,13 @@ class Downloader {
     if (this.onRetryingDownload) this.onRetryingDownload(txid, secondsToRetry)
 
     this.attempts.set(txid, attempts)
+    this.waitingToRetry.add(txid)
 
-    setTimeout(() => this.add(txid), secondsToRetry * 1000)
+    setTimeout(() => {
+      if (this.waitingToRetry.delete(txid)) {
+        this._enqueueFetch(txid)
+      }
+    }, secondsToRetry * 1000)
   }
 
   _fetchNextInQueue () {
