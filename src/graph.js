@@ -12,13 +12,15 @@ const Run = require('run-sdk')
 // ------------------------------------------------------------------------------------------------
 
 class Graph {
-  constructor (trustlist) {
-    this.trustlist = trustlist
-    this.onReadyToExecute = null
-    this.onFailedToParse = null
+  constructor (database) {
+    this.database = database
+
     this.transactions = new Map()
     this.untrusted = new Set()
     this.remaining = new Set()
+
+    this.onReadyToExecute = null
+    this.onFailedToParse = null
   }
 
   has (txid) {
@@ -181,7 +183,7 @@ class Graph {
     }
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
-    const untrusted = hasCode && !this.trustlist.has(txid)
+    const untrusted = hasCode && !this.database.isTrusted(txid)
     if (untrusted) this.untrusted.add(txid)
   }
 

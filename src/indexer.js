@@ -9,7 +9,6 @@ const Downloader = require('./downloader')
 const Executor = require('./executor')
 const Graph = require('./graph')
 const Crawler = require('./crawler')
-const { DEFAULT_TRUSTLIST } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
@@ -36,8 +35,7 @@ class Indexer {
 
     this.database = new Database(db)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
-    this.trustlist = new Set(DEFAULT_TRUSTLIST)
-    this.graph = new Graph(this.trustlist)
+    this.graph = new Graph(this.database)
     this.executor = new Executor(network, numParallelExecutes)
     this.crawler = new Crawler(api)
 
@@ -60,9 +58,6 @@ class Indexer {
 
   async start () {
     this.database.open()
-    this.database.getTrustlist().forEach(txid => {
-      this.trustlist.add(txid)
-    })
     this.executor.start()
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
@@ -134,16 +129,14 @@ class Indexer {
     txid = txid.trim().toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Trusting', txid)
-    this.database.addToTrustlist(txid)
-    this.trustlist.add(txid)
+    this.database.setTrusted(txid, true)
     this.graph.onTrust(txid)
   }
 
   untrust (txid) {
     this.logger.info('Untrusting', txid)
-    this.trustlist.delete(txid)
     this.graph.onUntrust(txid)
-    this.database.removeFromTrustlist(txid)
+    this.database.setTrusted(txid, false)
   }
 
   untrusted (txid) {
@@ -223,7 +216,7 @@ class Indexer {
   }
 
   _onTrustlistGet () {
-    return this.trustlist
+    return this.database.getTrustlist()
   }
 
   _onIndexed (txid, state) {

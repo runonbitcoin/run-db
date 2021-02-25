@@ -5,6 +5,7 @@
  */
 
 const Sqlite3Database = require('better-sqlite3')
+const { DEFAULT_TRUSTLIST } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Database
@@ -57,7 +58,8 @@ class Database {
 
     this.db.prepare(
       `CREATE TABLE IF NOT EXISTS trust (
-        txid TEXT NOT NULL PRIMARY KEY
+        txid TEXT NOT NULL PRIMARY KEY,
+        value INTEGER
       ) WITHOUT ROWID`
     ).run()
 
@@ -69,7 +71,15 @@ class Database {
       )`
     ).run()
 
-    this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)').run()
+    const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
+    const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
+
+    this.transaction(() => {
+      setupCrawlStmt.run()
+      for (const txid of DEFAULT_TRUSTLIST) {
+        trustIfMissingStmt.run(txid)
+      }
+    })
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executable, executed, indexed) VALUES (?, null, ?, 0, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
@@ -90,9 +100,9 @@ class Database {
     this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
     this.deleteBerryStatesStmt = this.db.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
 
-    this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust')
-    this.addToTrustlistStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid) VALUES (?)')
-    this.removeFromTrustlistStmt = this.db.prepare('DELETE FROM trust WHERE txid = ?')
+    this.isTrustedStmt = this.db.prepare('SELECT value FROM trust WHERE txid = ?')
+    this.setTrustedStmt = this.db.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
+    this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust WHERE value = 1')
 
     this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
@@ -110,6 +120,10 @@ class Database {
     if (!this.db) return
     this.db.transaction(f)()
   }
+
+  // --------------------------------------------------------------------------
+  // tx
+  // --------------------------------------------------------------------------
 
   addNewTransaction (txid, height = null) {
     this.addNewTransactionStmt.run(txid, height)
@@ -154,6 +168,10 @@ class Database {
     return row && row.hex
   }
 
+  // --------------------------------------------------------------------------
+  // jig
+  // --------------------------------------------------------------------------
+
   setJigState (location, state) {
     this.setJigStateStmt.run(location, state)
   }
@@ -166,6 +184,10 @@ class Database {
   deleteJigStates (txid) {
     this.deleteJigStatesStmt.run(txid)
   }
+
+  // --------------------------------------------------------------------------
+  // berry
+  // --------------------------------------------------------------------------
 
   setBerryState (location, state) {
     this.setBerryStateStmt.run(location, state)
@@ -180,17 +202,26 @@ class Database {
     this.deleteBerryStatesStmt.run(txid)
   }
 
+  // --------------------------------------------------------------------------
+  // trust
+  // --------------------------------------------------------------------------
+
+  isTrusted (txid) {
+    const row = this.isTrustedStmt.get(txid)
+    return !!(row && row.value)
+  }
+
+  setTrusted (txid, value) {
+    this.setTrustedStmt.run(txid, value ? 1 : 0)
+  }
+
   getTrustlist () {
     return this.getTrustlistStmt.all().map(row => row.txid)
   }
 
-  addToTrustlist (txid) {
-    this.addToTrustlistStmt.run(txid)
-  }
-
-  removeFromTrustlist (txid) {
-    this.removeFromTrustlistStmt.run(txid)
-  }
+  // --------------------------------------------------------------------------
+  // crawl
+  // --------------------------------------------------------------------------
 
   getHeight () {
     const row = this.getHeightStmt.all()[0]

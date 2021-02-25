@@ -85,9 +85,9 @@ class Server {
   async getTrust (req, res, next) {
     try {
       if (req.params.txid) {
-        res.json(this.indexer.trustlist.has(req.params.txid))
+        res.json(this.indexer.database.isTrusted(req.params.txid))
       } else {
-        res.json(Array.from(this.indexer.trustlist))
+        res.json(Array.from(this.indexer.database.getTrustlist()))
       }
     } catch (e) { next(e) }
   }
