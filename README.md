@@ -36,6 +36,7 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /status` - Prints status information
 
 * `POST /trust/:txid` - Trusts code in a transaction
-* `POST /untrust/:txid` - Removes trust for a transaction
-* `POST /add/:txid` - Indexes a transaction. You may optionally add the `hex` query param.
-* `POST /remove/:txid` - Removes a transaction and connected state
+* `POST /tx/:txid` - Indexes a transaction. You may optionally add the `hex` query param.
+
+* `DELETE /trust/:txid` - Removes trust for a transaction
+* `DELETE /tx/:txid` - Removes a transaction and its connected state

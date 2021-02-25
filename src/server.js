@@ -37,9 +37,10 @@ class Server {
     app.get('/status', this.getStatus.bind(this))
 
     app.post('/trust/:txid', this.postTrust.bind(this))
-    app.post('/untrust/:txid', this.postUntrust.bind(this))
-    app.post('/add/:txid', this.postAdd.bind(this))
-    app.post('/remove/:txid', this.postRemove.bind(this))
+    app.post('/tx/:txid', this.postTx.bind(this))
+
+    app.delete('/trust/:txid', this.deleteTrust.bind(this))
+    app.delete('/tx/:txid', this.deleteTx.bind(this))
 
     const listener = app.listen(this.port, () => {
       this.logger.info(`Listening at http://localhost:${listener.address().port}`)
@@ -112,21 +113,21 @@ class Server {
     } catch (e) { next(e) }
   }
 
-  async postUntrust (req, res, next) {
-    try {
-      this.indexer.untrust(req.params.txid)
-      res.send(`Untrusted ${req.params.txid}\n`)
-    } catch (e) { next(e) }
-  }
-
-  async postAdd (req, res, next) {
+  async postTx (req, res, next) {
     try {
       this.indexer.add(req.params.txid, req.query.hex)
       res.send(`Added ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
 
-  async postRemove (req, res, next) {
+  async deleteTrust (req, res, next) {
+    try {
+      this.indexer.untrust(req.params.txid)
+      res.send(`Untrusted ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
+  async deleteTx (req, res, next) {
     try {
       this.indexer.remove(req.params.txid)
       res.send(`Removed ${req.params.txid}\n`)
