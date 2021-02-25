@@ -90,8 +90,7 @@ class Database {
     this.getTransactionsStmt = this.db.prepare('SELECT txid, hex, executable, executed, indexed FROM tx')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
-    this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
-    this.getTransactionMetadataStmt = this.db.prepare('SELECT executable, executed, indexed FROM tx WHERE txid = ?')
+    this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
 
@@ -166,15 +165,12 @@ class Database {
     this.deleteTransactionStmt.run(txid)
   }
 
-  getTransactionHex (txid) {
-    const row = this.getTransactionHexStmt.get(txid)
-    return row && row.hex
-  }
-
-  getTransactionMetadata (txid) {
-    const row = this.getTransactionMetadataStmt.get(txid)
+  getTransaction (txid) {
+    const row = this.getTransactionStmt.get(txid)
     // TODO: Revisit once all txns are in the database
-    return row || { executable: false, executed: false, indexed: false }
+    return row
+      ? { hex: row.hex, executable: !!row.executable, executed: !!row.executed, indexed: !!row.indexed }
+      : { hex: null, executable: false, executed: false, indexed: false }
   }
 
   getDownloadedCount () {

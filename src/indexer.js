@@ -63,7 +63,7 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
     this.database.forEachTransaction((txid, hex, executable, executed, indexed) => {
-      this.graph.add(txid, hex, executable, executed, indexed)
+      this.graph.add(txid, executed)
       if (!hex) this.downloader.add(txid)
     })
     this.crawler.start(height, hash)
@@ -89,17 +89,16 @@ class Indexer {
     })
 
     if (this.graph.has(txid)) {
-      this.graph.setExecutable(txid)
+      this.graph.onExecutable(txid)
     } else {
-      this.graph.add(txid, hex, true, false, false)
+      this.graph.add(txid, false)
     }
 
     if (hex) {
-      this.graph.setDownloaded(txid, hex)
+      this.graph.onDownloaded(txid)
     } else {
-      if (!this.graph.transactions.get(txid).downloaded) {
-        this.downloader.add(txid)
-      }
+      const { hex } = this.database.getTransaction(txid)
+      if (!hex) this.downloader.add(txid)
     }
   }
 
@@ -122,7 +121,7 @@ class Indexer {
   }
 
   tx (txid) {
-    return this.database.getTransactionHex(txid)
+    return this.database.getTransaction(txid).hex
   }
 
   trust (txid) {
@@ -169,7 +168,7 @@ class Indexer {
   _onDownloadTransaction (txid, hex) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
     this.database.setTransactionHex(txid, hex)
-    this.graph.setDownloaded(txid, hex)
+    this.graph.onDownloaded(txid)
   }
 
   _onFailedToDownloadTransaction (txid, e) {
@@ -181,7 +180,7 @@ class Indexer {
   }
 
   _onReadyToExecute (txid) {
-    const hex = this.database.getTransactionHex(txid)
+    const hex = this.database.getTransaction(txid).hex
     this.executor.execute(txid, hex)
   }
 
@@ -203,14 +202,14 @@ class Indexer {
       if (state) return JSON.parse(state)
     }
     if (key.startsWith('tx://')) {
-      return this.database.getTransactionHex(key.slice('tx://'.length))
+      return this.database.getTransaction(key.slice('tx://'.length)).hex
     }
   }
 
   _onBlockchainFetch (txid) {
-    const rawtx = this.database.getTransactionHex(txid)
-    if (!rawtx) throw new Error(`Not found: ${txid}`)
-    return rawtx
+    const hex = this.database.getTransaction(txid).hex
+    if (!hex) throw new Error(`Not found: ${txid}`)
+    return hex
   }
 
   _onTrustlistGet () {
@@ -242,7 +241,7 @@ class Indexer {
       }
     })
 
-    this.graph.setExecuted(txid, true)
+    this.graph.onExecuted(txid, true)
 
     if (this.onIndex) this.onIndex(txid)
   }
@@ -255,7 +254,7 @@ class Indexer {
       this.database.setTransactionIndexed(txid, false)
     })
 
-    this.graph.setExecuted(txid, false)
+    this.graph.onExecuted(txid, false)
 
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
@@ -267,10 +266,10 @@ class Indexer {
       this.database.addNewTransaction(deptxid, null)
       this.graph.addDep(txid, deptxid)
 
-      const hex = this.database.getTransactionHex(deptxid)
+      const { hex } = this.database.getTransaction(deptxid)
 
       if (hex) {
-        this.graph.setDownloaded(hex)
+        this.graph.onDownloaded(txid)
       } else {
         this.downloader.add(deptxid)
       }
@@ -305,17 +304,16 @@ class Indexer {
       const hex = txhexs && txhexs[i]
 
       if (this.graph.has(txid)) {
-        this.graph.setExecutable(txid)
+        this.graph.onExecutable(txid)
       } else {
-        this.graph.add(txid, hex, true, false, false)
+        this.graph.add(txid, false)
       }
 
       if (hex) {
-        this.graph.setDownloaded(txid, hex)
+        this.graph.onDownloaded(txid)
       } else {
-        if (!this.graph.transactions.get(txid).downloaded) {
-          this.downloader.add(txid)
-        }
+        const { hex } = this.database.getTransaction(txid)
+        if (!hex) this.downloader.add(txid)
       }
     }
 

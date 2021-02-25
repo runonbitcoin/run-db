@@ -27,12 +27,14 @@ class Graph {
     return this.transactions.has(txid)
   }
 
-  add (txid, hex, executable, executed, indexed) {
+  add (txid, executed) {
     const tx = this.transactions.get(txid) || {}
-    tx.downloaded = tx.downloaded || !!hex
+
     tx.upstream = tx.upstream || new Set()
     tx.downstream = tx.downstream || new Set()
+
     this.transactions.set(txid, tx)
+
     if (executed && tx.downstream.size) {
       for (const downtxid of tx.downstream) {
         const downtx = this.transactions.get(downtxid)
@@ -42,19 +44,23 @@ class Graph {
       }
       tx.downstream.clear()
     }
-    this._parseHex(txid, tx, hex)
+
+    this._parse(txid, tx)
     this._updateRemaining(txid, tx)
     this._checkIfReadyToExecute(txid, tx)
+
     return tx
   }
 
-  setDownloaded (txid, hex) {
+  onDownloaded (txid) {
     const tx = this.transactions.get(txid)
-    tx.downloaded = true
-    this._parseHex(txid, tx, hex)
+    
+    this._parse(txid, tx)
     this._updateRemaining(txid, tx)
     this._checkIfReadyToExecute(txid, tx)
-    const { executable } = this.database.getTransactionMetadata(txid)
+
+    const { executable } = this.database.getTransaction(txid)
+
     if (!executable && tx.downstream.size) {
       for (const downtxid of tx.downstream) {
         const downtx = this.transactions.get(downtxid)
@@ -66,13 +72,13 @@ class Graph {
     }
   }
 
-  setExecutable (txid) {
+  onExecutable (txid) {
     const tx = this.transactions.get(txid)
     this._updateRemaining(txid, tx)
     this._checkIfReadyToExecute(txid, tx)
   }
 
-  setExecuted (txid, indexed) {
+  onExecuted (txid, indexed) {
     const tx = this.transactions.get(txid)
     for (const downtxid of tx.downstream) {
       const downtx = this.transactions.get(downtxid)
@@ -86,7 +92,7 @@ class Graph {
   addDep (txid, deptxid) {
     const tx = this.transactions.get(txid)
     const deptx = this._getOrAdd(deptxid)
-    const deptxExecuted = this.database.getTransactionMetadata(deptxid).executed
+    const deptxExecuted = this.database.getTransaction(deptxid).executed
     if (!deptxExecuted) {
       tx.upstream.add(deptxid)
       deptx.downstream.add(txid)
@@ -134,8 +140,8 @@ class Graph {
     return tx || this.add(txid, null, false, false)
   }
 
-  _parseHex (txid, tx, hex) {
-    const { executed, executable } = this.database.getTransactionMetadata(txid)
+  _parse (txid, tx) {
+    const { hex, executed, executable } = this.database.getTransaction(txid)
     if (!executable) return
     if (executed) return
     if (!hex) return
@@ -147,8 +153,8 @@ class Graph {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.setExecuted(txid, false)
       if (this.onFailedToParse) this.onFailedToParse(txid)
+      this.onExecuted(txid, false)
       return
     }
 
@@ -173,7 +179,7 @@ class Graph {
 
     for (const deptxid of deps) {
       const deptx = this._getOrAdd(deptxid)
-      const deptxExecuted = this.database.getTransactionMetadata(deptxid).executed
+      const deptxExecuted = this.database.getTransaction(deptxid).executed
       if (!deptxExecuted) {
         tx.upstream.add(deptxid)
         deptx.downstream.add(txid)
@@ -186,8 +192,8 @@ class Graph {
   }
 
   _isRemaining (txid, tx) {
-    if (!tx.downloaded) return false
-    const { executable, executed } = this.database.getTransactionMetadata(txid)
+    const { hex, executable, executed } = this.database.getTransaction(txid)
+    if (!hex) return
     if (!executable) return false
     if (executed) return false
     if (this.untrusted.has(txid)) return false
@@ -219,10 +225,10 @@ class Graph {
   }
 
   _checkIfReadyToExecute (txid, tx) {
-    const { executable, executed } = this.database.getTransactionMetadata(txid)
+    const { hex, executable, executed } = this.database.getTransaction(txid)
     if (executed) return
+    if (!hex) return
     if (!executable) return
-    if (!tx.downloaded) return
     if (tx.upstream.size) return
     if (this.untrusted.has(txid)) return
     if (this.onReadyToExecute) this.onReadyToExecute(txid)
