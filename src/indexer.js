@@ -163,11 +163,13 @@ class Indexer {
   }
 
   status () {
+    const txns = Array.from(this.graph.transactions.values())
+
     return {
       height: this.crawler.height,
       hash: this.crawler.hash,
-      indexed: Array.from(this.graph.transactions.values()).filter(tx => tx.indexed).length,
-      downloaded: this.graph.transactions.size,
+      indexed: txns.filter(tx => tx.indexed).length,
+      downloaded: txns.filter(tx => tx.downloaded).length,
       downloading: this.downloader.remaining(),
       executing: this.graph.remaining.size
     }
