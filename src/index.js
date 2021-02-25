@@ -4,6 +4,7 @@
  * Entry point
  */
 
+const axios = require('axios')
 const Indexer = require('./indexer')
 const Server = require('./server')
 const {
@@ -13,6 +14,21 @@ const {
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
 const Bitcoind = require('./bitcoind')
+
+// ------------------------------------------------------------------------------------------------
+// RunConnectFetcher
+// ------------------------------------------------------------------------------------------------
+
+class RunConnectFetcher {
+  async connect (height, network) {
+    this.network = network
+  }
+
+  async fetch (txid) {
+    const response = await axios.get(`https://api.run.network/v1/${this.network}/tx/${txid}`)
+    return response.data.hex
+  }
+}
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -25,13 +41,7 @@ switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
   case 'bitcoind': api = new Bitcoind(RPC_PORT, RPC_USER, RPC_PASS); break
-  case 'none': api = {
-    connect: null,
-    disconnect: null,
-    fetch: null,
-    getNextBlock: null,
-    listenForMempool: null
-  }; break
+  case 'none': api = new RunConnectFetcher(); break
   default: throw new Error(`Unknown API: ${API}`)
 }
 
