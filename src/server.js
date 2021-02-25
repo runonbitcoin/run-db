@@ -94,14 +94,14 @@ class Server {
   async getUntrusted (req, res, next) {
     try {
       const untrusted = this.indexer.untrusted(req.params.txid)
-      res.send(untrusted.join('\n') + '\n')
+      res.json(untrusted)
     } catch (e) { next(e) }
   }
 
   async getStatus (req, res, next) {
     try {
       const status = this.indexer.status()
-      res.send(status)
+      res.json(status)
     } catch (e) { next(e) }
   }
 
