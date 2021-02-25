@@ -31,6 +31,7 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /jig/:location` - Gets the state for a jig at a particular location
 * `GET /berry/:location` - Gets the state for a berry at a particular location
 * `GET /tx/:txid` - Gets the raw transaction hex for an added transaction
+* `GET /trust/:txid?` - Gets whether a particular txid is trusted, or the entire trust list
 * `GET /untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
 * `GET /status` - Prints status information
 

@@ -32,6 +32,7 @@ class Server {
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
     app.get('/tx/:txid', this.getTx.bind(this))
+    app.get('/trust/:txid?', this.getTrust.bind(this))
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
     app.get('/status', this.getStatus.bind(this))
 
@@ -74,6 +75,16 @@ class Server {
         res.send(rawtx + '\n')
       } else {
         res.status(404).send(`Not found: ${req.params.txid}\n`)
+      }
+    } catch (e) { next(e) }
+  }
+
+  async getTrust (req, res, next) {
+    try {
+      if (req.params.txid) {
+        res.json(this.indexer.trustlist.has(req.params.txid))
+      } else {
+        res.json(Array.from(this.indexer.trustlist))
       }
     } catch (e) { next(e) }
   }
