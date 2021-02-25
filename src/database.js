@@ -91,7 +91,7 @@ class Database {
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
-    this.isTransactionExecutableStmt = this.db.prepare('SELECT executable FROM tx WHERE txid = ?')
+    this.getTransactionMetadataStmt = this.db.prepare('SELECT executable, executed, indexed FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
 
@@ -171,9 +171,10 @@ class Database {
     return row && row.hex
   }
 
-  isTransactionExecutable (txid) {
-    const row = this.isTransactionExecutableStmt.get(txid)
-    return row && row.executable
+  getTransactionMetadata (txid) {
+    const row = this.getTransactionMetadataStmt.get(txid)
+    // TODO: Revisit once all txns are in the database
+    return row || { executable: false, executed: false, indexed: false }
   }
 
   getDownloadedCount () {
