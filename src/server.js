@@ -50,7 +50,8 @@ class Server {
     try {
       const state = this.indexer.jig(req.params.location)
       if (state) {
-        res.send(state + '\n')
+        res.setHeader('Content-Type', 'application/json')
+        res.send(state)
       } else {
         res.status(404).send(`Not found: ${req.params.location}\n`)
       }
@@ -61,7 +62,8 @@ class Server {
     try {
       const state = this.indexer.berry(req.params.location)
       if (state) {
-        res.send(state + '\n')
+        res.setHeader('Content-Type', 'application/json')
+        res.send(state)
       } else {
         res.status(404).send(`Not found: ${req.params.location}\n`)
       }
@@ -72,7 +74,7 @@ class Server {
     try {
       const rawtx = this.indexer.tx(req.params.txid)
       if (rawtx) {
-        res.send(rawtx + '\n')
+        res.send(rawtx)
       } else {
         res.status(404).send(`Not found: ${req.params.txid}\n`)
       }
