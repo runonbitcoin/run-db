@@ -30,7 +30,6 @@ class Graph {
   add (txid, hex, executable, executed, indexed) {
     const tx = this.transactions.get(txid) || {}
     tx.downloaded = tx.downloaded || !!hex
-    tx.executable = executable
     tx.executed = executed
     tx.upstream = tx.upstream || new Set()
     tx.downstream = tx.downstream || new Set()
@@ -56,7 +55,8 @@ class Graph {
     this._parseHex(txid, tx, hex)
     this._updateRemaining(txid, tx)
     this._checkIfReadyToExecute(txid, tx)
-    if (!tx.executable && tx.downstream.size) {
+    const executable = this.database.isTransactionExecutable(txid)
+    if (!executable && tx.downstream.size) {
       for (const downtxid of tx.downstream) {
         const downtx = this.transactions.get(downtxid)
         downtx.upstream.delete(txid)
@@ -69,7 +69,6 @@ class Graph {
 
   setExecutable (txid) {
     const tx = this.transactions.get(txid)
-    tx.executable = true
     this._updateRemaining(txid, tx)
     this._checkIfReadyToExecute(txid, tx)
   }
@@ -137,7 +136,8 @@ class Graph {
   }
 
   _parseHex (txid, tx, hex) {
-    if (!tx.executable) return
+    const executable = this.database.isTransactionExecutable(txid)
+    if (!executable) return
     if (tx.executed) return
     if (!hex) return
 
@@ -187,7 +187,8 @@ class Graph {
 
   _isRemaining (txid, tx) {
     if (!tx.downloaded) return false
-    if (!tx.executable) return false
+    const executable = this.database.isTransactionExecutable(txid)
+    if (!executable) return false
     if (tx.executed) return false
     if (this.untrusted.has(txid)) return false
     for (const uptxid of tx.upstream) {
@@ -219,7 +220,8 @@ class Graph {
 
   _checkIfReadyToExecute (txid, tx) {
     if (tx.executed) return
-    if (!tx.executable) return
+    const executable = this.database.isTransactionExecutable(txid)
+    if (!executable) return
     if (!tx.downloaded) return
     if (tx.upstream.size) return
     if (this.untrusted.has(txid)) return
