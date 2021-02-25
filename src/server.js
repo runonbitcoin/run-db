@@ -29,36 +29,23 @@ class Server {
       res.status(500).send('Something broke!')
     })
 
-    app.get('/add/:txid', this.add.bind(this))
-    app.get('/remove/:txid', this.remove.bind(this))
-    app.get('/jig/:location', this.jig.bind(this))
-    app.get('/berry/:location', this.berry.bind(this))
-    app.get('/tx/:txid', this.tx.bind(this))
-    app.get('/trust/:txid', this.trust.bind(this))
-    app.get('/untrust/:txid', this.untrust.bind(this))
-    app.get('/untrusted/:txid?', this.untrusted.bind(this))
-    app.get('/status', this.status.bind(this))
+    app.get('/jig/:location', this.getJig.bind(this))
+    app.get('/berry/:location', this.getBerry.bind(this))
+    app.get('/tx/:txid', this.getTx.bind(this))
+    app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
+    app.get('/status', this.getStatus.bind(this))
+
+    app.post('/trust/:txid', this.postTrust.bind(this))
+    app.post('/untrust/:txid', this.postUntrust.bind(this))
+    app.post('/add/:txid', this.postAdd.bind(this))
+    app.post('/remove/:txid', this.postRemove.bind(this))
 
     const listener = app.listen(this.port, () => {
       this.logger.info(`Listening at http://localhost:${listener.address().port}`)
     })
   }
 
-  async add (req, res, next) {
-    try {
-      this.indexer.add(req.params.txid, req.query.hex)
-      res.send(`Added ${req.params.txid}\n`)
-    } catch (e) { next(e) }
-  }
-
-  async remove (req, res, next) {
-    try {
-      this.indexer.remove(req.params.txid)
-      res.send(`Removed ${req.params.txid}\n`)
-    } catch (e) { next(e) }
-  }
-
-  async jig (req, res, next) {
+  async getJig (req, res, next) {
     try {
       const state = this.indexer.jig(req.params.location)
       if (state) {
@@ -69,7 +56,7 @@ class Server {
     } catch (e) { next(e) }
   }
 
-  async berry (req, res, next) {
+  async getBerry (req, res, next) {
     try {
       const state = this.indexer.berry(req.params.location)
       if (state) {
@@ -80,7 +67,7 @@ class Server {
     } catch (e) { next(e) }
   }
 
-  async tx (req, res, next) {
+  async getTx (req, res, next) {
     try {
       const rawtx = this.indexer.tx(req.params.txid)
       if (rawtx) {
@@ -91,31 +78,45 @@ class Server {
     } catch (e) { next(e) }
   }
 
-  async trust (req, res, next) {
-    try {
-      this.indexer.trust(req.params.txid)
-      res.send(`Trusted ${req.params.txid}\n`)
-    } catch (e) { next(e) }
-  }
-
-  async untrust (req, res, next) {
-    try {
-      this.indexer.untrust(req.params.txid)
-      res.send(`Untrusted ${req.params.txid}\n`)
-    } catch (e) { next(e) }
-  }
-
-  async untrusted (req, res, next) {
+  async getUntrusted (req, res, next) {
     try {
       const untrusted = this.indexer.untrusted(req.params.txid)
       res.send(untrusted.join('\n') + '\n')
     } catch (e) { next(e) }
   }
 
-  async status (req, res, next) {
+  async getStatus (req, res, next) {
     try {
       const status = this.indexer.status()
       res.send(status)
+    } catch (e) { next(e) }
+  }
+
+  async postTrust (req, res, next) {
+    try {
+      this.indexer.trust(req.params.txid)
+      res.send(`Trusted ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
+  async postUntrust (req, res, next) {
+    try {
+      this.indexer.untrust(req.params.txid)
+      res.send(`Untrusted ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
+  async postAdd (req, res, next) {
+    try {
+      this.indexer.add(req.params.txid, req.query.hex)
+      res.send(`Added ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
+  async postRemove (req, res, next) {
+    try {
+      this.indexer.remove(req.params.txid)
+      res.send(`Removed ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
 }

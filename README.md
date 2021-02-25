@@ -28,11 +28,13 @@ Create a .env file or set the following environment variables to configure the D
 
 ## Endpoints
 
-* `/add/:txid` - Indexes a transaction. You may optionally add the `hex` query param.
-* `/remove/:txid` - Removes a transaction and connected state
-* `/jig/:location` - Gets the state for a jig at a particular location
-* `/berry/:location` - Gets the state for a berry at a particular location
-* `/tx/:txid` - Gets the raw transaction hex for an added transaction
-* `/trust/:txid` - Trusts code in a transaction
-* `/untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
-* `/status` - Prints status information
+* `GET /jig/:location` - Gets the state for a jig at a particular location
+* `GET /berry/:location` - Gets the state for a berry at a particular location
+* `GET /tx/:txid` - Gets the raw transaction hex for an added transaction
+* `GET /untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
+* `GET /status` - Prints status information
+
+* `POST /trust/:txid` - Trusts code in a transaction
+* `POST /untrust/:txid` - Removes trust for a transaction
+* `POST /add/:txid` - Indexes a transaction. You may optionally add the `hex` query param.
+* `POST /remove/:txid` - Removes a transaction and connected state
