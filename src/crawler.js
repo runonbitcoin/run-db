@@ -70,7 +70,9 @@ class Crawler {
 
     if (!block || block.height <= this.height) {
       if (!this.listeningForMempool) {
-        await this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
+        if (this.api.listenForMempool) {
+          await this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
+        }
         this.listeningForMempool = true
       }
       return

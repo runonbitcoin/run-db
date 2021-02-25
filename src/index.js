@@ -25,7 +25,13 @@ switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
   case 'bitcoind': api = new Bitcoind(RPC_PORT, RPC_USER, RPC_PASS); break
-  case 'none': api = { connect: null, disconnect: null, fetch: null, getNextBlock: null }; break
+  case 'none': api = {
+    connect: null,
+    disconnect: null,
+    fetch: null,
+    getNextBlock: null,
+    listenForMempool: null
+  }; break
   default: throw new Error(`Unknown API: ${API}`)
 }
 
