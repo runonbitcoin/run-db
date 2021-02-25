@@ -39,7 +39,7 @@ class Database {
     ).run()
 
     this.db.prepare(
-      'CREATE UNIQUE INDEX IF NOT EXISTS txid_index ON tx (txid)'
+      'CREATE UNIQUE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
     ).run()
 
     this.db.prepare(
@@ -91,6 +91,8 @@ class Database {
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
+    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
+    this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
@@ -166,6 +168,14 @@ class Database {
   getTransactionHex (txid) {
     const row = this.getTransactionHexStmt.get(txid)
     return row && row.hex
+  }
+
+  getDownloadedCount () {
+    return this.getTransactionsDownloadedCountStmt.get().count
+  }
+
+  getIndexedCount () {
+    return this.getTransactionsIndexedCountStmt.get().count
   }
 
   // --------------------------------------------------------------------------

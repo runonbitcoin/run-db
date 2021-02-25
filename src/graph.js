@@ -32,7 +32,6 @@ class Graph {
     tx.downloaded = tx.downloaded || !!hex
     tx.executable = executable
     tx.executed = executed
-    tx.indexed = indexed
     tx.upstream = tx.upstream || new Set()
     tx.downstream = tx.downstream || new Set()
     this.transactions.set(txid, tx)
@@ -78,7 +77,6 @@ class Graph {
   setExecuted (txid, indexed) {
     const tx = this.transactions.get(txid)
     tx.executed = true
-    tx.indexed = indexed
     for (const downtxid of tx.downstream) {
       const downtx = this.transactions.get(downtxid)
       downtx.upstream.delete(txid)

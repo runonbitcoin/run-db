@@ -129,7 +129,7 @@ class Indexer {
     txid = txid.trim().toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Trusting', txid)
-    this.database.setTrusted(txid, true)
+    this.database.setTrusted(txid, 1)
     this.graph.onTrust(txid)
   }
 
@@ -156,13 +156,11 @@ class Indexer {
   }
 
   status () {
-    const txns = Array.from(this.graph.transactions.values())
-
     return {
       height: this.crawler.height,
       hash: this.crawler.hash,
-      indexed: txns.filter(tx => tx.indexed).length,
-      downloaded: txns.filter(tx => tx.downloaded).length,
+      indexed: this.database.getIndexedCount(),
+      downloaded: this.database.getDownloadedCount(),
       downloading: this.downloader.remaining(),
       executing: this.graph.remaining.size
     }
