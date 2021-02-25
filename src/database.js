@@ -107,6 +107,7 @@ class Database {
   }
 
   transaction (f) {
+    if (!this.db) return
     this.db.transaction(f)()
   }
 
