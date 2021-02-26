@@ -15,7 +15,7 @@ class Graph {
   constructor (database) {
     this.database = database
 
-    this.transactions = new Map()
+    this.transactions = new Set()
     this.untrusted = new Set()
     this.remaining = new Set()
 
@@ -28,82 +28,68 @@ class Graph {
   }
 
   add (txid, executed) {
-    const tx = this.transactions.get(txid) || {}
-
-    this.transactions.set(txid, tx)
+    this.transactions.add(txid)
 
     const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
 
     if (executed && downstreamUnexecuted.length) {
       for (const downtxid of downstreamUnexecuted) {
-        const downtx = this.transactions.get(downtxid)
-        this._updateRemaining(downtxid, downtx)
-        this._checkIfReadyToExecute(downtxid, downtx)
+        this._updateRemaining(downtxid)
+        this._checkIfReadyToExecute(downtxid)
       }
     }
 
-    this._parse(txid, tx)
-    this._updateRemaining(txid, tx)
-    this._checkIfReadyToExecute(txid, tx)
-
-    return tx
+    this._parse(txid)
+    this._updateRemaining(txid)
+    this._checkIfReadyToExecute(txid)
   }
 
   onDownloaded (txid) {
-    const tx = this.transactions.get(txid)
-
-    this._parse(txid, tx)
-    this._updateRemaining(txid, tx)
-    this._checkIfReadyToExecute(txid, tx)
+    this._parse(txid)
+    this._updateRemaining(txid)
+    this._checkIfReadyToExecute(txid)
 
     const { executable } = this.database.getTransaction(txid)
     const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
 
     if (!executable && downstreamUnexecuted.length) {
       for (const downtxid of downstreamUnexecuted) {
-        const downtx = this.transactions.get(downtxid)
-        this._updateRemaining(downtxid, downtx)
-        this._checkIfReadyToExecute(downtxid, downtx)
+        this._updateRemaining(downtxid)
+        this._checkIfReadyToExecute(downtxid)
       }
     }
   }
 
   onExecutable (txid) {
-    const tx = this.transactions.get(txid)
-    this._updateRemaining(txid, tx)
-    this._checkIfReadyToExecute(txid, tx)
+    this._updateRemaining(txid)
+    this._checkIfReadyToExecute(txid)
   }
 
-  onExecuted (txid, indexed) {
-    const tx = this.transactions.get(txid)
+  onExecuted (txid) {
     const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
     for (const downtxid of downstreamUnexecuted) {
-      const downtx = this.transactions.get(downtxid)
-      this._checkIfReadyToExecute(downtxid, downtx)
+      this._checkIfReadyToExecute(downtxid)
     }
-    this._updateRemaining(txid, tx)
+    this._updateRemaining(txid)
   }
 
   addDep (txid, deptxid) {
-    const tx = this.transactions.get(txid)
     const deptxExecuted = this.database.getTransaction(deptxid).executed
     if (!deptxExecuted) {
       this.database.addDep(deptxid, txid)
-      this._updateRemaining(txid, tx)
+      this._updateRemaining(txid)
     } else {
-      this._updateRemaining(txid, tx)
-      this._checkIfReadyToExecute(txid, tx)
+      this._updateRemaining(txid)
+      this._checkIfReadyToExecute(txid)
     }
   }
 
   remove (txid) {
     this.remaining.delete(txid)
     this.untrusted.delete(txid)
-    const tx = this.transactions.get(txid)
-    if (tx) {
+    if (this.transactions.has(txid)) {
       for (const downtxid of this.getDownstreamUnexecuted(txid)) {
-        const downtx = this.transactions.get(downtxid)
-        this._updateRemaining(downtxid, downtx)
+        this._updateRemaining(downtxid)
       }
       this.transactions.delete(txid)
     }
@@ -111,24 +97,19 @@ class Graph {
 
   onTrust (txid) {
     if (this.untrusted.delete(txid)) {
-      const tx = this._getOrAdd(txid)
-      this._updateRemaining(txid, tx)
-      this._checkIfReadyToExecute(txid, tx)
+      this.transactions.add(txid)
+      this._updateRemaining(txid)
+      this._checkIfReadyToExecute(txid)
     }
   }
 
   onUntrust (txid) {
     this.untrusted.add(txid)
-    const tx = this._getOrAdd(txid)
-    this._updateRemaining(txid, tx)
+    this.transactions.add(txid)
+    this._updateRemaining(txid)
   }
 
-  _getOrAdd (txid) {
-    const tx = this.transactions.get(txid)
-    return tx || this.add(txid, null, false, false)
-  }
-
-  _parse (txid, tx) {
+  _parse (txid) {
     const { hex, executed, executable } = this.database.getTransaction(txid)
     if (!executable) return
     if (executed) return
@@ -142,7 +123,7 @@ class Graph {
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
       if (this.onFailedToParse) this.onFailedToParse(txid)
-      this.onExecuted(txid, false)
+      this.onExecuted(txid)
       return
     }
 
@@ -176,7 +157,7 @@ class Graph {
     if (untrusted) this.untrusted.add(txid)
   }
 
-  _isRemaining (txid, tx) {
+  _isRemaining (txid) {
     const { hex, executable, executed } = this.database.getTransaction(txid)
     if (!hex) return
     if (!executable) return false
@@ -191,22 +172,20 @@ class Graph {
     return true
   }
 
-  _updateRemaining (txid, tx) {
-    const newRemaining = this._isRemaining(txid, tx)
+  _updateRemaining (txid) {
+    const newRemaining = this._isRemaining(txid)
     const oldRemaining = this.remaining.has(txid)
     if (newRemaining === oldRemaining) return
     const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
     if (newRemaining) {
       this.remaining.add(txid)
       for (const downtxid of downstreamUnexecuted) {
-        const downtx = this.transactions.get(downtxid)
-        this._updateRemaining(downtxid, downtx)
+        this._updateRemaining(downtxid)
       }
     } else {
       this.remaining.delete(txid)
       for (const downtxid of downstreamUnexecuted) {
-        const downtx = this.transactions.get(downtxid)
-        this._updateRemaining(downtxid, downtx)
+        this._updateRemaining(downtxid)
       }
     }
   }

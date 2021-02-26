@@ -69,7 +69,7 @@ class Indexer {
 
     const txids = this.database.getTransactionIds()
     for (const txid of txids) {
-      const { hex, executed } = this.database.getTransaction(txid).executed
+      const { hex, executed } = this.database.getTransaction(txid)
       this.graph.add(txid, executed)
       if (!hex) this.downloader.add(txid)
     }
@@ -156,8 +156,7 @@ class Indexer {
     while (queue.length) {
       const next = queue.shift()
       if (this.graph.untrusted.has(next)) untrusted.add(next)
-      const tx = this.graph.transactions.get(next)
-      if (tx) {
+      if (this.graph.transactions.has(next)) {
         const upstreamUnexecuted = this.getUpstreamUnexecuted(txid)
         upstreamUnexecuted.forEach(txid => queue.push(txid))
       }
@@ -252,7 +251,7 @@ class Indexer {
       }
     })
 
-    this.graph.onExecuted(txid, true)
+    this.graph.onExecuted(txid)
 
     if (this.onIndex) this.onIndex(txid)
   }
@@ -265,7 +264,7 @@ class Indexer {
       this.database.setTransactionIndexed(txid, false)
     })
 
-    this.graph.onExecuted(txid, false)
+    this.graph.onExecuted(txid)
 
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
