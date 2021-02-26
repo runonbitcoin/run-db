@@ -24,8 +24,6 @@ class Graph {
   }
 
   add (txid, executed) {
-    this.transactions.add(txid)
-
     const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
 
     if (executed && downstreamUnexecuted.length) {
@@ -83,17 +81,14 @@ class Graph {
   remove (txid) {
     this.remaining.delete(txid)
     this.untrusted.delete(txid)
-    if (this.transactions.has(txid)) {
-      for (const downtxid of this.getDownstreamUnexecuted(txid)) {
-        this._updateRemaining(downtxid)
-      }
-      this.transactions.delete(txid)
+
+    for (const downtxid of this.getDownstreamUnexecuted(txid)) {
+      this._updateRemaining(downtxid)
     }
   }
 
   onTrust (txid) {
     if (this.untrusted.delete(txid)) {
-      this.transactions.add(txid)
       this._updateRemaining(txid)
       this._checkIfReadyToExecute(txid)
     }
@@ -101,7 +96,6 @@ class Graph {
 
   onUntrust (txid) {
     this.untrusted.add(txid)
-    this.transactions.add(txid)
     this._updateRemaining(txid)
   }
 

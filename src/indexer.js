@@ -156,10 +156,8 @@ class Indexer {
     while (queue.length) {
       const next = queue.shift()
       if (this.graph.untrusted.has(next)) untrusted.add(next)
-      if (this.graph.transactions.has(next)) {
-        const upstreamUnexecuted = this.getUpstreamUnexecuted(txid)
-        upstreamUnexecuted.forEach(txid => queue.push(txid))
-      }
+      const upstreamUnexecuted = this.getUpstreamUnexecuted(txid)
+      upstreamUnexecuted.forEach(txid => queue.push(txid))
     }
     return Array.from(untrusted)
   }
