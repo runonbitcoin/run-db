@@ -113,8 +113,53 @@ class Database {
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
-    this.getUpstreamStmt = this.db.prepare('SELECT up AS txid FROM deps WHERE down = ?')
-    this.getDownstreamStmt = this.db.prepare('SELECT down AS txid FROM deps WHERE up = ?')
+    this.isReadyToExecuteStmt = this.db.prepare(`
+      SELECT
+        unindexed AND trusted AND no_upstream as ready
+      FROM
+        (
+          SELECT COUNT(*) > 0 as unindexed
+          FROM tx
+          WHERE txid = ? AND hex IS NOT NULL AND indexed = 0
+        ),
+        (
+          SELECT COUNT(*) > 0 as trusted
+          FROM (SELECT * FROM tx WHERE txid = ?) AS tx
+          LEFT JOIN trust
+          ON trust.txid = tx.txid
+          WHERE trust.value = 1 OR tx.has_code = 0
+        ),
+        (
+          SELECT COUNT(*) = 0 AS no_upstream
+          FROM tx
+          INNER JOIN deps
+          ON deps.up = tx.txid
+          WHERE deps.down = ? AND tx.indexed = 0
+        )
+    `)
+    this.getTransactionsToExecuteStmt = this.db.prepare(`
+      SELECT
+        trusted_unindexed.txid as txid
+      FROM
+        (
+          SELECT tx_unindexed.txid as txid
+          FROM
+            (
+              SELECT txid, has_code
+              FROM tx
+              WHERE hex IS NOT NULL AND indexed = 0
+            ) as tx_unindexed
+          LEFT JOIN trust
+          ON trust.txid = tx_unindexed.txid
+          WHERE trust.value = 1 OR tx_unindexed.has_code = 0
+        ) as trusted_unindexed
+      EXCEPT
+        SELECT deps.down as txid
+        FROM deps
+        LEFT JOIN tx
+        ON deps.up = tx.txid
+        WHERE tx.indexed = 0
+    `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
@@ -214,24 +259,12 @@ class Database {
     this.addDepStmt.run(up, down)
   }
 
-  getUpstream (txid) {
-    return this.getUpstreamStmt.all(txid).map(row => row.txid)
+  isReadyToExecute (txid) {
+    return !!this.isReadyToExecuteStmt.get(txid, txid, txid).ready
   }
 
-  getDownstream (txid) {
-    return this.getDownstreamStmt.all(txid).map(row => row.txid)
-  }
-
-  getUpstreamUnexecuted (txid) {
-    // TODO: Use a join query
-    const upstream = this.getUpstream()
-    return upstream.filter(uptxid => !this.isTransactionExecuted(uptxid))
-  }
-
-  getDownstreamUnexecuted (txid) {
-    // TODO: Use a join query
-    const downstream = this.getDownstream()
-    return downstream.filter(downtxid => !this.isTransactionExecuted(downtxid))
+  getTransactionsToExecute () {
+    return this.getTransactionsToExecuteStmt.all().map(row => row.txid)
   }
 
   // --------------------------------------------------------------------------
