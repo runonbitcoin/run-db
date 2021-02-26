@@ -9,7 +9,6 @@ const bsv = require('bsv')
 const Database = require('./database')
 const Downloader = require('./downloader')
 const Executor = require('./executor')
-const Graph = require('./graph')
 const Crawler = require('./crawler')
 
 // ------------------------------------------------------------------------------------------------
@@ -37,14 +36,12 @@ class Indexer {
 
     this.database = new Database(db)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
-    this.graph = new Graph(this.database)
     this.executor = new Executor(network, numParallelExecutes)
     this.crawler = new Crawler(api)
 
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
-    this.graph.onReadyToExecute = this._onReadyToExecute.bind(this)
     this.executor.onCacheGet = this._onCacheGet.bind(this)
     this.executor.onBlockchainFetch = this._onBlockchainFetch.bind(this)
     this.executor.onTrustlistGet = this._onTrustlistGet.bind(this)
@@ -85,7 +82,7 @@ class Indexer {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Removing', txid)
     this.downloader.remove(txid)
-    this.graph.remove(txid)
+    this.graph.remove(txid
     this.database.deleteTransaction(txid)
     this.database.deleteJigStates(txid)
     this.database.deleteBerryStates(txid)

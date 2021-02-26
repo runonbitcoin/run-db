@@ -13,14 +13,23 @@ const Indexer = require('../src/indexer')
 
 const fetch = txid => require('./txns.json')[txid]
 const api = { fetch }
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
+// const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
+// const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
 describe('Indexer', () => {
+  it('add downloads dependencies', async () => {
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, console, 0)
+    await indexer.start()
+    indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await new Promise((resolve, reject) => setTimeout(resolve, 1000))
+    await indexer.stop()
+  })
+
+  /*
   it('add and index', async () => {
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
     await indexer.start()
@@ -68,6 +77,7 @@ describe('Indexer', () => {
     await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     await indexer.stop()
   })
+  */
 })
 
 // ------------------------------------------------------------------------------------------------
