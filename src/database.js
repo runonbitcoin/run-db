@@ -30,16 +30,22 @@ class Database {
     this.db.prepare(
       `CREATE TABLE IF NOT EXISTS tx (
         txid TEXT NOT NULL,
-        hex TEXT,
         height INTEGER,
+        hex TEXT,
         has_code INTEGER,
         executed INTEGER,
-        indexed INTEGER
+        indexed INTEGER,
+        downloaded INTEGER GENERATED ALWAYS AS (hex IS NOT NULL) VIRTUAL,
+        executable INTEGER GENERATED ALWAYS AS (downloaded = 1 AND executed = 0 AND indexed = 0) VIRTUAL
       )`
     ).run()
 
     this.db.prepare(
-      'CREATE UNIQUE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
+      'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
+    ).run()
+
+    this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS tx_executable_code_index ON tx (executable, has_code)'
     ).run()
 
     this.db.prepare(
@@ -55,7 +61,7 @@ class Database {
     ).run()
 
     this.db.prepare(
-      'CREATE INDEX IF NOT EXISTS deps_down_index ON deps (up)'
+      'CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)'
     ).run()
 
     this.db.prepare(
@@ -87,6 +93,28 @@ class Database {
       )`
     ).run()
 
+    this.db.prepare(`
+      CREATE VIEW IF NOT EXISTS tx_executable
+      AS
+      SELECT tx_executable_without_code.txid
+      FROM (SELECT txid FROM tx WHERE executable = 1 AND has_code = 0) as tx_executable_without_code
+      UNION ALL
+      SELECT tx_executable_with_code.txid
+      FROM (SELECT txid FROM tx WHERE executable = 1 AND has_code = 1) as tx_executable_with_code
+      LEFT JOIN trust
+      ON tx_executable_with_code.txid = trust.txid
+      WHERE trust.value = 1
+    `).run()
+
+    this.db.prepare(`
+      CREATE VIEW IF NOT EXISTS tx_upstream_unindexed
+      AS
+      SELECT deps.down as txid
+      FROM (SELECT txid FROM tx WHERE indexed = 0) as tx_unindexed
+      INNER JOIN deps
+      ON deps.up = tx_unindexed.txid
+    `).run()
+
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
     const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
 
@@ -104,12 +132,12 @@ class Database {
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND hex IS NOT NULL')
+    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND downloaded = 1')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
-    this.getUndownloadedTransactionsStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
-    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
+    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
+    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
@@ -120,7 +148,7 @@ class Database {
         (
           SELECT COUNT(*) > 0 as unindexed
           FROM tx
-          WHERE txid = ? AND hex IS NOT NULL AND executed = 0 AND indexed = 0
+          WHERE txid = ? AND executable = 1
         ),
         (
           SELECT COUNT(*) > 0 as trusted
@@ -138,27 +166,34 @@ class Database {
         )
     `)
     this.getTransactionsToExecuteStmt = this.db.prepare(`
-      SELECT
-        trusted_unindexed.txid as txid
-      FROM
-        (
-          SELECT tx_unindexed.txid as txid
-          FROM
-            (
-              SELECT txid, has_code
-              FROM tx
-              WHERE hex IS NOT NULL AND executed = 0 AND indexed = 0
-            ) as tx_unindexed
-          LEFT JOIN trust
-          ON trust.txid = tx_unindexed.txid
-          WHERE trust.value = 1 OR tx_unindexed.has_code = 0
-        ) as trusted_unindexed
+      SELECT txid
+      FROM tx_executable
       EXCEPT
         SELECT deps.down as txid
-        FROM deps
-        LEFT JOIN tx
-        ON deps.up = tx.txid
-        WHERE tx.indexed = 0
+        FROM (SELECT txid FROM tx WHERE indexed = 0) as tx_unindexed
+        INNER JOIN deps
+        ON deps.up = tx_unindexed.txid
+    `)
+    // this.getDownstreamToExecuteStmt = this.db.prepare(`
+    // `)
+    this.getRemainingToExecuteStmt = this.db.prepare(`
+      WITH RECURSIVE
+      remaining(txid) AS (
+        SELECT txid
+        FROM tx_executable
+        EXCEPT
+        SELECT txid
+        FROM tx_upstream_unindexed
+
+        UNION
+
+        SELECT deps.down AS txid
+        FROM deps, remaining
+        INNER JOIN tx_executable
+        ON tx_executable.txid = deps.down
+        WHERE deps.up = remaining.txid
+      )
+      SELECT COUNT(txid) FROM remaining;
     `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
@@ -239,8 +274,8 @@ class Database {
     return this.getTransactionsAboveHeightStmt.all().map(row => row.txid)
   }
 
-  getUndownloadedTransactions () {
-    return this.getUndownloadedTransactionsStmt.all().map(row => row.txid)
+  getTransactionsToDownload () {
+    return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0])
   }
 
   getDownloadedCount () {
@@ -264,7 +299,15 @@ class Database {
   }
 
   getTransactionsToExecute () {
-    return this.getTransactionsToExecuteStmt.all().map(row => row.txid)
+    return this.getTransactionsToExecuteStmt.raw(true).all().map(row => row[0])
+  }
+
+  getDownstreamToExecute (txid) {
+    return this.getDownstreamToExecute.iterate(() => {})// all().map(row => row.txid)
+  }
+
+  getRemainingToExecute () {
+    return this.getRemainingToExecuteStmt.raw(true).get()[0]
   }
 
   // --------------------------------------------------------------------------
