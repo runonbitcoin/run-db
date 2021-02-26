@@ -120,7 +120,7 @@ class Database {
         (
           SELECT COUNT(*) > 0 as unindexed
           FROM tx
-          WHERE txid = ? AND hex IS NOT NULL AND indexed = 0
+          WHERE txid = ? AND hex IS NOT NULL AND executed = 0 AND indexed = 0
         ),
         (
           SELECT COUNT(*) > 0 as trusted
@@ -147,7 +147,7 @@ class Database {
             (
               SELECT txid, has_code
               FROM tx
-              WHERE hex IS NOT NULL AND indexed = 0
+              WHERE hex IS NOT NULL AND executed = 0 AND indexed = 0
             ) as tx_unindexed
           LEFT JOIN trust
           ON trust.txid = tx_unindexed.txid
