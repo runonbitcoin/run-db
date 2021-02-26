@@ -174,12 +174,12 @@ class Database {
   }
 
   isTransactionDownloaded (txid) {
-    return !!this.isTransactionDownloadedStmt.get(txid)
+    return !!this.isTransactionDownloadedStmt.raw(true).get(txid)
   }
 
   getTransactionHex (txid) {
-    const row = this.getTransactionHexStmt.get(txid)
-    return row && row.hex
+    const row = this.getTransactionHexStmt.raw(true).get(txid)
+    return row && row[0]
   }
 
   deleteTransaction (txid) {
@@ -187,7 +187,7 @@ class Database {
   }
 
   getTransactionsAboveHeight (height) {
-    return this.getTransactionsAboveHeightStmt.all().map(row => row.txid)
+    return this.getTransactionsAboveHeightStmt.raw(true).all().map(row => row[0])
   }
 
   getTransactionsToDownload () {
@@ -235,8 +235,8 @@ class Database {
   }
 
   getJigState (location) {
-    const row = this.getJigStateStmt.get(location)
-    return row && row.state
+    const row = this.getJigStateStmt.raw(true).get(location)
+    return row && row[0]
   }
 
   deleteJigStates (txid) {
@@ -252,8 +252,8 @@ class Database {
   }
 
   getBerryState (location) {
-    const row = this.getBerryStateStmt.get(location)
-    return row && row.state
+    const row = this.getBerryStateStmt.raw(true).get(location)
+    return row && row[0]
   }
 
   deleteBerryStates (txid) {
@@ -265,8 +265,8 @@ class Database {
   // --------------------------------------------------------------------------
 
   isTrusted (txid) {
-    const row = this.isTrustedStmt.get(txid)
-    return !!(row && row.value)
+    const row = this.isTrustedStmt.raw(true).get(txid)
+    return !!(row && row[0])
   }
 
   setTrusted (txid, value) {
@@ -274,7 +274,7 @@ class Database {
   }
 
   getTrustlist () {
-    return this.getTrustlistStmt.all().map(row => row.txid)
+    return this.getTrustlistStmt.raw(true).all().map(row => row[0])
   }
 
   // --------------------------------------------------------------------------
@@ -282,13 +282,13 @@ class Database {
   // --------------------------------------------------------------------------
 
   getHeight () {
-    const row = this.getHeightStmt.all()[0]
-    return row && row.height
+    const row = this.getHeightStmt.raw(true).all()[0]
+    return row && row[0]
   }
 
   getHash () {
-    const row = this.getHashStmt.all()[0]
-    return row && row.hash
+    const row = this.getHashStmt.raw(true).all()[0]
+    return row && row[0]
   }
 
   setHeightAndHash (height, hash) {
