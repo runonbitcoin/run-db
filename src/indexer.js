@@ -58,14 +58,22 @@ class Indexer {
 
   async start () {
     this.database.open()
+
     this.executor.start()
+
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
-    if (this.api.connect) await this.api.connect(height, this.network)
-    this.database.forEachTransaction((txid, hex, executable, executed, indexed) => {
+    if (this.api.connect) {
+      await this.api.connect(height, this.network)
+    }
+
+    const txids = this.database.getTransactionIds()
+    for (const txid of txids) {
+      const { hex, executed } = this.database.getTransaction(txid).executed
       this.graph.add(txid, executed)
       if (!hex) this.downloader.add(txid)
-    })
+    }
+
     this.crawler.start(height, hash)
   }
 
@@ -149,7 +157,10 @@ class Indexer {
       const next = queue.shift()
       if (this.graph.untrusted.has(next)) untrusted.add(next)
       const tx = this.graph.transactions.get(next)
-      if (tx) { Array.from(tx.upstream).forEach(txid => queue.push(txid)) }
+      if (tx) {
+        const upstreamUnexecuted = this.getUpstreamUnexecuted(txid)
+        upstreamUnexecuted.forEach(txid => queue.push(txid))
+      }
     }
     return Array.from(untrusted)
   }

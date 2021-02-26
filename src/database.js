@@ -103,9 +103,9 @@ class Database {
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
-    this.getTransactionsStmt = this.db.prepare('SELECT txid, hex, executable, executed, indexed FROM tx')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
+    this.getTransactionIdsStmt = this.db.prepare('SELECT txid FROM tx')
     this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
@@ -171,10 +171,8 @@ class Database {
     this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
   }
 
-  forEachTransaction (callback) {
-    for (const row of this.getTransactionsStmt.iterate()) {
-      callback(row.txid, row.hex, !!row.executable, !!row.executed, !!row.indexed)
-    }
+  getTransactionIds () {
+    return this.getTransactionIdsStmt.all().map(row => row.txid)
   }
 
   getTransactionsAboveHeight (height) {
@@ -210,11 +208,23 @@ class Database {
   }
 
   getUpstream (txid) {
-    this.getUpstreamStmt.all(txid).map(row => row.txid)
+    return this.getUpstreamStmt.all(txid).map(row => row.txid)
   }
 
   getDownstream (txid) {
-    this.getDownstreamStmt.all(txid).map(row => row.txid)
+    return this.getDownstreamStmt.all(txid).map(row => row.txid)
+  }
+
+  getUpstreamUnexecuted (txid) {
+    // TODO: Use a join query
+    const upstream = this.getUpstream()
+    return upstream.filter(uptxid => !this.getTransaction(uptxid).executed)
+  }
+
+  getDownstreamUnexecuted (txid) {
+    // TODO: Use a join query
+    const downstream = this.getDownstream()
+    return downstream.filter(downtxid => !this.getTransaction(downtxid).executed)
   }
 
   // --------------------------------------------------------------------------
