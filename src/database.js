@@ -45,6 +45,10 @@ class Database {
     ).run()
 
     this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS tx_indexed_index ON tx (indexed)'
+    ).run()
+
+    this.db.prepare(
       'CREATE INDEX IF NOT EXISTS tx_executable_code_index ON tx (executable, has_code)'
     ).run()
 
