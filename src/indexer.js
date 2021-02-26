@@ -77,26 +77,7 @@ class Indexer {
 
   add (txid, hex = null, height = null) {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
-    this.logger.info('Adding', txid)
-
-    this.database.transaction(() => {
-      this.database.addNewTransaction(txid, height)
-      if (height) this.database.setTransactionHeight(txid, height)
-      if (hex) this._parseAndStoreTransaction(txid, hex)
-    })
-
-    /*
-    if (!this.database.hasTransaction(txid)) {
-      this.graph.add(txid, false)
-    }
-
-    if (hex) {
-      this.graph.onDownloaded(txid)
-    } else {
-      const { hex } = this.database.getTransaction(txid)
-      if (!hex) this.downloader.add(txid)
-    }
-    */
+    this._addTransactions([txid], [hex], height)
   }
 
   remove (txid) {
@@ -120,7 +101,7 @@ class Indexer {
   }
 
   tx (txid) {
-    return this.database.getTransaction(txid).hex
+    return this.database.getTransactionHex(txid)
   }
 
   trust (txid) {
@@ -160,16 +141,14 @@ class Indexer {
   }
 
   status () {
-    /*
     return {
       height: this.crawler.height,
       hash: this.crawler.hash,
       indexed: this.database.getIndexedCount(),
       downloaded: this.database.getDownloadedCount(),
-      downloading: this.downloader.remaining(),
-      executing: this.graph.remaining.size
+      downloading: this.downloader.remaining()
+      // executing: this.graph.remaining.size
     }
-    */
   }
 
   _onDownloadTransaction (txid, hex) {
@@ -187,7 +166,7 @@ class Indexer {
 
   _onReadyToExecute (txid) {
     /*
-    const hex = this.database.getTransaction(txid).hex
+    const hex = this.database.getTransactionHex(txid)
     this.executor.execute(txid, hex)
     */
   }
@@ -202,12 +181,12 @@ class Indexer {
       if (state) return JSON.parse(state)
     }
     if (key.startsWith('tx://')) {
-      return this.database.getTransaction(key.slice('tx://'.length)).hex
+      return this.database.getTransactionHex(key.slice('tx://'.length))
     }
   }
 
   _onBlockchainFetch (txid) {
-    const hex = this.database.getTransaction(txid).hex
+    const hex = this.database.getTransactionHex(txid)
     if (!hex) throw new Error(`Not found: ${txid}`)
     return hex
   }
@@ -271,7 +250,7 @@ class Indexer {
       this.database.addNewTransaction(deptxid, null)
       this.graph.addDep(txid, deptxid)
 
-      const { hex } = this.database.getTransaction(deptxid)
+      const hex = this.database.getTransactionHex(deptxid)
 
       if (hex) {
         this.graph.onDownloaded(txid)
@@ -288,28 +267,8 @@ class Indexer {
 
   _onCrawlBlockTransactions (height, hash, txids, txhexs) {
     this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
-
-    this.database.transaction(() => {
-      for (let i = 0; i < txids.length; i++) {
-        const txid = txids[i]
-        const hex = txhexs && txhexs[i]
-
-        this.logger.info('Adding', txid)
-        this.database.addNewTransaction(txid, height)
-        if (hex) this.database.setTransactionHex(txid, hex)
-        this.database.setTransactionHeight(txid, height)
-      }
-
-      this.database.setHeightAndHash(height, hash)
-    })
-
-    for (let i = 0; i < txids.length; i++) {
-      const txid = txids[i]
-      const hex = txhexs && txhexs[i]
-      const downloaded = this.database.getTransaction(txid).hex
-      if (!downloaded && !hex) this.downloader.add(txid)
-    }
-
+    this._addTransactions(txids, txhexs, height)
+    this.database.setHeightAndHash(height, hash)
     if (this.onBlock) this.onBlock(height)
   }
 
@@ -343,7 +302,32 @@ class Indexer {
     // this.add(txid, hex, null)
   }
 
+  _addTransactions (txids, txhexs, height) {
+    this.database.transaction(() => {
+      txids
+        .filter(txid => !this.database.hasTransaction(txid))
+        .forEach((txid, i) => {
+          this.logger.info('Adding', txid)
+          this.database.addNewTransaction(txid, height)
+          if (height) this.database.setTransactionHeight(txid, height)
+        })
+
+      txids
+        .filter(txid => !this.database.isTransactionDownloaded(txid))
+        .forEach((txid, i) => {
+          const hex = txhexs && txhexs[i]
+          if (hex) {
+            this._parseAndStoreTransaction(txid, hex)
+          } else {
+            this.downloader.add(txid)
+          }
+        })
+    })
+  }
+
   _parseAndStoreTransaction (txid, hex) {
+    if (this.database.isTransactionDownloaded(txid)) return
+
     let metadata = null
     let bsvtx = null
 
@@ -389,6 +373,8 @@ class Indexer {
       this.database.setTransactionHasCode(txid, hasCode)
       deps.forEach(deptxid => this.database.addDep(deptxid, txid))
     })
+
+    deps.forEach(txid => this.add(txid))
   }
 }
 

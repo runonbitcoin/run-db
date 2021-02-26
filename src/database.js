@@ -103,13 +103,14 @@ class Database {
     this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
+    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
+    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND hex IS NOT NULL')
+    this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
+    this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getUndownloadedTransactionsStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
-    this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
-    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
-    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
+    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
+    this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
     this.getUpstreamStmt = this.db.prepare('SELECT up AS txid FROM deps WHERE down = ?')
@@ -172,28 +173,29 @@ class Database {
     this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
   }
 
-  getTransactionsAboveHeight (height) {
-    return this.getTransactionsAboveHeightStmt.all().map(row => row.txid)
-  }
-
-  getUndownloadedTransactions () {
-    return this.getUndownloadedTransactionsStmt.all().map(row => row.txid)
-  }
-
   hasTransaction (txid) {
     return !!this.hasTransactionStmt.get(txid)
+  }
+
+  isTransactionDownloaded (txid) {
+    return !!this.isTransactionDownloadedStmt.get(txid)
+  }
+
+  getTransactionHex (txid) {
+    const row = this.getTransactionHexStmt.get(txid)
+    return row && row.hex
   }
 
   deleteTransaction (txid) {
     this.deleteTransactionStmt.run(txid)
   }
 
-  getTransaction (txid) {
-    const row = this.getTransactionStmt.get(txid)
-    // TODO: Revisit once all txns are in the database
-    return row
-      ? { hex: row.hex, executed: !!row.executed, indexed: !!row.indexed }
-      : { hex: null, executed: false, indexed: false }
+  getTransactionsAboveHeight (height) {
+    return this.getTransactionsAboveHeightStmt.all().map(row => row.txid)
+  }
+
+  getUndownloadedTransactions () {
+    return this.getUndownloadedTransactionsStmt.all().map(row => row.txid)
   }
 
   getDownloadedCount () {
@@ -223,13 +225,13 @@ class Database {
   getUpstreamUnexecuted (txid) {
     // TODO: Use a join query
     const upstream = this.getUpstream()
-    return upstream.filter(uptxid => !this.getTransaction(uptxid).executed)
+    return upstream.filter(uptxid => !this.isTransactionExecuted(uptxid))
   }
 
   getDownstreamUnexecuted (txid) {
     // TODO: Use a join query
     const downstream = this.getDownstream()
-    return downstream.filter(downtxid => !this.getTransaction(downtxid).executed)
+    return downstream.filter(downtxid => !this.isTransactionExecuted(downtxid))
   }
 
   // --------------------------------------------------------------------------
