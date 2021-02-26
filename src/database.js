@@ -145,9 +145,14 @@ class Database {
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
+    this.getDownstream = this.db.prepare(`
+      SELECT down as txid
+      FROM deps
+      WHERE up = ?
+    `)
     this.isReadyToExecuteStmt = this.db.prepare(`
       SELECT
-        unindexed AND trusted AND no_upstream as ready
+        unindexed AND trusted AND no_upstream_unindexed as ready
       FROM
         (
           SELECT COUNT(*) > 0 as unindexed
@@ -162,7 +167,7 @@ class Database {
           WHERE trust.value = 1 OR tx.has_code = 0
         ),
         (
-          SELECT COUNT(*) = 0 AS no_upstream
+          SELECT COUNT(*) = 0 AS no_upstream_unindexed
           FROM tx
           INNER JOIN deps
           ON deps.up = tx.txid
@@ -178,16 +183,12 @@ class Database {
         INNER JOIN deps
         ON deps.up = tx_unindexed.txid
     `)
-    // this.getDownstreamToExecuteStmt = this.db.prepare(`
-    // `)
     this.getRemainingToExecuteStmt = this.db.prepare(`
       WITH RECURSIVE
       remaining(txid) AS (
-        SELECT txid
-        FROM tx_executable
+        SELECT txid FROM tx_executable
         EXCEPT
-        SELECT txid
-        FROM tx_upstream_unindexed
+        SELECT txid FROM tx_upstream_unindexed
 
         UNION
 
@@ -298,16 +299,16 @@ class Database {
     this.addDepStmt.run(up, down)
   }
 
+  getDownstream (txid) {
+    return this.getDownstreamStmt.raw(true).all().map(row => row[0])
+  }
+
   isReadyToExecute (txid) {
     return !!this.isReadyToExecuteStmt.get(txid, txid, txid).ready
   }
 
   getTransactionsToExecute () {
     return this.getTransactionsToExecuteStmt.raw(true).all().map(row => row[0])
-  }
-
-  getDownstreamToExecute (txid) {
-    return this.getDownstreamToExecute.iterate(() => {})// all().map(row => row.txid)
   }
 
   getRemainingToExecute () {
