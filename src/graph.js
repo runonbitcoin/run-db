@@ -42,21 +42,6 @@ class Graph {
     this._parse(txid)
     this._updateRemaining(txid)
     this._checkIfReadyToExecute(txid)
-
-    const { executable } = this.database.getTransaction(txid)
-    const downstreamUnexecuted = this.database.getDownstreamUnexecuted(txid)
-
-    if (!executable && downstreamUnexecuted.length) {
-      for (const downtxid of downstreamUnexecuted) {
-        this._updateRemaining(downtxid)
-        this._checkIfReadyToExecute(downtxid)
-      }
-    }
-  }
-
-  onExecutable (txid) {
-    this._updateRemaining(txid)
-    this._checkIfReadyToExecute(txid)
   }
 
   onExecuted (txid) {
@@ -100,8 +85,7 @@ class Graph {
   }
 
   _parse (txid) {
-    const { hex, executed, executable } = this.database.getTransaction(txid)
-    if (!executable) return
+    const { hex, executed } = this.database.getTransaction(txid)
     if (executed) return
     if (!hex) return
 
@@ -148,9 +132,8 @@ class Graph {
   }
 
   _isRemaining (txid) {
-    const { hex, executable, executed } = this.database.getTransaction(txid)
+    const { hex, executed } = this.database.getTransaction(txid)
     if (!hex) return
-    if (!executable) return false
     if (executed) return false
     if (this.untrusted.has(txid)) return false
     const upstreamUnexecuted = this.database.getUpstreamUnexecuted(txid)
@@ -181,10 +164,9 @@ class Graph {
   }
 
   _checkIfReadyToExecute (txid, tx) {
-    const { hex, executable, executed } = this.database.getTransaction(txid)
+    const { hex, executed } = this.database.getTransaction(txid)
     if (executed) return
     if (!hex) return
-    if (!executable) return
     const upstreamUnexecuted = this.database.getUpstreamUnexecuted(txid)
     if (upstreamUnexecuted.length) return
     if (this.untrusted.has(txid)) return

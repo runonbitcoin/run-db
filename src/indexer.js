@@ -58,22 +58,11 @@ class Indexer {
 
   async start () {
     this.database.open()
-
     this.executor.start()
-
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
-    if (this.api.connect) {
-      await this.api.connect(height, this.network)
-    }
-
-    const txids = this.database.getTransactionIds()
-    for (const txid of txids) {
-      const { hex, executed } = this.database.getTransaction(txid)
-      this.graph.add(txid, executed)
-      if (!hex) this.downloader.add(txid)
-    }
-
+    if (this.api.connect) await this.api.connect(height, this.network)
+    this.database.getUndownloadedTransactions().forEach(txid => this.downloader.add(txid))
     this.crawler.start(height, hash)
   }
 
@@ -89,16 +78,14 @@ class Indexer {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Adding', txid)
 
+    /*
     this.database.transaction(() => {
       this.database.addNewTransaction(txid, height)
       if (hex) this.database.setTransactionHex(txid, hex)
       if (height) this.database.setTransactionHeight(txid, height)
-      this.database.setTransactionExecutable(txid, true)
     })
 
-    if (this.database.hasTransaction(txid)) {
-      this.graph.onExecutable(txid)
-    } else {
+    if (!this.database.hasTransaction(txid)) {
       this.graph.add(txid, false)
     }
 
@@ -108,9 +95,11 @@ class Indexer {
       const { hex } = this.database.getTransaction(txid)
       if (!hex) this.downloader.add(txid)
     }
+    */
   }
 
   remove (txid) {
+    /*
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Removing', txid)
     this.downloader.remove(txid)
@@ -118,6 +107,7 @@ class Indexer {
     this.database.deleteTransaction(txid)
     this.database.deleteJigStates(txid)
     this.database.deleteBerryStates(txid)
+    */
   }
 
   jig (location) {
@@ -133,20 +123,25 @@ class Indexer {
   }
 
   trust (txid) {
+    /*
     txid = txid.trim().toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Trusting', txid)
     this.database.setTrusted(txid, 1)
     this.graph.onTrust(txid)
+    */
   }
 
   untrust (txid) {
+    /*
     this.logger.info('Untrusting', txid)
     this.graph.onUntrust(txid)
     this.database.setTrusted(txid, false)
+    */
   }
 
   untrusted (txid) {
+    /*
     if (!txid) {
       return Array.from(this.graph.untrusted)
     }
@@ -160,9 +155,11 @@ class Indexer {
       upstreamUnexecuted.forEach(txid => queue.push(txid))
     }
     return Array.from(untrusted)
+    */
   }
 
   status () {
+    /*
     return {
       height: this.crawler.height,
       hash: this.crawler.hash,
@@ -171,12 +168,15 @@ class Indexer {
       downloading: this.downloader.remaining(),
       executing: this.graph.remaining.size
     }
+    */
   }
 
   _onDownloadTransaction (txid, hex) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
     this.database.setTransactionHex(txid, hex)
+    /*
     this.graph.onDownloaded(txid)
+    */
   }
 
   _onFailedToDownloadTransaction (txid, e) {
@@ -188,16 +188,20 @@ class Indexer {
   }
 
   _onReadyToExecute (txid) {
+    /*
     const hex = this.database.getTransaction(txid).hex
     this.executor.execute(txid, hex)
+    */
   }
 
   _onFailToParse (txid) {
+    /*
     this.logger.error('Failed to parse', txid)
     this.database.transaction(() => {
       this.database.setTransactionExecuted(txid, true)
       this.database.setTransactionIndexed(txid, false)
     })
+    */
   }
 
   _onCacheGet (key) {
@@ -225,6 +229,7 @@ class Indexer {
   }
 
   _onIndexed (txid, state) {
+    /*
     // Check that the tx is still in our graph (ie. not re-orged)
     if (!this.database.hasTransaction(txid)) return
 
@@ -252,9 +257,11 @@ class Indexer {
     this.graph.onExecuted(txid)
 
     if (this.onIndex) this.onIndex(txid)
+    */
   }
 
   _onExecuteFailed (txid, e) {
+    /*
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
 
     this.database.transaction(() => {
@@ -265,9 +272,11 @@ class Indexer {
     this.graph.onExecuted(txid)
 
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
+    */
   }
 
   _onMissingDeps (txid, deptxids) {
+    /*
     this.logger.debug(`Discovered ${deptxids.size} dep(s) for ${txid}`)
 
     for (const deptxid of deptxids) {
@@ -282,6 +291,7 @@ class Indexer {
         this.downloader.add(deptxid)
       }
     }
+    */
   }
 
   _onCrawlError (e) {
@@ -297,23 +307,19 @@ class Indexer {
         const hex = txhexs && txhexs[i]
 
         this.logger.info('Adding', txid)
-
         this.database.addNewTransaction(txid, height)
         if (hex) this.database.setTransactionHex(txid, hex)
         this.database.setTransactionHeight(txid, height)
-        this.database.setTransactionExecutable(txid, true)
       }
 
       this.database.setHeightAndHash(height, hash)
     })
-
+    /*
     for (let i = 0; i < txids.length; i++) {
       const txid = txids[i]
       const hex = txhexs && txhexs[i]
 
-      if (this.database.hasTransaction(txid)) {
-        this.graph.onExecutable(txid)
-      } else {
+      if (!this.database.hasTransaction(txid)) {
         this.graph.add(txid, false)
       }
 
@@ -326,9 +332,11 @@ class Indexer {
     }
 
     if (this.onBlock) this.onBlock(height)
+    */
   }
 
   _onRewindBlocks (newHeight) {
+    /*
     this.logger.info(`Rewinding to block ${newHeight}`)
 
     const txids = this.database.getTransactionsAboveHeight(newHeight)
@@ -350,10 +358,11 @@ class Indexer {
     })
 
     if (this.onReorg) this.onReorg(newHeight)
+    */
   }
 
   _onMempoolTransaction (txid, hex) {
-    this.add(txid, hex, null)
+    // this.add(txid, hex, null)
   }
 }
 

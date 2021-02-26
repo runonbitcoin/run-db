@@ -32,7 +32,6 @@ class Database {
         txid TEXT NOT NULL,
         hex TEXT,
         height INTEGER,
-        executable INTEGER,
         executed INTEGER,
         indexed INTEGER
       )`
@@ -97,17 +96,16 @@ class Database {
       }
     })
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executable, executed, indexed) VALUES (?, null, ?, 0, 0, 0)')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executed, indexed) VALUES (?, null, ?, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare('UPDATE tx SET height = ? WHERE txid = ?')
-    this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
-    this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
-    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.getTransactionIdsStmt = this.db.prepare('SELECT txid FROM tx')
+    this.getUndownloadedTransactionsStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
     this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
+    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
+    this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
 
@@ -160,10 +158,6 @@ class Database {
     this.setTransactionHeightStmt.run(height, txid)
   }
 
-  setTransactionExecutable (txid, executable) {
-    this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
-  }
-
   setTransactionExecuted (txid, executed) {
     this.setTransactionExecutedStmt.run(executed ? 1 : 0, txid)
   }
@@ -172,16 +166,16 @@ class Database {
     this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
   }
 
+  getTransactionsAboveHeight (height) {
+    return this.getTransactionsAboveHeightStmt.all().map(row => row.txid)
+  }
+
+  getUndownloadedTransactions () {
+    return this.getUndownloadedTransactionsStmt.all().map(row => row.txid)
+  }
+
   hasTransaction (txid) {
     return !!this.hasTransactionStmt.get(txid)
-  }
-
-  getTransactionIds () {
-    return this.getTransactionIdsStmt.all().map(row => row.txid)
-  }
-
-  getTransactionsAboveHeight (height) {
-    return this.getTransactionsAboveHeightStmt.all(height).map(row => row.txid)
   }
 
   deleteTransaction (txid) {
@@ -192,8 +186,8 @@ class Database {
     const row = this.getTransactionStmt.get(txid)
     // TODO: Revisit once all txns are in the database
     return row
-      ? { hex: row.hex, executable: !!row.executable, executed: !!row.executed, indexed: !!row.indexed }
-      : { hex: null, executable: false, executed: false, indexed: false }
+      ? { hex: row.hex, executed: !!row.executed, indexed: !!row.indexed }
+      : { hex: null, executed: false, indexed: false }
   }
 
   getDownloadedCount () {
