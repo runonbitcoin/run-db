@@ -105,6 +105,7 @@ class Database {
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
+    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionIdsStmt = this.db.prepare('SELECT txid FROM tx')
     this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
@@ -169,6 +170,10 @@ class Database {
 
   setTransactionIndexed (txid, indexed) {
     this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
+  }
+
+  hasTransaction (txid) {
+    return !!this.hasTransactionStmt.get(txid)
   }
 
   getTransactionIds () {

@@ -96,7 +96,7 @@ class Indexer {
       this.database.setTransactionExecutable(txid, true)
     })
 
-    if (this.graph.has(txid)) {
+    if (this.database.hasTransaction(txid)) {
       this.graph.onExecutable(txid)
     } else {
       this.graph.add(txid, false)
@@ -228,7 +228,7 @@ class Indexer {
 
   _onIndexed (txid, state) {
     // Check that the tx is still in our graph (ie. not re-orged)
-    if (!this.graph.has(txid)) return
+    if (!this.database.hasTransaction(txid)) return
 
     this.logger.info(`Executed ${txid} (${this.graph.remaining.size - 1} remaining)`)
 
@@ -313,7 +313,7 @@ class Indexer {
       const txid = txids[i]
       const hex = txhexs && txhexs[i]
 
-      if (this.graph.has(txid)) {
+      if (this.database.hasTransaction(txid)) {
         this.graph.onExecutable(txid)
       } else {
         this.graph.add(txid, false)

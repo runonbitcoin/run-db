@@ -23,10 +23,6 @@ class Graph {
     this.onFailedToParse = null
   }
 
-  has (txid) {
-    return this.transactions.has(txid)
-  }
-
   add (txid, executed) {
     this.transactions.add(txid)
 
