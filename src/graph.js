@@ -20,7 +20,6 @@ class Graph {
     this.remaining = new Set()
 
     this.onReadyToExecute = null
-    this.onFailedToParse = null
   }
 
   add (txid, executed) {
@@ -82,53 +81,6 @@ class Graph {
   onUntrust (txid) {
     this.untrusted.add(txid)
     this._updateRemaining(txid)
-  }
-
-  _parse (txid) {
-    const { hex, executed } = this.database.getTransaction(txid)
-    if (executed) return
-    if (!hex) return
-
-    let metadata = null
-    let bsvtx = null
-
-    try {
-      metadata = Run.util.metadata(hex)
-      bsvtx = new bsv.Transaction(hex)
-    } catch (e) {
-      if (this.onFailedToParse) this.onFailedToParse(txid)
-      this.onExecuted(txid)
-      return
-    }
-
-    const deps = new Set()
-
-    for (let i = 0; i < metadata.in; i++) {
-      const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
-      deps.add(prevtxid)
-    }
-
-    for (const ref of metadata.ref) {
-      if (ref.startsWith('native://')) {
-        continue
-      } else if (ref.includes('berry')) {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      } else {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      }
-    }
-
-    this.database.transaction(() => {
-      for (const deptxid of deps) {
-        this.addDep(deptxid, txid)
-      }
-    })
-
-    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
-    const untrusted = hasCode && !this.database.isTrusted(txid)
-    if (untrusted) this.untrusted.add(txid)
   }
 
   _isRemaining (txid) {

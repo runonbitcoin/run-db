@@ -4,6 +4,8 @@
  * Indexer API
  */
 
+const Run = require('run-sdk')
+const bsv = require('bsv')
 const Database = require('./database')
 const Downloader = require('./downloader')
 const Executor = require('./executor')
@@ -43,7 +45,6 @@ class Indexer {
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
     this.graph.onReadyToExecute = this._onReadyToExecute.bind(this)
-    this.graph.onFailToParse = this._onFailToParse.bind(this)
     this.executor.onCacheGet = this._onCacheGet.bind(this)
     this.executor.onBlockchainFetch = this._onBlockchainFetch.bind(this)
     this.executor.onTrustlistGet = this._onTrustlistGet.bind(this)
@@ -78,13 +79,13 @@ class Indexer {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Adding', txid)
 
-    /*
     this.database.transaction(() => {
       this.database.addNewTransaction(txid, height)
-      if (hex) this.database.setTransactionHex(txid, hex)
       if (height) this.database.setTransactionHeight(txid, height)
+      if (hex) this._parseAndStoreTransaction(txid, hex)
     })
 
+    /*
     if (!this.database.hasTransaction(txid)) {
       this.graph.add(txid, false)
     }
@@ -173,10 +174,7 @@ class Indexer {
 
   _onDownloadTransaction (txid, hex) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
-    this.database.setTransactionHex(txid, hex)
-    /*
-    this.graph.onDownloaded(txid)
-    */
+    this._parseAndStoreTransaction(txid, hex)
   }
 
   _onFailedToDownloadTransaction (txid, e) {
@@ -191,16 +189,6 @@ class Indexer {
     /*
     const hex = this.database.getTransaction(txid).hex
     this.executor.execute(txid, hex)
-    */
-  }
-
-  _onFailToParse (txid) {
-    /*
-    this.logger.error('Failed to parse', txid)
-    this.database.transaction(() => {
-      this.database.setTransactionExecuted(txid, true)
-      this.database.setTransactionIndexed(txid, false)
-    })
     */
   }
 
@@ -314,25 +302,15 @@ class Indexer {
 
       this.database.setHeightAndHash(height, hash)
     })
-    /*
+
     for (let i = 0; i < txids.length; i++) {
       const txid = txids[i]
       const hex = txhexs && txhexs[i]
-
-      if (!this.database.hasTransaction(txid)) {
-        this.graph.add(txid, false)
-      }
-
-      if (hex) {
-        this.graph.onDownloaded(txid)
-      } else {
-        const { hex } = this.database.getTransaction(txid)
-        if (!hex) this.downloader.add(txid)
-      }
+      const downloaded = this.database.getTransaction(txid).hex
+      if (!downloaded && !hex) this.downloader.add(txid)
     }
 
     if (this.onBlock) this.onBlock(height)
-    */
   }
 
   _onRewindBlocks (newHeight) {
@@ -363,6 +341,54 @@ class Indexer {
 
   _onMempoolTransaction (txid, hex) {
     // this.add(txid, hex, null)
+  }
+
+  _parseAndStoreTransaction (txid, hex) {
+    let metadata = null
+    let bsvtx = null
+
+    try {
+      metadata = Run.util.metadata(hex)
+      bsvtx = new bsv.Transaction(hex)
+    } catch (e) {
+      this.logger.error(`Failed to parse ${txid}: ${e}`)
+
+      this.database.transaction(() => {
+        this.database.setTransactionHex(txid, hex)
+        this.database.setTransactionExecuted(txid, true)
+        this.database.setTransactionIndexed(txid, false)
+      })
+
+      // this.onExecuted(txid)
+      return
+    }
+
+    const deps = new Set()
+
+    for (let i = 0; i < metadata.in; i++) {
+      const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
+      deps.add(prevtxid)
+    }
+
+    for (const ref of metadata.ref) {
+      if (ref.startsWith('native://')) {
+        continue
+      } else if (ref.includes('berry')) {
+        const reftxid = ref.slice(0, 64)
+        deps.add(reftxid)
+      } else {
+        const reftxid = ref.slice(0, 64)
+        deps.add(reftxid)
+      }
+    }
+
+    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+
+    this.database.transaction(() => {
+      this.database.setTransactionHex(txid, hex)
+      this.database.setTransactionHasCode(txid, hasCode)
+      deps.forEach(deptxid => this.database.addDep(deptxid, txid))
+    })
   }
 }
 

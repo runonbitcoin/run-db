@@ -32,6 +32,7 @@ class Database {
         txid TEXT NOT NULL,
         hex TEXT,
         height INTEGER,
+        has_code INTEGER,
         executed INTEGER,
         indexed INTEGER
       )`
@@ -96,9 +97,10 @@ class Database {
       }
     })
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, executed, indexed) VALUES (?, null, ?, 0, 0)')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, has_code, executed, indexed) VALUES (?, null, ?, 0, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare('UPDATE tx SET height = ? WHERE txid = ?')
+    this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
@@ -156,6 +158,10 @@ class Database {
 
   setTransactionHeight (txid, height) {
     this.setTransactionHeightStmt.run(height, txid)
+  }
+
+  setTransactionHasCode (txid, hasCode) {
+    this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
   }
 
   setTransactionExecuted (txid, executed) {
