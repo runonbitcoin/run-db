@@ -43,6 +43,22 @@ class Database {
     ).run()
 
     this.db.prepare(
+      `CREATE TABLE IF NOT EXISTS deps (
+        up TEXT NOT NULL,
+        down TEXT NOT NULL,
+        UNIQUE(up, down)
+      )`
+    ).run()
+
+    this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)'
+    ).run()
+
+    this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS deps_down_index ON deps (up)'
+    ).run()
+
+    this.db.prepare(
       `CREATE TABLE IF NOT EXISTS jig (
         location TEXT NOT NULL PRIMARY KEY,
         state TEXT NOT NULL
@@ -93,6 +109,10 @@ class Database {
     this.getTransactionStmt = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
+
+    this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
+    this.getUpstreamStmt = this.db.prepare('SELECT up AS txid FROM deps WHERE down = ?')
+    this.getDownstreamStmt = this.db.prepare('SELECT down AS txid FROM deps WHERE up = ?')
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
@@ -179,6 +199,22 @@ class Database {
 
   getIndexedCount () {
     return this.getTransactionsIndexedCountStmt.get().count
+  }
+
+  // --------------------------------------------------------------------------
+  // deps
+  // --------------------------------------------------------------------------
+
+  addDep (up, down) {
+    this.addDepStmt.run(up, down)
+  }
+
+  getUpstream (txid) {
+    this.getUpstreamStmt.all(txid).map(row => row.txid)
+  }
+
+  getDownstream (txid) {
+    this.getDownstreamStmt.all(txid).map(row => row.txid)
   }
 
   // --------------------------------------------------------------------------
