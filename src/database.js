@@ -8,6 +8,20 @@ const Sqlite3Database = require('better-sqlite3')
 const { DEFAULT_TRUSTLIST } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
+// Tx
+// ------------------------------------------------------------------------------------------------
+
+class Tx {
+  constructor (txid, hasCode) {
+    this.txid = txid
+    this.hasCode = hasCode
+    this.pendingExecution = false
+    this.upstream = new Set()
+    this.downstream = new Set()
+  }
+}
+
+// ------------------------------------------------------------------------------------------------
 // Database
 // ------------------------------------------------------------------------------------------------
 
@@ -16,7 +30,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = null
-    this.unexecutedTransactions = null
+    this.unexectedTransactions = null
     this.numPendingExecution = null
     this.onReadyToExecute = null
   }
@@ -102,8 +116,9 @@ class Database {
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND hex IS NOT NULL')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
+    this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
+    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND hex IS NOT NULL')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
@@ -128,6 +143,61 @@ class Database {
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
+
+    this.getUnexecutedStmt = this.db.prepare(
+      'SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0'
+    )
+
+    this.getUnexecutedDepsStmt = this.db.prepare(`
+      SELECT deps.up as up, deps.down as down FROM deps
+      JOIN tx ON tx.txid = deps.down
+      WHERE tx.executable = 1 AND tx.executed = 0
+    `)
+
+    this.unexecutedTransactions = new Map()
+    const readyToExecute = new Set()
+
+    const unexecuted = this.getUnexecutedStmt.raw(true).all()
+    for (const [txid, hasCode] of unexecuted) {
+      const tx = new Tx(txid, !!hasCode)
+      this.unexecutedTransactions.set(txid, tx)
+      if (!hasCode || this.trustlist.has(txid)) {
+        readyToExecute.add(tx)
+      }
+    }
+
+    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
+      const uptx = this.unexecutedTransactions.get(up)
+      if (!uptx) continue
+      const downtx = this.unexecutedTransactions.get(down)
+      downtx.upstream.add(uptx)
+      uptx.downstream.add(downtx)
+      readyToExecute.delete(downtx)
+    }
+
+    this.numPendingExecution = readyToExecute.size
+    const queue = []
+    for (const tx of readyToExecute) {
+      tx.pendingExecution = true
+      queue.push(tx)
+    }
+
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (downtx.pendingExecution) continue
+
+        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
+
+        if (downtx.pendingExecution) {
+          this.numPendingExecution++
+          queue.push(downtx)
+        }
+      }
+    }
+
+    for (const tx of readyToExecute) this.onReadyToExecute(tx.txid)
   }
 
   close () {
@@ -148,6 +218,11 @@ class Database {
 
   addNewTransaction (txid, height = null) {
     this.addNewTransactionStmt.run(txid, height)
+
+    if (!this.unexecutedTransactions.has(txid)) {
+      const tx = new Tx(txid, null)
+      this.unexecutedTransactions.set(txid, tx)
+    }
   }
 
   updateTransactionHeight (txid, height) {
@@ -159,9 +234,36 @@ class Database {
       this.setTransactionHexStmt.run(hex, txid)
       this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
-      if (deps) deps.forEach(deptxid => this.addDep(deptxid, txid))
+
       const tx = this.unexecutedTransactions.get(txid)
-      if (tx && !tx.upstream.size) this.onReadyToExecute(tx.txid)
+      tx.hasCode = hasCode
+
+      for (const deptxid of deps) {
+        this.addNewTransaction(deptxid)
+        this.addDepStmt.run(deptxid, txid)
+
+        const deptx = this.unexecutedTransactions.get(deptxid)
+        if (deptx) {
+          deptx.downstream.add(tx)
+          tx.upstream.add(deptx)
+          continue
+        }
+
+        if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
+          this.setTransactionExecutableStmt.run(0, txid)
+          this.setTransactionExecutedStmt.run(1, txid)
+          this.unexectedTransactions.delete(txid)
+          return
+        }
+      }
+
+      tx.pendingExecution = executable && (!tx.hasCode || this.trustlist.has(txid)) &&
+        Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+
+      if (tx.pendingExecution) {
+        this.numPendingExecution++
+        if (!tx.upstream.size) this.onReadyToExecute(tx.txid)
+      }
     })
   }
 
@@ -232,19 +334,28 @@ class Database {
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
   getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
+  getRemainingToExecute () { return this.numPendingExecution }
 
   // --------------------------------------------------------------------------
   // deps
   // --------------------------------------------------------------------------
 
-  addDep (up, down) {
-    this.addDepStmt.run(up, down)
-    const uptx = this.unexecutedTransactions.get(up)
-    if (!uptx) return
-    const downtx = this.unexecutedTransactions.get(down)
-    if (!downtx) return
-    uptx.downstream.add(downtx)
-    downtx.upstream.add(uptx)
+  addMissingDep (txid, deptxids) {
+    const tx = this.unexecutedTransactions.get(txid)
+
+    this.database.transaction(() => {
+      deptxids.forEach(deptxid => {
+        this._addNewTransaction(deptxid)
+
+        const deptx = this.unexecutedTransactions.get(deptxid)
+        if (!deptx) return
+
+        deptx.downstream.add(tx)
+        tx.upstream.add(deptx)
+
+        this.addDepStmt.run(deptxid, txid)
+      })
+    })
   }
 
   // --------------------------------------------------------------------------
@@ -285,6 +396,8 @@ class Database {
     this.setTrustedStmt.run(txid, value ? 1 : 0)
     if (value) {
       this.trustlist.add(txid)
+
+      // TODO: Execute
     } else {
       this.trustlist.delete(txid)
     }
@@ -310,83 +423,6 @@ class Database {
 
   setHeightAndHash (height, hash) {
     this.setHeightAndHashStmt.run(height, hash)
-  }
-
-  // --------------------------------------------------------------------------
-  // execution graph
-  // --------------------------------------------------------------------------
-
-  buildExecutionGraph () {
-    this.getUnexecutedStmt = this.db.prepare(
-      'SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0'
-    )
-
-    this.getUnexecutedDepsStmt = this.db.prepare(`
-      SELECT deps.up as up, deps.down as down FROM deps
-      JOIN tx ON tx.txid = deps.down
-      WHERE tx.executable = 1 AND tx.executed = 0
-    `)
-
-    class Tx {
-      constructor (txid, hasCode) {
-        this.txid = txid
-        this.hasCode = hasCode
-        this.pendingExecution = false
-        this.upstream = new Set()
-        this.downstream = new Set()
-      }
-    }
-
-    this.unexecutedTransactions = new Map()
-    const readyToExecute = new Set()
-
-    const unexecuted = this.getUnexecutedStmt.raw(true).all()
-    for (const [txid, hasCode] of unexecuted) {
-      const tx = new Tx(txid, !!hasCode)
-      this.unexecutedTransactions.set(txid, tx)
-      if (!hasCode || this.trustlist.has(txid)) {
-        readyToExecute.add(tx)
-      }
-    }
-
-    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = this.unexecutedTransactions.get(up)
-      if (!uptx) continue
-      const downtx = this.unexecutedTransactions.get(down)
-      downtx.upstream.add(uptx)
-      uptx.downstream.add(downtx)
-      readyToExecute.delete(downtx)
-    }
-
-    this.numPendingExecution = readyToExecute.size
-    const queue = []
-    for (const tx of readyToExecute) {
-      tx.pendingExecution = true
-      queue.push(tx)
-    }
-
-    while (queue.length) {
-      const tx = queue.shift()
-      for (const downtx of tx.downstream) {
-        if (downtx.pendingExecution) continue
-
-        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
-
-        if (downtx.pendingExecution) {
-          this.numPendingExecution++
-          queue.push(downtx)
-        }
-      }
-    }
-
-    console.log(this.numPendingExecution)
-
-    for (const tx of readyToExecute) this.onReadyToExecute(tx.txid)
-  }
-
-  getRemainingToExecute () {
-    return this.numPendingExecution
   }
 }
 

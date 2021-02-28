@@ -53,13 +53,12 @@ class Indexer {
   }
 
   async start () {
-    this.database.open()
     this.executor.start()
+    this.database.open()
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
-    this.database.buildExecutionGraph()
     this.crawler.start(height, hash)
   }
 
@@ -179,12 +178,8 @@ class Indexer {
 
   _onMissingDeps (txid, deptxids) {
     this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
-    this._addTransactions(deptxids, null, null)
-    this.database.transaction(() => {
-      deptxids.forEach(deptxid => {
-        this.database.addDep(deptxid, txid)
-      })
-    })
+    this.database.addMissingDeps(txid, deptxids)
+    deptxids.forEach(deptxid => this.downloader.add(deptxid))
   }
 
   _onCrawlError (e) {
@@ -286,11 +281,13 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    for (const txid of deps) {
-      this.add(txid)
-    }
-
     this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
+
+    for (const deptxid of deps) {
+      if (!this.database.isTransactionDownloaded(deptxid)) {
+        this.downloader.add(deptxid)
+      }
+    }
   }
 }
 
