@@ -16,6 +16,8 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = null
+    this.unexecutedTransactions = null
+    this.numPendingExecution = null
     this.onReadyToExecute = null
   }
 
@@ -158,53 +160,56 @@ class Database {
       this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
       if (deps) deps.forEach(deptxid => this.addDep(deptxid, txid))
-      const tx = this.executionGraph.get(txid)
+      const tx = this.unexecutedTransactions.get(txid)
       if (tx && !tx.upstream.size) this.onReadyToExecute(tx.txid)
     })
   }
 
   storeExecutedTransaction (txid, state) {
-    const tx = this.executionGraph.get(txid)
+    const tx = this.unexecutedTransactions.get(txid)
     if (!tx) return
 
     this.transaction(() => {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(1, txid)
 
-      if (state) {
-        for (const key of Object.keys(state)) {
-          if (key.startsWith('jig://')) {
-            const location = key.slice('jig://'.length)
-            this.setJigStateStmt.run(location, JSON.stringify(state[key]))
-            continue
-          }
+      for (const key of Object.keys(state)) {
+        if (key.startsWith('jig://')) {
+          const location = key.slice('jig://'.length)
+          this.setJigStateStmt.run(location, JSON.stringify(state[key]))
+          continue
+        }
 
-          if (key.startsWith('berry://')) {
-            const location = key.slice('berry://'.length)
-            this.setBerryStateStmt.run(location, JSON.stringify(state[key]))
-            continue
-          }
+        if (key.startsWith('berry://')) {
+          const location = key.slice('berry://'.length)
+          this.setBerryStateStmt.run(location, JSON.stringify(state[key]))
+          continue
         }
       }
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
-      this.executionGraph.delete(txid)
-      this.remaining--
+      this.unexecutedTransactions.delete(txid)
+      this.numPendingExecution--
 
       for (const downtx of tx.downstream) {
-        if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
+        if (!downtx.upstream.size && (!downtx.hasCode || this.trustlist.has(downtx.txid))) {
+          this.onReadyToExecute(downtx.txid)
+        }
       }
     })
   }
 
   storeFailedTransaction (txid) {
-    const tx = this.executionGraph.get(txid)
+    const tx = this.unexecutedTransactions.get(txid)
     if (!tx) return
 
     this.transaction(() => {
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
+
+      this.unexecutedTransactions.delete(txid)
+      this.numPendingExecution--
 
       for (const downtx of tx.downstream) {
         this.storeFailedTransaction(downtx.txid)
@@ -234,9 +239,9 @@ class Database {
 
   addDep (up, down) {
     this.addDepStmt.run(up, down)
-    const uptx = this.executionGraph.get(up)
+    const uptx = this.unexecutedTransactions.get(up)
     if (!uptx) return
-    const downtx = this.executionGraph.get(down)
+    const downtx = this.unexecutedTransactions.get(down)
     if (!downtx) return
     uptx.downstream.add(downtx)
     downtx.upstream.add(uptx)
@@ -326,55 +331,62 @@ class Database {
       constructor (txid, hasCode) {
         this.txid = txid
         this.hasCode = hasCode
-        this.remaining = false
+        this.pendingExecution = false
         this.upstream = new Set()
         this.downstream = new Set()
       }
     }
 
-    this.executionGraph = new Map()
+    this.unexecutedTransactions = new Map()
     const readyToExecute = new Set()
 
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, hasCode] of unexecuted) {
       const tx = new Tx(txid, !!hasCode)
-      this.executionGraph.set(txid, tx)
-      if (!hasCode || this.trustlist.has(txid)) readyToExecute.add(tx)
+      this.unexecutedTransactions.set(txid, tx)
+      if (!hasCode || this.trustlist.has(txid)) {
+        readyToExecute.add(tx)
+      }
     }
 
     for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = this.executionGraph.get(up)
+      const uptx = this.unexecutedTransactions.get(up)
       if (!uptx) continue
-      const downtx = this.executionGraph.get(down)
+      const downtx = this.unexecutedTransactions.get(down)
       downtx.upstream.add(uptx)
       uptx.downstream.add(downtx)
       readyToExecute.delete(downtx)
     }
 
-    this.remaining = readyToExecute.size
+    this.numPendingExecution = readyToExecute.size
     const queue = []
     for (const tx of readyToExecute) {
-      tx.remaining = true
+      tx.pendingExecution = true
       queue.push(tx)
     }
 
     while (queue.length) {
       const tx = queue.shift()
       for (const downtx of tx.downstream) {
-        if (downtx.remaining) continue
-        downtx.remaining = Array.from(downtx.upstream).every(uptx => uptx.remaining)
-        if (downtx.remaining) {
-          this.remaining++
+        if (downtx.pendingExecution) continue
+
+        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
+
+        if (downtx.pendingExecution) {
+          this.numPendingExecution++
           queue.push(downtx)
         }
       }
     }
 
+    console.log(this.numPendingExecution)
+
     for (const tx of readyToExecute) this.onReadyToExecute(tx.txid)
   }
 
   getRemainingToExecute () {
-    return this.remaining
+    return this.numPendingExecution
   }
 }
 
