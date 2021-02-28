@@ -40,8 +40,7 @@ class Executor {
 
       const cacheGet = (txid) => this._onCacheGet(txid)
       const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
-      const trustlistGet = () => this._onTrustlistGet()
-      const handlers = { cacheGet, blockchainFetch, trustlistGet }
+      const handlers = { cacheGet, blockchainFetch }
 
       Bus.listen(worker, handlers)
 
@@ -69,9 +68,10 @@ class Executor {
     worker.missingDeps = new Set()
 
     const hex = this.database.getTransactionHex(txid)
+    const trustlist = this.database.getTrustlist()
 
     try {
-      const state = await Bus.sendRequest(worker, 'execute', txid, hex)
+      const state = await Bus.sendRequest(worker, 'execute', txid, hex, trustlist)
 
       if (this.onIndexed) this.onIndexed(txid, state)
     } catch (e) {

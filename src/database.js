@@ -163,13 +163,13 @@ class Database {
     })
   }
 
-  storeTransactionExecutionResult (txid, indexed, state) {
+  storeExecutedTransaction (txid, state) {
     const tx = this.executionGraph.get(txid)
     if (!tx) return
 
     this.transaction(() => {
       this.setTransactionExecutedStmt.run(1, txid)
-      this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
+      this.setTransactionIndexedStmt.run(1, txid)
 
       if (state) {
         for (const key of Object.keys(state)) {
@@ -191,14 +191,23 @@ class Database {
       this.executionGraph.delete(txid)
       this.remaining--
 
-      if (indexed) {
-        for (const downtx of tx.downstream) {
-          if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
-        }
-      } else {
-        for (const downtx of tx.downstream) {
-          this.storeTransactionExecutionResult(downtx.txid, false)
-        }
+      for (const downtx of tx.downstream) {
+        if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
+      }
+    })
+  }
+
+  storeFailedTransaction (txid) {
+    const tx = this.executionGraph.get(txid)
+    if (!tx) return
+
+    this.transaction(() => {
+      this.setTransactionExecutableStmt.run(0, txid)
+      this.setTransactionExecutedStmt.run(1, txid)
+      this.setTransactionIndexedStmt.run(0, txid)
+
+      for (const downtx of tx.downstream) {
+        this.storeFailedTransaction(downtx.txid)
       }
     })
   }

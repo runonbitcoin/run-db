@@ -52,9 +52,7 @@ class Blockchain {
 
 const run = new Run()
 
-async function execute (txid, hex) {
-  const trustlist = await Bus.sendRequest(parentPort, 'trustlistGet')
-
+async function execute (txid, hex, trustlist) {
   run.cache = new Cache()
   run.blockchain = new Blockchain(txid)
   run.timeout = 300000

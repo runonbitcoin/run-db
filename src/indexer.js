@@ -163,13 +163,13 @@ class Indexer {
   _onIndexed (txid, state) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`)
-    this.database.storeTransactionExecutionResult(txid, true, state)
+    this.database.storeExecutedTransaction(txid, state)
     if (this.onIndex) this.onIndex(txid)
   }
 
   _onExecuteFailed (txid, e) {
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-    this.database.storeTransactionExecutionResult(txid, false, null)
+    this.database.storeFailedTransaction(txid)
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
