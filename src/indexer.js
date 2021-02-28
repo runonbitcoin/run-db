@@ -316,14 +316,14 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
+    deps.forEach(txid => this.add(txid))
+
     this.database.transaction(() => {
       this.database.setTransactionHex(txid, hex)
       this.database.setTransactionHasCode(txid, hasCode)
       this.database.setTransactionExecutable(txid, true)
       deps.forEach(deptxid => this.database.addDep(deptxid, txid))
     })
-
-    deps.forEach(txid => this.add(txid))
   }
 }
 
