@@ -125,6 +125,8 @@ class Database {
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
+
+    this.buildExecutionGraph()
   }
 
   close () {
@@ -209,65 +211,6 @@ class Database {
     this.addDepStmt.run(up, down)
   }
 
-  getDownstream (txid) {
-    return []
-  }
-
-  isReadyToExecute (txid) {
-    return false
-  }
-
-  getTransactionsToExecute () {
-    // setIndexed = 0
-    // If a transaction fails, then all downstream transactions fail
-
-    this.getUnexecutedStmt = this.db.prepare('SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0')
-    this.getUnexecutedDepsStmt = this.db.prepare(`
-      SELECT deps.up as up, deps.down as down FROM deps
-      JOIN tx ON tx.txid = deps.down
-      WHERE tx.executable = 1 AND tx.executed = 0
-    `)
-
-    class Tx {
-      constructor (hasCode) {
-        this.hasCode = hasCode
-        this.upstream = new Set()
-        this.downstream = new Set()
-      }
-    }
-
-    const start = new Date()
-
-    const transactions = new Map() // txid -> Tx
-    const ready = new Set()
-
-    const unexecuted = this.getUnexecutedStmt.raw(true).all()
-    for (const [txid, hasCode] of unexecuted) {
-      const tx = new Tx(!!hasCode)
-      transactions.set(txid, tx)
-      ready.add(txid)
-    }
-
-    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = transactions.get(up)
-      if (!uptx) continue
-      const downtx = transactions.get(down)
-      downtx.upstream.add(uptx)
-      uptx.downstream.add(downtx)
-      ready.delete(down)
-    }
-
-    console.log(new Date() - start)
-    console.log(transactions.size)
-    console.log(ready.size)
-
-    return []
-  }
-
-  getRemainingToExecute () {
-    return 0
-  }
-
   // --------------------------------------------------------------------------
   // jig
   // --------------------------------------------------------------------------
@@ -340,6 +283,89 @@ class Database {
   setHeightAndHash (height, hash) {
     this.setHeightAndHashStmt.run(height, hash)
   }
+
+  // --------------------------------------------------------------------------
+  // execution graph
+  // --------------------------------------------------------------------------
+
+  buildExecutionGraph () {
+    this.getUnexecutedStmt = this.db.prepare(
+      'SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0'
+    )
+
+    this.getUnexecutedDepsStmt = this.db.prepare(`
+      SELECT deps.up as up, deps.down as down FROM deps
+      JOIN tx ON tx.txid = deps.down
+      WHERE tx.executable = 1 AND tx.executed = 0
+    `)
+
+    class Tx {
+      constructor (txid, hasCode) {
+        this.txid = txid
+        this.hasCode = hasCode
+        this.remaining = false
+        this.upstream = new Set()
+        this.downstream = new Set()
+      }
+    }
+
+    const transactions = new Map() // txid -> Tx
+    const readyToExecute = new Set() // Tx
+
+    const unexecuted = this.getUnexecutedStmt.raw(true).all()
+    for (const [txid, hasCode] of unexecuted) {
+      const tx = new Tx(txid, !!hasCode)
+      transactions.set(txid, tx)
+      if (!hasCode || this.trustlist.has(txid)) readyToExecute.add(tx)
+    }
+
+    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
+      const uptx = transactions.get(up)
+      if (!uptx) continue
+      const downtx = transactions.get(down)
+      downtx.upstream.add(uptx)
+      uptx.downstream.add(downtx)
+      readyToExecute.delete(downtx)
+    }
+
+    // Calculate remaining set = all transactions not untrusted and their children
+
+    let remaining = readyToExecute.size
+    const queue = []
+    for (const tx of readyToExecute) {
+      tx.remaining = true
+      queue.push(tx)
+    }
+
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (downtx.remaining) continue
+        downtx.remaining = Array.from(downtx.upstream).every(uptx => uptx.remaining)
+        if (downtx.remaining) {
+          remaining++
+          queue.push(downtx)
+        }
+      }
+    }
+
+    this.initialExecutionSet = Array.from(readyToExecute).map(tx => tx.txid)
+    this.transactions = transactions
+    this.remaining = remaining
+
+    return []
+  }
+
+  getInitialExecutionSet () {
+    return this.initialExecutionSet
+  }
+
+  getRemainingToExecute () {
+    return this.remaining
+  }
+
+  // setIndexed = 0
+  // If a transaction fails, then all downstream transactions fail
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -58,8 +58,8 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
-    // this.database.getTransactionsToExecute().forEach(txid => this.executor.execute(txid))
-    this.database.getTransactionsToExecute().forEach(txid => console.log(txid))
+    // this.database.getInitialExecutionSet().forEach(txid => this.executor.execute(txid))
+    this.database.getInitialExecutionSet().forEach(txid => console.log(txid))
     this.crawler.start(height, hash)
   }
 
