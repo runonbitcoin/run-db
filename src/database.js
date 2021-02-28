@@ -16,6 +16,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = null
+    this.onReadyToExecute = null
   }
 
   open () {
@@ -125,8 +126,6 @@ class Database {
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
-
-    this.buildExecutionGraph()
   }
 
   close () {
@@ -149,33 +148,59 @@ class Database {
     this.addNewTransactionStmt.run(txid, height)
   }
 
+  updateTransactionHeight (txid, height) {
+    this.setTransactionHeightStmt.run(height, txid)
+  }
+
   storeParsedTransaction (txid, hex, executable, hasCode, deps) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
       this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
-      deps.forEach(deptxid => this.addDep(deptxid, txid))
+      if (deps) deps.forEach(deptxid => this.addDep(deptxid, txid))
+      const tx = this.executionGraph.get(txid)
+      if (tx && !tx.upstream.size) this.onReadyToExecute(tx.txid)
     })
   }
 
-  setTransactionHeight (txid, height) {
-    this.setTransactionHeightStmt.run(height, txid)
-  }
+  storeTransactionExecutionResult (txid, indexed, state) {
+    const tx = this.executionGraph.get(txid)
+    if (!tx) return
 
-  setTransactionExecuted (txid, executed) {
-    this.setTransactionExecutedStmt.run(executed ? 1 : 0, txid)
-  }
+    this.transaction(() => {
+      this.setTransactionExecutedStmt.run(1, txid)
+      this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
 
-  setTransactionIndexed (txid, indexed) {
-    this.setTransactionIndexedStmt.run(indexed ? 1 : 0, txid)
-  }
+      if (state) {
+        for (const key of Object.keys(state)) {
+          if (key.startsWith('jig://')) {
+            const location = key.slice('jig://'.length)
+            this.setJigStateStmt.run(location, JSON.stringify(state[key]))
+            continue
+          }
 
-  hasTransaction (txid) {
-    return !!this.hasTransactionStmt.get(txid)
-  }
+          if (key.startsWith('berry://')) {
+            const location = key.slice('berry://'.length)
+            this.setBerryStateStmt.run(location, JSON.stringify(state[key]))
+            continue
+          }
+        }
+      }
 
-  isTransactionDownloaded (txid) {
-    return !!this.isTransactionDownloadedStmt.raw(true).get(txid)
+      for (const downtx of tx.downstream) downtx.upstream.delete(tx)
+      this.executionGraph.delete(txid)
+      this.remaining--
+
+      if (indexed) {
+        for (const downtx of tx.downstream) {
+          if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
+        }
+      } else {
+        for (const downtx of tx.downstream) {
+          this.storeTransactionExecutionResult(downtx.txid, false)
+        }
+      }
+    })
   }
 
   getTransactionHex (txid) {
@@ -187,21 +212,12 @@ class Database {
     this.deleteTransactionStmt.run(txid)
   }
 
-  getTransactionsAboveHeight (height) {
-    return this.getTransactionsAboveHeightStmt.raw(true).all().map(row => row[0])
-  }
-
-  getTransactionsToDownload () {
-    return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0])
-  }
-
-  getDownloadedCount () {
-    return this.getTransactionsDownloadedCountStmt.get().count
-  }
-
-  getIndexedCount () {
-    return this.getTransactionsIndexedCountStmt.get().count
-  }
+  hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
+  isTransactionDownloaded (txid) { return !!this.isTransactionDownloadedStmt.raw(true).get(txid) }
+  getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all().map(row => row[0]) }
+  getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
+  getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
+  getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
 
   // --------------------------------------------------------------------------
   // deps
@@ -209,15 +225,17 @@ class Database {
 
   addDep (up, down) {
     this.addDepStmt.run(up, down)
+    const uptx = this.executionGraph.get(up)
+    if (!uptx) return
+    const downtx = this.executionGraph.get(down)
+    if (!downtx) return
+    uptx.downstream.add(downtx)
+    downtx.upstream.add(uptx)
   }
 
   // --------------------------------------------------------------------------
   // jig
   // --------------------------------------------------------------------------
-
-  setJigState (location, state) {
-    this.setJigStateStmt.run(location, state)
-  }
 
   getJigState (location) {
     const row = this.getJigStateStmt.raw(true).get(location)
@@ -231,10 +249,6 @@ class Database {
   // --------------------------------------------------------------------------
   // berry
   // --------------------------------------------------------------------------
-
-  setBerryState (location, state) {
-    this.setBerryStateStmt.run(location, state)
-  }
 
   getBerryState (location) {
     const row = this.getBerryStateStmt.raw(true).get(location)
@@ -309,28 +323,26 @@ class Database {
       }
     }
 
-    const transactions = new Map() // txid -> Tx
-    const readyToExecute = new Set() // Tx
+    this.executionGraph = new Map()
+    const readyToExecute = new Set()
 
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, hasCode] of unexecuted) {
       const tx = new Tx(txid, !!hasCode)
-      transactions.set(txid, tx)
+      this.executionGraph.set(txid, tx)
       if (!hasCode || this.trustlist.has(txid)) readyToExecute.add(tx)
     }
 
     for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = transactions.get(up)
+      const uptx = this.executionGraph.get(up)
       if (!uptx) continue
-      const downtx = transactions.get(down)
+      const downtx = this.executionGraph.get(down)
       downtx.upstream.add(uptx)
       uptx.downstream.add(downtx)
       readyToExecute.delete(downtx)
     }
 
-    // Calculate remaining set = all transactions not untrusted and their children
-
-    let remaining = readyToExecute.size
+    this.remaining = readyToExecute.size
     const queue = []
     for (const tx of readyToExecute) {
       tx.remaining = true
@@ -343,29 +355,18 @@ class Database {
         if (downtx.remaining) continue
         downtx.remaining = Array.from(downtx.upstream).every(uptx => uptx.remaining)
         if (downtx.remaining) {
-          remaining++
+          this.remaining++
           queue.push(downtx)
         }
       }
     }
 
-    this.initialExecutionSet = Array.from(readyToExecute).map(tx => tx.txid)
-    this.transactions = transactions
-    this.remaining = remaining
-
-    return []
-  }
-
-  getInitialExecutionSet () {
-    return this.initialExecutionSet
+    for (const tx of readyToExecute) this.onReadyToExecute(tx.txid)
   }
 
   getRemainingToExecute () {
     return this.remaining
   }
-
-  // setIndexed = 0
-  // If a transaction fails, then all downstream transactions fail
 }
 
 // ------------------------------------------------------------------------------------------------

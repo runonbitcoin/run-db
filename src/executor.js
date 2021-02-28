@@ -40,7 +40,7 @@ class Executor {
 
       const cacheGet = (txid) => this._onCacheGet(txid)
       const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
-      const trustlistGet = (txid) => this._onTrustlistGet(txid)
+      const trustlistGet = () => this._onTrustlistGet()
       const handlers = { cacheGet, blockchainFetch, trustlistGet }
 
       Bus.listen(worker, handlers)
@@ -76,7 +76,7 @@ class Executor {
       if (this.onIndexed) this.onIndexed(txid, state)
     } catch (e) {
       if (worker.missingDeps.size) {
-        if (this.onMissingDeps) this.onMissingDeps(txid, worker.missingDeps)
+        if (this.onMissingDeps) this.onMissingDeps(txid, Array.from(worker.missingDeps))
       } else {
         if (this.onExecuteFailed) this.onExecuteFailed(txid, e)
       }

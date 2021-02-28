@@ -39,6 +39,7 @@ class Indexer {
     this.executor = new Executor(network, numParallelExecutes, this.database)
     this.crawler = new Crawler(api)
 
+    this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
@@ -58,8 +59,7 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
-    // this.database.getInitialExecutionSet().forEach(txid => this.executor.execute(txid))
-    this.database.getInitialExecutionSet().forEach(txid => console.log(txid))
+    this.database.buildExecutionGraph()
     this.crawler.start(height, hash)
   }
 
@@ -161,55 +161,28 @@ class Indexer {
   }
 
   _onIndexed (txid, state) {
-    // Check that the tx is still in our graph (ie. not re-orged)
-    if (!this.database.hasTransaction(txid)) return
-
+    if (!this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`)
-
-    this.database.transaction(() => {
-      this.database.setTransactionExecuted(txid, true)
-      this.database.setTransactionIndexed(txid, true)
-
-      for (const key of Object.keys(state)) {
-        if (key.startsWith('jig://')) {
-          const location = key.slice('jig://'.length)
-          this.database.setJigState(location, JSON.stringify(state[key]))
-          continue
-        }
-
-        if (key.startsWith('berry://')) {
-          const location = key.slice('berry://'.length)
-          this.database.setBerryState(location, JSON.stringify(state[key]))
-          continue
-        }
-      }
-    })
-
-    // const downstream = this.database.getDownstream(txid)
-    // .filter(txid => this.database.isReadyToExecute(txid))
-    // .forEach(txid => this.executor.execute(txid))
-
+    this.database.storeTransactionExecutionResult(txid, true, state)
     if (this.onIndex) this.onIndex(txid)
   }
 
   _onExecuteFailed (txid, e) {
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-
-    this.database.transaction(() => {
-      this.database.setTransactionExecuted(txid, true)
-      this.database.setTransactionIndexed(txid, false)
-    })
-
+    this.database.storeTransactionExecutionResult(txid, false, null)
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
-  _onMissingDeps (txid, deptxids) {
-    this.logger.debug(`Discovered ${deptxids.size} dep(s) for ${txid}`)
+  _onReadyToExecute (txid) {
+    this.executor.execute(txid)
+  }
 
+  _onMissingDeps (txid, deptxids) {
+    this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
+    this._addTransactions(deptxids, null, null)
     this.database.transaction(() => {
       deptxids.forEach(deptxid => {
         this.database.addDep(deptxid, txid)
-        this.add(deptxid)
       })
     })
   }
@@ -262,7 +235,7 @@ class Indexer {
         .forEach((txid, i) => {
           this.logger.info('Adding', txid)
           this.database.addNewTransaction(txid, height)
-          if (height) this.database.setTransactionHeight(txid, height)
+          if (height) this.database.updateTransactionHeight(txid, height)
         })
 
       txids
@@ -313,7 +286,9 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    deps.forEach(txid => this.add(txid))
+    for (const txid of deps) {
+      this.add(txid)
+    }
 
     this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
   }
