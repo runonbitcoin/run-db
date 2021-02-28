@@ -290,8 +290,6 @@ class Indexer {
       this.database.transaction(() => {
         this.database.setTransactionHex(txid, hex)
         this.database.setTransactionExecutable(txid, false)
-        this.database.setTransactionExecuted(txid, true)
-        this.database.setTransactionIndexed(txid, false)
       })
 
       return
