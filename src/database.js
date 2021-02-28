@@ -1,7 +1,7 @@
 /**
  * database.js
  *
- * Database manager
+ * Layer between the database and the application
  */
 
 const Sqlite3Database = require('better-sqlite3')
@@ -15,6 +15,7 @@ class Database {
   constructor (path) {
     this.path = path
     this.db = null
+    this.trustlist = null
   }
 
   open () {
@@ -116,13 +117,14 @@ class Database {
     this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
     this.deleteBerryStatesStmt = this.db.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
 
-    this.isTrustedStmt = this.db.prepare('SELECT value FROM trust WHERE txid = ?')
     this.setTrustedStmt = this.db.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
     this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust WHERE value = 1')
 
     this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
+
+    this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
   }
 
   close () {
@@ -145,20 +147,17 @@ class Database {
     this.addNewTransactionStmt.run(txid, height)
   }
 
-  setTransactionHex (txid, hex) {
-    this.setTransactionHexStmt.run(hex, txid)
+  storeParsedTransaction (txid, hex, executable, hasCode, deps) {
+    this.transaction(() => {
+      this.setTransactionHexStmt.run(hex, txid)
+      this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
+      this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
+      deps.forEach(deptxid => this.addDep(deptxid, txid))
+    })
   }
 
   setTransactionHeight (txid, height) {
     this.setTransactionHeightStmt.run(height, txid)
-  }
-
-  setTransactionHasCode (txid, hasCode) {
-    this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
-  }
-
-  setTransactionExecutable (txid, executable) {
-    this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
   }
 
   setTransactionExecuted (txid, executed) {
@@ -219,6 +218,49 @@ class Database {
   }
 
   getTransactionsToExecute () {
+    // setIndexed = 0
+    // If a transaction fails, then all downstream transactions fail
+
+    this.getUnexecutedStmt = this.db.prepare('SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0')
+    this.getUnexecutedDepsStmt = this.db.prepare(`
+      SELECT deps.up as up, deps.down as down FROM deps
+      JOIN tx ON tx.txid = deps.down
+      WHERE tx.executable = 1 AND tx.executed = 0
+    `)
+
+    class Tx {
+      constructor (hasCode) {
+        this.hasCode = hasCode
+        this.upstream = new Set()
+        this.downstream = new Set()
+      }
+    }
+
+    const start = new Date()
+
+    const transactions = new Map() // txid -> Tx
+    const ready = new Set()
+
+    const unexecuted = this.getUnexecutedStmt.raw(true).all()
+    for (const [txid, hasCode] of unexecuted) {
+      const tx = new Tx(!!hasCode)
+      transactions.set(txid, tx)
+      ready.add(txid)
+    }
+
+    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
+      const uptx = transactions.get(up)
+      if (!uptx) continue
+      const downtx = transactions.get(down)
+      downtx.upstream.add(uptx)
+      uptx.downstream.add(downtx)
+      ready.delete(down)
+    }
+
+    console.log(new Date() - start)
+    console.log(transactions.size)
+    console.log(ready.size)
+
     return []
   }
 
@@ -265,16 +307,20 @@ class Database {
   // --------------------------------------------------------------------------
 
   isTrusted (txid) {
-    const row = this.isTrustedStmt.raw(true).get(txid)
-    return !!(row && row[0])
+    return this.trustlist.has(txid)
   }
 
   setTrusted (txid, value) {
     this.setTrustedStmt.run(txid, value ? 1 : 0)
+    if (value) {
+      this.trustlist.add(txid)
+    } else {
+      this.trustlist.delete(txid)
+    }
   }
 
   getTrustlist () {
-    return this.getTrustlistStmt.raw(true).all().map(row => row[0])
+    return Array.from(this.trustlist)
   }
 
   // --------------------------------------------------------------------------

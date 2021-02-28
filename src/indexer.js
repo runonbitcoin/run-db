@@ -58,7 +58,8 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
-    this.database.getTransactionsToExecute().forEach(txid => this.executor.execute(txid))
+    // this.database.getTransactionsToExecute().forEach(txid => this.executor.execute(txid))
+    this.database.getTransactionsToExecute().forEach(txid => console.log(txid))
     this.crawler.start(height, hash)
   }
 
@@ -184,9 +185,9 @@ class Indexer {
       }
     })
 
-    const downstream = this.database.getDownstream(txid)
-      .filter(txid => this.database.isReadyToExecute(txid))
-      .forEach(txid => this.executor.execute(txid))
+    // const downstream = this.database.getDownstream(txid)
+    // .filter(txid => this.database.isReadyToExecute(txid))
+    // .forEach(txid => this.executor.execute(txid))
 
     if (this.onIndex) this.onIndex(txid)
   }
@@ -287,11 +288,7 @@ class Indexer {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.database.transaction(() => {
-        this.database.setTransactionHex(txid, hex)
-        this.database.setTransactionExecutable(txid, false)
-      })
-
+      this.database.storeParsedTransaction(txid, hex, false, false, [])
       return
     }
 
@@ -318,12 +315,7 @@ class Indexer {
 
     deps.forEach(txid => this.add(txid))
 
-    this.database.transaction(() => {
-      this.database.setTransactionHex(txid, hex)
-      this.database.setTransactionHasCode(txid, hasCode)
-      this.database.setTransactionExecutable(txid, true)
-      deps.forEach(deptxid => this.database.addDep(deptxid, txid))
-    })
+    this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
   }
 }
 
