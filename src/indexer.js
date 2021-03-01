@@ -66,8 +66,8 @@ class Indexer {
     this.crawler.stop()
     if (this.api.disconnect) await this.api.disconnect()
     this.downloader.stop()
-    this.database.close()
     await this.executor.stop()
+    this.database.close()
   }
 
   add (txid, hex = null, height = null) {
