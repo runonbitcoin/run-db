@@ -269,7 +269,7 @@ class Database {
         }
 
         if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
-          this.setTransactionFailed(txid)
+          this.setTransactionExecutionFailed(txid)
           return
         }
       }
@@ -335,22 +335,20 @@ class Database {
     })
   }
 
-  setTransactionFailed (txid, hex) {
+  setTransactionExecutionFailed (txid) {
     const tx = this.unexecutedTransactions.get(txid)
     if (!tx) return
 
     this.transaction(() => {
-      if (hex) this.setTransactionHexStmt(txid, hex)
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
 
       this.unexecutedTransactions.delete(txid)
       if (tx.pendingExecution) this.numPendingExecution--
-      tx.pendingExecution = false
 
       for (const downtx of tx.downstream) {
-        this.setTransactionFailed(downtx.txid)
+        this.setTransactionExecutionFailed(downtx.txid)
       }
     })
   }
@@ -362,6 +360,11 @@ class Database {
 
   deleteTransaction (txid) {
     this.deleteTransactionStmt.run(txid)
+    this.deleteJigStatesStmt.run(txid)
+    this.deleteBerryStatesStmt.run(txid)
+
+    // TODO: Remove from unexecuted
+    // Remove deps
   }
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
@@ -380,8 +383,23 @@ class Database {
     const tx = this.unexecutedTransactions.get(txid)
 
     this.transaction(() => {
+      if (tx.pendingExecution) {
+        this.numPendingExecution--
+        tx.pendingExecution = false
+        this._markNotPendingExecution([tx])
+      }
+
       for (const deptxid of deptxids) {
         this.addDep(tx, deptxid)
+      }
+
+      tx.pendingExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+        Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+
+      if (tx.pendingExecution) {
+        this.numPendingExecution++
+        this._markPendingExecution([tx])
+        if (!tx.upstream.size) this.onReadyToExecute(txid)
       }
     })
   }
@@ -394,11 +412,10 @@ class Database {
     if (deptx) {
       deptx.downstream.add(tx)
       tx.upstream.add(deptx)
-      return
-    }
-
-    if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
-      this.setTransactionFailed(tx.txid)
+    } else {
+      if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
+        this.setTransactionExecutionFailed(tx.txid)
+      }
     }
   }
 
@@ -411,10 +428,6 @@ class Database {
     return row && row[0]
   }
 
-  deleteJigStates (txid) {
-    this.deleteJigStatesStmt.run(txid)
-  }
-
   // --------------------------------------------------------------------------
   // berry
   // --------------------------------------------------------------------------
@@ -422,10 +435,6 @@ class Database {
   getBerryState (location) {
     const row = this.getBerryStateStmt.raw(true).get(location)
     return row && row[0]
-  }
-
-  deleteBerryStates (txid) {
-    this.deleteBerryStatesStmt.run(txid)
   }
 
   // --------------------------------------------------------------------------

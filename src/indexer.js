@@ -76,15 +76,10 @@ class Indexer {
   }
 
   remove (txid) {
-    /*
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
     this.logger.info('Removing', txid)
     this.downloader.remove(txid)
-    this.graph.remove(txid
     this.database.deleteTransaction(txid)
-    this.database.deleteJigStates(txid)
-    this.database.deleteBerryStates(txid)
-    */
   }
 
   jig (location) {
@@ -161,14 +156,14 @@ class Indexer {
 
   _onIndexed (txid, state) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`, this.database.unexecutedTransactions.size)
+    this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`)
     this.database.storeExecutedTransaction(txid, state)
     if (this.onIndex) this.onIndex(txid)
   }
 
   _onExecuteFailed (txid, e) {
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-    this.database.setTransactionFailed(txid)
+    this.database.setTransactionExecutionFailed(txid)
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
@@ -208,8 +203,6 @@ class Indexer {
     this.database.transaction(() => {
       txids.forEach(txid => {
         this.database.deleteTransaction(txid)
-        this.database.deleteJigStates(txid)
-        this.database.deleteBerryStates(txid)
       })
 
       this.database.setHeightAndHash(newHeight, null)
