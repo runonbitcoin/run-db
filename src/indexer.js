@@ -249,7 +249,7 @@ class Indexer {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.database.storeParsedTransaction(txid, hex, false, false, [])
+      this.database.storeParsedNonExecutableTransaction(txid, hex)
       return
     }
 
@@ -274,7 +274,7 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
+    this.database.storeParsedExecutableTransaction(txid, hex, hasCode, deps)
 
     for (const deptxid of deps) {
       if (!this.database.isTransactionDownloaded(deptxid)) {

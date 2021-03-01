@@ -248,13 +248,39 @@ class Database {
     this.setTransactionHeightStmt.run(height, txid)
   }
 
-  storeParsedTransaction (txid, hex, executable, hasCode, deps) {
+  // Non-executable might be berry data. We execute once we receive them.
+  storeParsedNonExecutableTransaction (txid, hex) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
-      this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
+      this.setTransactionExecutableStmt.run(0, txid)
+
+      const tx = this.unexecutedTransactions.get(txid)
+
+      this.unexecutedTransactions.delete(txid)
+
+      for (const downtx of tx.downstream) {
+        downtx.upstream.delete(tx)
+
+        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          !Array.from(downtx.upstream).some(uptx => !uptx.pendingExecution)
+
+        if (downtx.pendingExecution) {
+          this.numPendingExecution++
+          this._markPendingExecution([downtx])
+          this.onReadyToExecute(downtx.txid)
+        }
+      }
+    })
+  }
+
+  storeParsedExecutableTransaction (txid, hex, hasCode, deps) {
+    this.transaction(() => {
+      this.setTransactionHexStmt.run(hex, txid)
+      this.setTransactionExecutableStmt.run(1, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 
       const tx = this.unexecutedTransactions.get(txid)
+
       tx.hasCode = hasCode
 
       for (const deptxid of deps) {
@@ -272,15 +298,6 @@ class Database {
           this.setTransactionExecutionFailed(txid)
           return
         }
-      }
-
-      if (!executable) {
-        this.unexecutedTransactions.delete(txid)
-        for (const downtx of tx.downstream) {
-          downtx.upstream.delete(txid)
-          if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
-        }
-        return
       }
 
       tx.pendingExecution = (!hasCode || this.trustlist.has(txid)) &&
