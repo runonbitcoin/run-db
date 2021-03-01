@@ -147,13 +147,13 @@ class Database {
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
 
     this.getUnexecutedStmt = this.db.prepare(
-      'SELECT txid, has_code, hex IS NOT NULL AS downloaded FROM tx WHERE executed = 0 OR hex IS NULL'
+      'SELECT txid, hex IS NOT NULL AS downloaded, has_code FROM tx WHERE (executable = 1 AND executed = 0) OR hex IS NULL'
     )
 
     this.getUnexecutedDepsStmt = this.db.prepare(`
       SELECT deps.up as up, deps.down as down FROM deps
       JOIN tx ON tx.txid = deps.down
-      WHERE tx.executed = 0
+      WHERE tx.executable = 1 AND tx.executed = 0
     `)
 
     this.unexecutedTransactions = new Map()
@@ -198,9 +198,6 @@ class Database {
         }
       }
     }
-
-    console.log(Array.from(readyToExecute).map(tx => tx.txid))
-    // process.exit(1)
 
     for (const tx of readyToExecute) {
       this.onReadyToExecute(tx.txid)
