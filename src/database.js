@@ -14,7 +14,6 @@ const { DEFAULT_TRUSTLIST } = require('./config')
 class Tx {
   constructor (txid, downloaded, hasCode) {
     this.txid = txid
-    this.downloaded = downloaded
     this.hasCode = hasCode
     this.pendingExecution = false
     this.upstream = new Set()
@@ -31,7 +30,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = null
-    this.unexectedTransactions = null
+    this.unexecutedTransactions = null
     this.numPendingExecution = null
     this.onReadyToExecute = null
   }
@@ -178,26 +177,8 @@ class Database {
     }
 
     this.numPendingExecution = readyToExecute.size
-    const queue = []
-    for (const tx of readyToExecute) {
-      tx.pendingExecution = true
-      queue.push(tx)
-    }
-
-    while (queue.length) {
-      const tx = queue.shift()
-      for (const downtx of tx.downstream) {
-        if (downtx.pendingExecution) continue
-
-        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
-
-        if (downtx.pendingExecution) {
-          this.numPendingExecution++
-          queue.push(downtx)
-        }
-      }
-    }
+    readyToExecute.forEach(tx => { tx.pendingExecution = true })
+    this._markPendingExecution(readyToExecute)
 
     for (const tx of readyToExecute) {
       this.onReadyToExecute(tx.txid)
@@ -216,11 +197,44 @@ class Database {
     this.db.transaction(f)()
   }
 
+  _markPendingExecution (start) {
+    const queue = [...start]
+
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (downtx.pendingExecution) continue
+
+        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
+
+        if (downtx.pendingExecution) {
+          this.numPendingExecution++
+          queue.push(downtx)
+        }
+      }
+    }
+  }
+
+  _markNotPendingExecution (start) {
+    const queue = [...start]
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (downtx.pendingExecution) this.numPendingExecution--
+        downtx.pendingExecution = false
+        queue.push(downtx)
+      }
+    }
+  }
+
   // --------------------------------------------------------------------------
   // tx
   // --------------------------------------------------------------------------
 
   addNewTransaction (txid, height = null) {
+    if (this.hasTransaction(txid)) return
+
     this.addNewTransactionStmt.run(txid, height)
 
     if (!this.unexecutedTransactions.has(txid)) {
@@ -233,14 +247,13 @@ class Database {
     this.setTransactionHeightStmt.run(height, txid)
   }
 
-  storeParsedTransaction (txid, hex, executable, hasCode, deps) {
+  storeParsedTransaction (txid, hex, hasCode, deps) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
-      this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
+      this.setTransactionExecutableStmt.run(1, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 
       const tx = this.unexecutedTransactions.get(txid)
-      tx.downloaded = true
       tx.hasCode = hasCode
 
       for (const deptxid of deps) {
@@ -255,21 +268,24 @@ class Database {
         }
 
         if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
-          this.setTransactionExecutableStmt.run(0, txid)
-          this.setTransactionExecutedStmt.run(1, txid)
-          this.unexectedTransactions.delete(txid)
+          this.setTransactionFailed(txid)
           return
         }
       }
 
-      tx.pendingExecution = executable && (!tx.hasCode || this.trustlist.has(txid)) &&
-        Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+      tx.pendingExecution = (!hasCode || this.trustlist.has(txid)) &&
+        !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
 
       if (tx.pendingExecution) {
         this.numPendingExecution++
+
+        this._markPendingExecution([tx])
+
         if (!tx.upstream.size) {
           this.onReadyToExecute(tx.txid)
         }
+      } else {
+        this._markNotPendingExecution([tx])
       }
     })
   }
@@ -299,29 +315,32 @@ class Database {
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecutedTransactions.delete(txid)
       if (tx.pendingExecution) this.numPendingExecution--
+      tx.pendingExecution = false
 
       for (const downtx of tx.downstream) {
-        if (!downtx.upstream.size && (!downtx.hasCode || this.trustlist.has(downtx.txid))) {
+        if (downtx.pendingExecution && !downtx.upstream.size) {
           this.onReadyToExecute(downtx.txid)
         }
       }
     })
   }
 
-  storeFailedTransaction (txid) {
+  setTransactionFailed (txid, hex) {
     const tx = this.unexecutedTransactions.get(txid)
     if (!tx) return
 
     this.transaction(() => {
+      if (hex) this.setTransactionHexStmt(txid, hex)
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
 
       this.unexecutedTransactions.delete(txid)
       if (tx.pendingExecution) this.numPendingExecution--
+      tx.pendingExecution = false
 
       for (const downtx of tx.downstream) {
-        this.storeFailedTransaction(downtx.txid)
+        this.setTransactionFailed(downtx.txid)
       }
     })
   }
@@ -351,18 +370,26 @@ class Database {
     const tx = this.unexecutedTransactions.get(txid)
 
     this.transaction(() => {
-      deptxids.forEach(deptxid => {
-        this.addNewTransaction(deptxid)
-
-        const deptx = this.unexecutedTransactions.get(deptxid)
-        if (!deptx) return
-
-        deptx.downstream.add(tx)
-        tx.upstream.add(deptx)
-
-        this.addDepStmt.run(deptxid, txid)
-      })
+      for (const deptxid of deptxids) {
+        this.addDep(tx, deptxid)
+      }
     })
+  }
+
+  addDep (tx, deptxid) {
+    this.addNewTransaction(deptxid)
+    this.addDepStmt.run(deptxid, deptxid)
+
+    const deptx = this.unexecutedTransactions.get(deptxid)
+    if (deptx) {
+      deptx.downstream.add(tx)
+      tx.upstream.add(deptx)
+      return
+    }
+
+    if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
+      this.setTransactionFailed(tx.txid)
+    }
   }
 
   // --------------------------------------------------------------------------

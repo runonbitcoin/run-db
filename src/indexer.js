@@ -168,7 +168,7 @@ class Indexer {
 
   _onExecuteFailed (txid, e) {
     this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-    this.database.storeFailedTransaction(txid)
+    this.database.setTransactionFailed(txid)
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
@@ -256,7 +256,7 @@ class Indexer {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.database.storeParsedTransaction(txid, hex, false, false, [])
+      this.database.setTransactionFailed(txid, hex)
       return
     }
 
@@ -281,7 +281,7 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
+    this.database.storeParsedTransaction(txid, hex, hasCode, deps)
 
     for (const deptxid of deps) {
       if (!this.database.isTransactionDownloaded(deptxid)) {
