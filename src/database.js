@@ -12,8 +12,9 @@ const { DEFAULT_TRUSTLIST } = require('./config')
 // ------------------------------------------------------------------------------------------------
 
 class Tx {
-  constructor (txid, hasCode) {
+  constructor (txid, downloaded, hasCode) {
     this.txid = txid
+    this.downloaded = downloaded
     this.hasCode = hasCode
     this.pendingExecution = false
     this.upstream = new Set()
@@ -53,7 +54,8 @@ class Database {
         has_code INTEGER,
         executable INTEGER,
         executed INTEGER,
-        indexed INTEGER
+        indexed INTEGER,
+        UNIQUE(txid)
       )`
     ).run()
 
@@ -118,7 +120,7 @@ class Database {
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
-    this.isTransactionDownloadedStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ? AND hex IS NOT NULL')
+    this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
@@ -145,23 +147,23 @@ class Database {
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
 
     this.getUnexecutedStmt = this.db.prepare(
-      'SELECT txid, has_code FROM tx WHERE executable = 1 AND executed = 0'
+      'SELECT txid, has_code, hex IS NOT NULL AS downloaded FROM tx WHERE executed = 0 OR hex IS NULL'
     )
 
     this.getUnexecutedDepsStmt = this.db.prepare(`
       SELECT deps.up as up, deps.down as down FROM deps
       JOIN tx ON tx.txid = deps.down
-      WHERE tx.executable = 1 AND tx.executed = 0
+      WHERE tx.executed = 0
     `)
 
     this.unexecutedTransactions = new Map()
     const readyToExecute = new Set()
 
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
-    for (const [txid, hasCode] of unexecuted) {
-      const tx = new Tx(txid, !!hasCode)
+    for (const [txid, downloaded, hasCode] of unexecuted) {
+      const tx = new Tx(txid, downloaded, hasCode)
       this.unexecutedTransactions.set(txid, tx)
-      if (!hasCode || this.trustlist.has(txid)) {
+      if (downloaded && (!hasCode || this.trustlist.has(txid))) {
         readyToExecute.add(tx)
       }
     }
@@ -197,7 +199,12 @@ class Database {
       }
     }
 
-    for (const tx of readyToExecute) this.onReadyToExecute(tx.txid)
+    console.log(Array.from(readyToExecute).map(tx => tx.txid))
+    // process.exit(1)
+
+    for (const tx of readyToExecute) {
+      this.onReadyToExecute(tx.txid)
+    }
   }
 
   close () {
@@ -220,7 +227,7 @@ class Database {
     this.addNewTransactionStmt.run(txid, height)
 
     if (!this.unexecutedTransactions.has(txid)) {
-      const tx = new Tx(txid, null)
+      const tx = new Tx(txid, false, null)
       this.unexecutedTransactions.set(txid, tx)
     }
   }
@@ -236,6 +243,7 @@ class Database {
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 
       const tx = this.unexecutedTransactions.get(txid)
+      tx.downloaded = true
       tx.hasCode = hasCode
 
       for (const deptxid of deps) {
@@ -262,7 +270,9 @@ class Database {
 
       if (tx.pendingExecution) {
         this.numPendingExecution++
-        if (!tx.upstream.size) this.onReadyToExecute(tx.txid)
+        if (!tx.upstream.size) {
+          this.onReadyToExecute(tx.txid)
+        }
       }
     })
   }
@@ -291,7 +301,7 @@ class Database {
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecutedTransactions.delete(txid)
-      this.numPendingExecution--
+      if (tx.pendingExecution) this.numPendingExecution--
 
       for (const downtx of tx.downstream) {
         if (!downtx.upstream.size && (!downtx.hasCode || this.trustlist.has(downtx.txid))) {
@@ -311,7 +321,7 @@ class Database {
       this.setTransactionIndexedStmt.run(0, txid)
 
       this.unexecutedTransactions.delete(txid)
-      this.numPendingExecution--
+      if (tx.pendingExecution) this.numPendingExecution--
 
       for (const downtx of tx.downstream) {
         this.storeFailedTransaction(downtx.txid)
@@ -329,7 +339,7 @@ class Database {
   }
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
-  isTransactionDownloaded (txid) { return !!this.isTransactionDownloadedStmt.raw(true).get(txid) }
+  isTransactionDownloaded (txid) { return !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0] }
   getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all().map(row => row[0]) }
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
@@ -340,12 +350,12 @@ class Database {
   // deps
   // --------------------------------------------------------------------------
 
-  addMissingDep (txid, deptxids) {
+  addMissingDeps (txid, deptxids) {
     const tx = this.unexecutedTransactions.get(txid)
 
-    this.database.transaction(() => {
+    this.transaction(() => {
       deptxids.forEach(deptxid => {
-        this._addNewTransaction(deptxid)
+        this.addNewTransaction(deptxid)
 
         const deptx = this.unexecutedTransactions.get(deptxid)
         if (!deptx) return
