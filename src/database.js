@@ -221,8 +221,9 @@ class Database {
     while (queue.length) {
       const tx = queue.shift()
       for (const downtx of tx.downstream) {
-        if (downtx.pendingExecution) this.numPendingExecution--
+        if (!downtx.pendingExecution) continue
         downtx.pendingExecution = false
+        this.numPendingExecution--
         queue.push(downtx)
       }
     }
@@ -247,10 +248,10 @@ class Database {
     this.setTransactionHeightStmt.run(height, txid)
   }
 
-  storeParsedTransaction (txid, hex, hasCode, deps) {
+  storeParsedTransaction (txid, hex, executable, hasCode, deps) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
-      this.setTransactionExecutableStmt.run(1, txid)
+      this.setTransactionExecutableStmt.run(executable ? 1 : 0, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 
       const tx = this.unexecutedTransactions.get(txid)
@@ -271,6 +272,15 @@ class Database {
           this.setTransactionFailed(txid)
           return
         }
+      }
+
+      if (!executable) {
+        this.unexecutedTransactions.delete(txid)
+        for (const downtx of tx.downstream) {
+          downtx.upstream.delete(txid)
+          if (!downtx.upstream.size) this.onReadyToExecute(downtx.txid)
+        }
+        return
       }
 
       tx.pendingExecution = (!hasCode || this.trustlist.has(txid)) &&

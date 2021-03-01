@@ -161,7 +161,7 @@ class Indexer {
 
   _onIndexed (txid, state) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`)
+    this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`, this.database.unexecutedTransactions.size)
     this.database.storeExecutedTransaction(txid, state)
     if (this.onIndex) this.onIndex(txid)
   }
@@ -256,7 +256,7 @@ class Indexer {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      this.database.setTransactionFailed(txid, hex)
+      this.database.storeParsedTransaction(txid, hex, false, false, [])
       return
     }
 
@@ -281,7 +281,7 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    this.database.storeParsedTransaction(txid, hex, hasCode, deps)
+    this.database.storeParsedTransaction(txid, hex, true, hasCode, deps)
 
     for (const deptxid of deps) {
       if (!this.database.isTransactionDownloaded(deptxid)) {
