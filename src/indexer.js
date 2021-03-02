@@ -182,16 +182,9 @@ class Indexer {
   }
 
   _onRewindBlocks (newHeight) {
-    /*
     this.logger.info(`Rewinding to block ${newHeight}`)
 
     const txids = this.database.getTransactionsAboveHeight(newHeight)
-
-    txids.forEach(txid => {
-      this.logger.info('Removing', txid)
-      this.downloader.remove(txid)
-      this.graph.remove(txid)
-    })
 
     this.database.transaction(() => {
       txids.forEach(txid => {
@@ -202,7 +195,6 @@ class Indexer {
     })
 
     if (this.onReorg) this.onReorg(newHeight)
-    */
   }
 
   _onMempoolTransaction (txid, hex) {
