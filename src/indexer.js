@@ -114,11 +114,11 @@ class Indexer {
   }
 
   untrusted (txid) {
-    /*
     if (!txid) {
-      return Array.from(this.graph.untrusted)
+      return Array.from(this.database.getAllUntrusted(txid))
     }
 
+    /*
     const untrusted = new Set()
     const queue = [txid]
     while (queue.length) {

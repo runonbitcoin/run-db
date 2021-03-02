@@ -31,6 +31,7 @@ class Database {
     this.db = null
     this.trustlist = null
     this.unexecutedTransactions = null
+    this.untrustedTransactions = null
     this.numPendingExecution = null
 
     this.onReadyToExecute = null
@@ -160,6 +161,7 @@ class Database {
       WHERE tx.executable = 1 AND tx.executed = 0
     `)
 
+    this.untrustedTransactions = new Set()
     this.unexecutedTransactions = new Map()
     const readyToExecute = new Set()
 
@@ -167,9 +169,9 @@ class Database {
     for (const [txid, downloaded, hasCode] of unexecuted) {
       const tx = new Tx(txid, downloaded, hasCode)
       this.unexecutedTransactions.set(txid, tx)
-      if (downloaded && (!hasCode || this.trustlist.has(txid))) {
-        readyToExecute.add(tx)
-      }
+      const untrusted = hasCode && !this.trustlist.has(txid)
+      if (untrusted) this.untrustedTransactions.add(txid)
+      if (downloaded && !untrusted) readyToExecute.add(tx)
     }
 
     for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
@@ -491,6 +493,10 @@ class Database {
 
   getTrustlist () {
     return Array.from(this.trustlist)
+  }
+
+  getAllUntrusted () {
+    return Array.from(this.untrustedTransactions)
   }
 
   // --------------------------------------------------------------------------
