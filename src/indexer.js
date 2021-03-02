@@ -103,11 +103,8 @@ class Indexer {
   }
 
   untrust (txid) {
-    /*
     this.logger.info('Untrusting', txid)
-    this.graph.onUntrust(txid)
     this.database.setTrusted(txid, false)
-    */
   }
 
   untrusted (txid) {
