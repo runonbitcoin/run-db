@@ -40,6 +40,8 @@ class Indexer {
     this.crawler = new Crawler(api)
 
     this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
+    this.database.onAddTransaction = this._onAddTransaction.bind(this)
+    this.database.onDeleteTransaction = this._onDeleteTransaction.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
@@ -77,7 +79,6 @@ class Indexer {
 
   remove (txid) {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
-    this.logger.info('Removing', txid)
     this.downloader.remove(txid)
     this.database.deleteTransaction(txid)
   }
@@ -171,6 +172,14 @@ class Indexer {
     this.executor.execute(txid)
   }
 
+  _onAddTransaction (txid) {
+    this.logger.info('Added', txid)
+  }
+
+  _onDeleteTransaction (txid) {
+    this.logger.info('Removed', txid)
+  }
+
   _onMissingDeps (txid, deptxids) {
     this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
     this.database.addMissingDeps(txid, deptxids)
@@ -221,7 +230,6 @@ class Indexer {
       txids
         .filter(txid => !this.database.hasTransaction(txid))
         .forEach((txid, i) => {
-          this.logger.info('Adding', txid)
           this.database.addNewTransaction(txid, height)
           if (height) this.database.updateTransactionHeight(txid, height)
         })

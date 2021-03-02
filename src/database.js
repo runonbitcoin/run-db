@@ -32,7 +32,10 @@ class Database {
     this.trustlist = null
     this.unexecutedTransactions = null
     this.numPendingExecution = null
+
     this.onReadyToExecute = null
+    this.onAddTransaction = null
+    this.onDeleteTransaction = null
   }
 
   open () {
@@ -127,6 +130,8 @@ class Database {
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
+    this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
+    this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
@@ -237,6 +242,8 @@ class Database {
     if (this.hasTransaction(txid)) return
 
     this.addNewTransactionStmt.run(txid, height)
+
+    if (this.onAddTransaction) this.onAddTransaction(txid)
 
     if (!this.unexecutedTransactions.has(txid)) {
       const tx = new Tx(txid, false, null)
@@ -376,12 +383,21 @@ class Database {
   }
 
   deleteTransaction (txid) {
-    this.deleteTransactionStmt.run(txid)
-    this.deleteJigStatesStmt.run(txid)
-    this.deleteBerryStatesStmt.run(txid)
+    this.transaction(() => {
+      this.deleteTransactionStmt.run(txid)
+      this.deleteJigStatesStmt.run(txid)
+      this.deleteBerryStatesStmt.run(txid)
+      this.deleteDepsStmt.run(txid)
 
-    // TODO: Remove from unexecuted
-    // Remove deps
+      const tx = this.unexecutedTransactions.get(txid)
+      if (tx && tx.pendingExecution) this.numPendingExecution--
+      this.unexecutedTransactions.delete(txid)
+
+      if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
+
+      const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+      downtxids.forEach(downtxid => this.deleteTransaction(downtxid))
+    })
   }
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
