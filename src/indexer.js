@@ -206,7 +206,7 @@ class Indexer {
   }
 
   _onMempoolTransaction (txid, hex) {
-    // this.add(txid, hex, null)
+    this._addTransactions([txid], [hex], null)
   }
 
   _addTransactions (txids, txhexs, height) {
