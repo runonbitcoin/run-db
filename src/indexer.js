@@ -96,13 +96,10 @@ class Indexer {
   }
 
   trust (txid) {
-    /*
     txid = txid.trim().toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
-    this.logger.info('Trusting', txid)
+    this.logger.info('Trusted', txid)
     this.database.setTrusted(txid, 1)
-    this.graph.onTrust(txid)
-    */
   }
 
   untrust (txid) {

@@ -482,11 +482,24 @@ class Database {
 
   setTrusted (txid, value) {
     this.setTrustedStmt.run(txid, value ? 1 : 0)
+
     if (value) {
       this.trustlist.add(txid)
 
-      // TODO: Execute
+      if (this.untrustedTransactions.has(txid)) {
+        this.untrustedTransactions.delete(txid)
+
+        const tx = this.unexecutedTransactions.get(txid)
+        tx.pendingExecution = Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+
+        if (tx.pendingExecution) {
+          this.numPendingExecution++
+          this._markPendingExecution([tx])
+          this.onReadyToExecute(txid)
+        }
+      }
     } else {
+      // We don't remove state already calculated
       this.trustlist.delete(txid)
     }
   }
