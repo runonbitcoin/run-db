@@ -129,10 +129,25 @@ class Database {
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
+    this.getUnexecutedStmt = this.db.prepare(`
+      SELECT txid, hex IS NOT NULL AS downloaded, has_code
+      FROM tx WHERE (executable = 1 AND executed = 0) OR hex IS NULL
+    `)
 
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
     this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
     this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
+    this.getUpstreamUnexecuted = this.db.prepare(`
+      SELECT txdeps.txid as txid
+      FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
+      JOIN tx ON tx.txid = txdeps.txid
+      WHERE tx.executable = 1 AND tx.executed = 0
+    `)
+    this.getUnexecutedDepsStmt = this.db.prepare(`
+      SELECT deps.up as up, deps.down as down FROM deps
+      JOIN tx ON tx.txid = deps.down
+      WHERE tx.executable = 1 AND tx.executed = 0
+    `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
@@ -150,16 +165,6 @@ class Database {
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
-
-    this.getUnexecutedStmt = this.db.prepare(
-      'SELECT txid, hex IS NOT NULL AS downloaded, has_code FROM tx WHERE (executable = 1 AND executed = 0) OR hex IS NULL'
-    )
-
-    this.getUnexecutedDepsStmt = this.db.prepare(`
-      SELECT deps.up as up, deps.down as down FROM deps
-      JOIN tx ON tx.txid = deps.down
-      WHERE tx.executable = 1 AND tx.executed = 0
-    `)
 
     this.untrustedTransactions = new Set()
     this.unexecutedTransactions = new Map()
@@ -188,7 +193,7 @@ class Database {
     this._markPendingExecution(readyToExecute)
 
     for (const tx of readyToExecute) {
-      this.onReadyToExecute(tx.txid)
+      if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
     }
   }
 
@@ -276,7 +281,7 @@ class Database {
         if (downtx.pendingExecution) {
           this.numPendingExecution++
           this._markPendingExecution([downtx])
-          this.onReadyToExecute(downtx.txid)
+          if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
     })
@@ -318,7 +323,7 @@ class Database {
         this._markPendingExecution([tx])
 
         if (!tx.upstream.size) {
-          this.onReadyToExecute(tx.txid)
+          if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
         }
       } else {
         this._markNotPendingExecution([tx])
@@ -355,7 +360,7 @@ class Database {
 
       for (const downtx of tx.downstream) {
         if (downtx.pendingExecution && !downtx.upstream.size) {
-          this.onReadyToExecute(downtx.txid)
+          if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
     })
@@ -434,7 +439,7 @@ class Database {
       if (tx.pendingExecution) {
         this.numPendingExecution++
         this._markPendingExecution([tx])
-        if (!tx.upstream.size) this.onReadyToExecute(txid)
+        if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(txid)
       }
     })
   }
@@ -495,7 +500,7 @@ class Database {
         if (tx.pendingExecution) {
           this.numPendingExecution++
           this._markPendingExecution([tx])
-          this.onReadyToExecute(txid)
+          if (this.onReadyToExecute) this.onReadyToExecute(txid)
         }
       }
     } else {
@@ -510,6 +515,23 @@ class Database {
 
   getAllUntrusted () {
     return Array.from(this.untrustedTransactions)
+  }
+
+  getTransactionUntrusted (txid) {
+    const untrusted = new Set()
+    const visited = new Set([txid])
+    const queue = [txid]
+    while (queue.length) {
+      const next = queue.shift()
+      if (this.untrustedTransactions.has(next)) untrusted.add(next)
+      const upstreamUnexecuted = this.getUpstreamUnexecuted.raw(true).all(next).map(row => row[0])
+      upstreamUnexecuted.forEach(uptxid => {
+        if (visited.has(uptxid)) return
+        visited.add(uptxid)
+        queue.push(uptxid)
+      })
+    }
+    return Array.from(untrusted)
   }
 
   // --------------------------------------------------------------------------

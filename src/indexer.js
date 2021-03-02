@@ -109,20 +109,10 @@ class Indexer {
 
   untrusted (txid) {
     if (!txid) {
-      return Array.from(this.database.getAllUntrusted(txid))
+      return this.database.getAllUntrusted()
+    } else {
+      return this.database.getTransactionUntrusted(txid)
     }
-
-    /*
-    const untrusted = new Set()
-    const queue = [txid]
-    while (queue.length) {
-      const next = queue.shift()
-      if (this.graph.untrusted.has(next)) untrusted.add(next)
-      const upstreamUnexecuted = this.getUpstreamUnexecuted(txid)
-      upstreamUnexecuted.forEach(txid => queue.push(txid))
-    }
-    return Array.from(untrusted)
-    */
   }
 
   status () {
