@@ -12,12 +12,9 @@ Create a .env file or set the following environment variables to configure the D
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, bitcoind, or none | mattercloud
+| **API**| mattercloud, planaria, or none | mattercloud
 | **MATTERCLOUD_KEY** | Mattercloud API key | undefined
 | **PLANARIA_TOKEN** | Planaria API key | undefined
-| **RPC_PORT** | RPC port for Bitcoin node | 8334 (mainnet) or 18334 (testnet)
-| **RPC_USER** | RPC username | undefined
-| **RPC_PASS** | RPC password | undefined
 | **NETWORK** | Bitcoin network (main or test) | main
 | **DB** | Database file | run.db
 | **PORT** | Port used for the REST server | randomly generated

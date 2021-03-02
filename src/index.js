@@ -7,13 +7,9 @@
 const axios = require('axios')
 const Indexer = require('./indexer')
 const Server = require('./server')
-const {
-  API, RPC_PORT, RPC_USER, RPC_PASS, DB, PORT, NETWORK,
-  FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT
-} = require('./config')
+const { API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
-const Bitcoind = require('./bitcoind')
 
 // ------------------------------------------------------------------------------------------------
 // RunConnectFetcher
@@ -40,7 +36,6 @@ let api = null
 switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
-  case 'bitcoind': api = new Bitcoind(RPC_PORT, RPC_USER, RPC_PASS); break
   case 'none': api = new RunConnectFetcher(); break
   default: throw new Error(`Unknown API: ${API}`)
 }
