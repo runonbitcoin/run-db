@@ -503,32 +503,33 @@ class Database {
     return this.trustlist.has(txid)
   }
 
-  setTrusted (txid, value) {
-    this.setTrustedStmt.run(txid, value ? 1 : 0)
+  trust (txid) {
+    if (this.trustlist.has(txid)) return
+    this.setTrustedStmt.run(txid, 1)
+    this.trustlist.add(txid)
 
-    if (value) {
-      this.trustlist.add(txid)
+    if (this.untrustedTransactions.has(txid)) {
+      this.untrustedTransactions.delete(txid)
 
-      if (this.untrustedTransactions.has(txid)) {
-        this.untrustedTransactions.delete(txid)
+      const tx = this.unexecutedTransactions.get(txid)
+      tx.pendingExecution = !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
 
-        const tx = this.unexecutedTransactions.get(txid)
-        tx.pendingExecution = !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
-
-        if (tx.pendingExecution) {
-          this.numPendingExecution++
-          this._markPendingExecution([tx])
-          if (this.onReadyToExecute) this.onReadyToExecute(txid)
-        }
+      if (tx.pendingExecution) {
+        this.numPendingExecution++
+        this._markPendingExecution([tx])
+        if (this.onReadyToExecute) this.onReadyToExecute(txid)
       }
-
-      if (this.onTrustTransaction) this.onTrustTransaction(txid)
-    } else {
-      // We don't remove state already calculated
-      this.trustlist.delete(txid)
-
-      if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
     }
+
+    if (this.onTrustTransaction) this.onTrustTransaction(txid)
+  }
+
+  untrust (txid) {
+    if (!this.trustlist.has(txid)) return
+    // We don't remove state already calculated
+    this.setTrustedStmt.run(txid, 0)
+    this.trustlist.delete(txid)
+    if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
   }
 
   getTrustlist () {

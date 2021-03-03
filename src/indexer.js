@@ -107,12 +107,12 @@ class Indexer {
 
   trust (txid) {
     txid = this._parseTxid(txid)
-    this.database.setTrusted(txid, 1)
+    this.database.trust(txid)
   }
 
   untrust (txid) {
     txid = this._parseTxid(txid)
-    this.database.setTrusted(txid, false)
+    this.database.untrust(txid)
   }
 
   untrusted (txid) {
