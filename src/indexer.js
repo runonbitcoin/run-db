@@ -43,6 +43,8 @@ class Indexer {
     this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
     this.database.onAddTransaction = this._onAddTransaction.bind(this)
     this.database.onDeleteTransaction = this._onDeleteTransaction.bind(this)
+    this.database.onTrustTransaction = this._onTrustTransaction.bind(this)
+    this.database.onUntrustTransaction = this._onUntrustTransaction.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
@@ -104,12 +106,10 @@ class Indexer {
   trust (txid) {
     txid = txid.trim().toLowerCase()
     if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
-    this.logger.info('Trusted', txid)
     this.database.setTrusted(txid, 1)
   }
 
   untrust (txid) {
-    this.logger.info('Untrusting', txid)
     this.database.setTrusted(txid, false)
   }
 
@@ -168,6 +168,14 @@ class Indexer {
 
   _onDeleteTransaction (txid) {
     this.logger.info('Removed', txid)
+  }
+
+  _onTrustTransaction (txid) {
+    this.logger.info('Trusted', txid)
+  }
+
+  _onUntrustTransaction (txid) {
+    this.logger.info('Untrusted', txid)
   }
 
   _onMissingDeps (txid, deptxids) {

@@ -37,6 +37,8 @@ class Database {
     this.onReadyToExecute = null
     this.onAddTransaction = null
     this.onDeleteTransaction = null
+    this.onTrustTransaction = null
+    this.onUntrustTransaction = null
   }
 
   open () {
@@ -519,9 +521,13 @@ class Database {
           if (this.onReadyToExecute) this.onReadyToExecute(txid)
         }
       }
+
+      if (this.onTrustTransaction) this.onTrustTransaction(txid)
     } else {
       // We don't remove state already calculated
       this.trustlist.delete(txid)
+
+      if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
     }
   }
 
