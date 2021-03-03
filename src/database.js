@@ -30,7 +30,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = null
-    this.unexecutedTransactions = null
+    this.unexecuted = null
     this.numPendingExecution = null
 
     this.onReadyToExecute = null
@@ -171,21 +171,21 @@ class Database {
 
     this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
 
-    this.unexecutedTransactions = new Map()
+    this.unexecuted = new Map()
     const readyToExecute = new Set()
 
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, downloaded, hasCode] of unexecuted) {
       const tx = new Tx(txid, downloaded, hasCode)
-      this.unexecutedTransactions.set(txid, tx)
+      this.unexecuted.set(txid, tx)
       const untrusted = hasCode && !this.trustlist.has(txid)
       if (downloaded && !untrusted) readyToExecute.add(tx)
     }
 
     for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = this.unexecutedTransactions.get(up)
+      const uptx = this.unexecuted.get(up)
       if (!uptx) continue
-      const downtx = this.unexecutedTransactions.get(down)
+      const downtx = this.unexecuted.get(down)
       downtx.upstream.add(uptx)
       uptx.downstream.add(downtx)
       readyToExecute.delete(downtx)
@@ -257,9 +257,9 @@ class Database {
 
     if (this.onAddTransaction) this.onAddTransaction(txid)
 
-    if (!this.unexecutedTransactions.has(txid)) {
+    if (!this.unexecuted.has(txid)) {
       const tx = new Tx(txid, false, null)
-      this.unexecutedTransactions.set(txid, tx)
+      this.unexecuted.set(txid, tx)
     }
   }
 
@@ -277,9 +277,9 @@ class Database {
       this.setTransactionHexStmt.run(hex, txid)
       this.setTransactionExecutableStmt.run(0, txid)
 
-      const tx = this.unexecutedTransactions.get(txid)
+      const tx = this.unexecuted.get(txid)
 
-      this.unexecutedTransactions.delete(txid)
+      this.unexecuted.delete(txid)
 
       for (const downtx of tx.downstream) {
         downtx.upstream.delete(tx)
@@ -302,7 +302,7 @@ class Database {
       this.setTransactionExecutableStmt.run(1, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 
-      const tx = this.unexecutedTransactions.get(txid)
+      const tx = this.unexecuted.get(txid)
 
       tx.hasCode = hasCode
 
@@ -310,7 +310,7 @@ class Database {
         this.addNewTransaction(deptxid)
         this.addDepStmt.run(deptxid, txid)
 
-        const deptx = this.unexecutedTransactions.get(deptxid)
+        const deptx = this.unexecuted.get(deptxid)
         if (deptx) {
           deptx.downstream.add(tx)
           tx.upstream.add(deptx)
@@ -341,7 +341,7 @@ class Database {
   }
 
   storeExecutedTransaction (txid, state) {
-    const tx = this.unexecutedTransactions.get(txid)
+    const tx = this.unexecuted.get(txid)
     if (!tx) return
 
     this.transaction(() => {
@@ -363,7 +363,7 @@ class Database {
       }
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
-      this.unexecutedTransactions.delete(txid)
+      this.unexecuted.delete(txid)
       if (tx.pendingExecution) this.numPendingExecution--
       tx.pendingExecution = false
 
@@ -376,7 +376,7 @@ class Database {
   }
 
   setTransactionExecutionFailed (txid) {
-    const tx = this.unexecutedTransactions.get(txid)
+    const tx = this.unexecuted.get(txid)
     if (!tx) return
 
     this.transaction(() => {
@@ -384,7 +384,7 @@ class Database {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
 
-      this.unexecutedTransactions.delete(txid)
+      this.unexecuted.delete(txid)
       if (tx.pendingExecution) this.numPendingExecution--
 
       for (const downtx of tx.downstream) {
@@ -410,9 +410,9 @@ class Database {
       this.deleteBerryStatesStmt.run(txid)
       this.deleteDepsStmt.run(txid)
 
-      const tx = this.unexecutedTransactions.get(txid)
+      const tx = this.unexecuted.get(txid)
       if (tx && tx.pendingExecution) this.numPendingExecution--
-      this.unexecutedTransactions.delete(txid)
+      this.unexecuted.delete(txid)
 
       if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
 
@@ -435,7 +435,7 @@ class Database {
   // --------------------------------------------------------------------------
 
   addMissingDeps (txid, deptxids) {
-    const tx = this.unexecutedTransactions.get(txid)
+    const tx = this.unexecuted.get(txid)
 
     this.transaction(() => {
       if (tx.pendingExecution) {
@@ -463,7 +463,7 @@ class Database {
     this.addNewTransaction(deptxid)
     this.addDepStmt.run(deptxid, deptxid)
 
-    const deptx = this.unexecutedTransactions.get(deptxid)
+    const deptx = this.unexecuted.get(deptxid)
     if (deptx) {
       deptx.downstream.add(tx)
       tx.upstream.add(deptx)
@@ -504,7 +504,7 @@ class Database {
     if (this.trustlist.has(txid)) return
     this.setTrustedStmt.run(txid, 1)
     this.trustlist.add(txid)
-    const tx = this.unexecutedTransactions.get(txid)
+    const tx = this.unexecuted.get(txid)
     tx.pendingExecution = !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
     if (tx.pendingExecution) {
       this.numPendingExecution++
@@ -527,7 +527,7 @@ class Database {
   }
 
   getAllUntrusted () {
-    return Array.from(this.unexecutedTransactions.values())
+    return Array.from(this.unexecuted.values())
       .filter(tx => tx.hasCode && !this.trustlist.has(tx.txid))
       .map(tx => tx.txid)
   }
@@ -538,7 +538,7 @@ class Database {
     const queue = [txid]
     while (queue.length) {
       const next = queue.shift()
-      const tx = this.unexecutedTransactions.get(next)
+      const tx = this.unexecuted.get(next)
       if (tx.hasCode && !this.trustlist.has(next)) untrusted.add(next)
       const upstreamUnexecuted = this.getUpstreamUnexecuted.raw(true).all(next).map(row => row[0])
       upstreamUnexecuted.forEach(uptxid => {
