@@ -222,7 +222,7 @@ class Database {
         if (downtx.pendingExecution) continue
 
         downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          Array.from(downtx.upstream).every(uptx => uptx.pendingExecution)
+          !Array.from(downtx.upstream).some(uptx => !uptx.pendingExecution)
 
         if (downtx.pendingExecution) {
           this.numPendingExecution++
@@ -450,7 +450,7 @@ class Database {
       }
 
       tx.pendingExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
-        Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+        !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
 
       if (tx.pendingExecution) {
         this.numPendingExecution++
@@ -511,7 +511,7 @@ class Database {
         this.untrustedTransactions.delete(txid)
 
         const tx = this.unexecutedTransactions.get(txid)
-        tx.pendingExecution = Array.from(tx.upstream).every(uptx => uptx.pendingExecution)
+        tx.pendingExecution = !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
 
         if (tx.pendingExecution) {
           this.numPendingExecution++
