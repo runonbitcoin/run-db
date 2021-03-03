@@ -32,6 +32,7 @@ class Server {
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
     app.get('/tx/:txid', this.getTx.bind(this))
+    app.get('/time/:txid', this.getTime.bind(this))
     app.get('/trust/:txid?', this.getTrust.bind(this))
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
     app.get('/status', this.getStatus.bind(this))
@@ -76,6 +77,17 @@ class Server {
       const rawtx = this.indexer.tx(req.params.txid)
       if (rawtx) {
         res.send(rawtx)
+      } else {
+        res.status(404).send(`Not found: ${req.params.txid}\n`)
+      }
+    } catch (e) { next(e) }
+  }
+
+  async getTime (req, res, next) {
+    try {
+      const time = this.indexer.time(req.params.txid)
+      if (time) {
+        res.json(time)
       } else {
         res.status(404).send(`Not found: ${req.params.txid}\n`)
       }

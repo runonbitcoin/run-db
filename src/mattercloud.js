@@ -62,7 +62,8 @@ class MatterCloud {
 
       const txhexs = response.data.tx.map(tx => tx.raw)
       const txids = txhexs.map(hex => new bsv.Transaction(hex).hash)
-      return { height, hash, txids, txhexs }
+      const time = response.data.header.time
+      return { height, hash, time, txids, txhexs }
     } catch (e) {
       if (e.response && e.response.status === 404) return undefined
       throw e

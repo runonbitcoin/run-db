@@ -86,6 +86,7 @@ class Planaria {
     const block = {
       height: this.txns[i].height,
       hash: this.txns[i].hash,
+      time: this.txns[i].time,
       txids: []
     }
 
@@ -200,7 +201,7 @@ class Planaria {
                   }
                 }
 
-                this.txns.push({ height: data.blk.i, hash: data.blk.h, txid: data.tx.h })
+                this.txns.push({ height: data.blk.i, hash: data.blk.h, time: data.blk.t, txid: data.tx.h })
                 this.lastCrawlHeight = data.blk.i
                 i++
               }

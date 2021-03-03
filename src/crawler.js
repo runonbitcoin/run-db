@@ -84,7 +84,9 @@ class Crawler {
       this.height = newHeight
       this.hash = null
     } else {
-      if (this.onCrawlBlockTransactions) this.onCrawlBlockTransactions(block.height, block.hash, block.txids, block.txhexs)
+      if (this.onCrawlBlockTransactions) {
+        this.onCrawlBlockTransactions(block.height, block.hash, block.time, block.txids, block.txhexs)
+      }
       this.height = block.height
       this.hash = block.hash
     }

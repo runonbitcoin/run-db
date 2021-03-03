@@ -72,9 +72,9 @@ class Indexer {
     this.database.close()
   }
 
-  add (txid, hex = null, height = null) {
+  add (txid, hex = null, height = null, time = null) {
     if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
-    this._addTransactions([txid], [hex], height)
+    this._addTransactions([txid], [hex], height, time)
   }
 
   remove (txid) {
@@ -93,6 +93,10 @@ class Indexer {
 
   tx (txid) {
     return this.database.getTransactionHex(txid)
+  }
+
+  time (txid) {
+    return this.database.getTransactionTime(txid)
   }
 
   trust (txid) {
@@ -174,9 +178,9 @@ class Indexer {
     this.logger.error(`Crawl error: ${e.toString()}`)
   }
 
-  _onCrawlBlockTransactions (height, hash, txids, txhexs) {
+  _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
     this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
-    this._addTransactions(txids, txhexs, height)
+    this._addTransactions(txids, txhexs, height, time)
     this.database.setHeightAndHash(height, hash)
     if (this.onBlock) this.onBlock(height)
   }
@@ -198,16 +202,17 @@ class Indexer {
   }
 
   _onMempoolTransaction (txid, hex) {
-    this._addTransactions([txid], [hex], null)
+    this._addTransactions([txid], [hex], null, null)
   }
 
-  _addTransactions (txids, txhexs, height) {
+  _addTransactions (txids, txhexs, height, time) {
     this.database.transaction(() => {
       txids
         .filter(txid => !this.database.hasTransaction(txid))
         .forEach((txid, i) => {
           this.database.addNewTransaction(txid, height)
-          if (height) this.database.updateTransactionHeight(txid, height)
+          if (height) this.database.setTransactionHeight(txid, height)
+          if (time) this.database.setTransactionTime(txid, time)
         })
 
       txids

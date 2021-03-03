@@ -53,6 +53,7 @@ class Database {
       `CREATE TABLE IF NOT EXISTS tx (
         txid TEXT NOT NULL,
         height INTEGER,
+        time INTEGER,
         hex TEXT,
         has_code INTEGER,
         executable INTEGER,
@@ -113,15 +114,17 @@ class Database {
       }
     })
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, has_code, executable, executed, indexed) VALUES (?, null, ?, 0, 0, 0, 0)')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, time, has_code, executable, executed, indexed) VALUES (?, null, ?, ?, 0, 0, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
+    this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare('UPDATE tx SET height = ? WHERE txid = ?')
     this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
+    this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
@@ -248,7 +251,9 @@ class Database {
   addNewTransaction (txid, height = null) {
     if (this.hasTransaction(txid)) return
 
-    this.addNewTransactionStmt.run(txid, height)
+    const time = Math.round(Date.now() / 1000)
+
+    this.addNewTransactionStmt.run(txid, height, time)
 
     if (this.onAddTransaction) this.onAddTransaction(txid)
 
@@ -258,8 +263,12 @@ class Database {
     }
   }
 
-  updateTransactionHeight (txid, height) {
+  setTransactionHeight (txid, height) {
     this.setTransactionHeightStmt.run(height, txid)
+  }
+
+  setTransactionTime (txid, time) {
+    this.setTransactionTimeStmt.run(time, txid)
   }
 
   // Non-executable might be berry data. We execute once we receive them.
@@ -389,6 +398,11 @@ class Database {
     return row && row[0]
   }
 
+  getTransactionTime (txid) {
+    const row = this.getTransactionTimeStmt.raw(true).get(txid)
+    return row && row[0]
+  }
+
   deleteTransaction (txid) {
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
@@ -409,7 +423,7 @@ class Database {
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
   isTransactionDownloaded (txid) { return !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0] }
-  getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all().map(row => row[0]) }
+  getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
   getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
