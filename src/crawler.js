@@ -15,6 +15,8 @@ class Crawler {
     this.hash = null
     this.pollForNewBlocksInterval = 10000
     this.pollForNewBlocksTimerId = null
+    this.expireMempoolTransactionsInterval = 60000
+    this.expireMempoolTransactionsTimerId = null
     this.rewindCount = 10
     this.started = false
     this.listeningForMempool = false
@@ -23,6 +25,7 @@ class Crawler {
     this.onCrawlBlockTransactions = null
     this.onRewindBlocks = null
     this.onMempoolTransaction = null
+    this.onExpireMempoolTransactions = null
   }
 
   start (height, hash) {
@@ -33,6 +36,7 @@ class Crawler {
     this.hash = hash
 
     this._pollForNewBlocks()
+    this._expireMempoolTransactions()
   }
 
   stop () {
@@ -40,6 +44,15 @@ class Crawler {
     this.listeningForMempool = false
     clearTimeout(this.pollForNewBlocksTimerId)
     this.pollForNewBlocksTimerId = null
+    clearTimeout(this.expireMempoolTransactionsTimerId)
+    this.expireMempoolTransactionsTimerId = null
+  }
+
+  _expireMempoolTransactions () {
+    if (!this.started) return
+    if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
+    this.expireMempoolTransactionsTimerId = setTimeout(
+      this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
   }
 
   async _pollForNewBlocks () {

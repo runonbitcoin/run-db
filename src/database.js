@@ -129,6 +129,7 @@ class Database {
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
+    this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare('SELECT txid FROM tx WHERE height IS NULL AND time < ?')
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
@@ -424,6 +425,7 @@ class Database {
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
   isTransactionDownloaded (txid) { return !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0] }
   getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
+  getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
   getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }

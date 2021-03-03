@@ -12,6 +12,12 @@ const Executor = require('./executor')
 const Crawler = require('./crawler')
 
 // ------------------------------------------------------------------------------------------------
+// Globals
+// ------------------------------------------------------------------------------------------------
+
+const MEMPOOL_EXPIRATION_SECONDS = 60 * 60 * 24
+
+// ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
@@ -52,6 +58,7 @@ class Indexer {
     this.crawler.onCrawlBlockTransactions = this._onCrawlBlockTransactions.bind(this)
     this.crawler.onRewindBlocks = this._onRewindBlocks.bind(this)
     this.crawler.onMempoolTransaction = this._onMempoolTransaction.bind(this)
+    this.crawler.onExpireMempoolTransactions = this._onExpireMempoolTransactions.bind(this)
   }
 
   async start () {
@@ -203,6 +210,13 @@ class Indexer {
 
   _onMempoolTransaction (txid, hex) {
     this._addTransactions([txid], [hex], null, null)
+  }
+
+  _onExpireMempoolTransactions () {
+    const expirationTime = Math.round(Date.now() / 1000) - MEMPOOL_EXPIRATION_SECONDS
+
+    const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
+    this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid)))
   }
 
   _addTransactions (txids, txhexs, height, time) {
