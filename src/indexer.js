@@ -12,17 +12,11 @@ const Executor = require('./executor')
 const Crawler = require('./crawler')
 
 // ------------------------------------------------------------------------------------------------
-// Globals
-// ------------------------------------------------------------------------------------------------
-
-const MEMPOOL_EXPIRATION_SECONDS = 60 * 60 * 24
-
-// ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight) {
+  constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration) {
     this.logger = logger || {}
     this.logger.info = this.logger.info || (() => {})
     this.logger.warn = this.logger.warn || (() => {})
@@ -37,6 +31,7 @@ class Indexer {
     this.api = api
     this.network = network
     this.startHeight = startHeight
+    this.mempoolExpiration = mempoolExpiration
 
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
@@ -213,7 +208,7 @@ class Indexer {
   }
 
   _onExpireMempoolTransactions () {
-    const expirationTime = Math.round(Date.now() / 1000) - MEMPOOL_EXPIRATION_SECONDS
+    const expirationTime = Math.round(Date.now() / 1000) - this.mempoolExpiration
 
     const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
     this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid)))
