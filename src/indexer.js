@@ -77,12 +77,12 @@ class Indexer {
   }
 
   add (txid, hex = null, height = null, time = null) {
-    if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
+    txid = this._parseTxid(txid)
     this._addTransactions([txid], [hex], height, time)
   }
 
   remove (txid) {
-    if (!/[0-9a-f]{64}/.test(txid)) throw new Error('Not a txid: ' + txid)
+    txid = this._parseTxid(txid)
     this.downloader.remove(txid)
     this.database.deleteTransaction(txid)
   }
@@ -96,28 +96,31 @@ class Indexer {
   }
 
   tx (txid) {
+    txid = this._parseTxid(txid)
     return this.database.getTransactionHex(txid)
   }
 
   time (txid) {
+    txid = this._parseTxid(txid)
     return this.database.getTransactionTime(txid)
   }
 
   trust (txid) {
-    txid = txid.trim().toLowerCase()
-    if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
+    txid = this._parseTxid(txid)
     this.database.setTrusted(txid, 1)
   }
 
   untrust (txid) {
+    txid = this._parseTxid(txid)
     this.database.setTrusted(txid, false)
   }
 
   untrusted (txid) {
-    if (!txid) {
-      return this.database.getAllUntrusted()
-    } else {
+    if (txid) {
+      txid = this._parseTxid(txid)
       return this.database.getTransactionUntrusted(txid)
+    } else {
+      return this.database.getAllUntrusted()
     }
   }
 
@@ -287,6 +290,12 @@ class Indexer {
         this.downloader.add(deptxid)
       }
     }
+  }
+
+  _parseTxid (txid) {
+    txid = txid.trim().toLowerCase()
+    if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
+    return txid
   }
 }
 
