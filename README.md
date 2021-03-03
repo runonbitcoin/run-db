@@ -1,4 +1,6 @@
-# run-db
+# Run DB
+
+![](demo.gif)
 
 Crawls the blockchain and indexes Run state.
 
@@ -22,6 +24,7 @@ Create a .env file or set the following environment variables to configure the D
 | **FETCH_LIMIT** | Number of parallel downloads | 20
 | **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
 | **TIMEOUT** | Network timeout in milliseconds | 10000
+| **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
 
 ## Endpoints
 
@@ -34,7 +37,7 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /status` - Prints status information
 
 * `POST /trust/:txid` - Trusts code in a transaction
-* `POST /tx/:txid` - Indexes a transaction. You may optionally add the `hex` query param.
+* `POST /tx/:txid` - Indexes a transaction and any ancestors. You may optionally add the `hex` query param.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction
-* `DELETE /tx/:txid` - Removes a transaction and its connected state
+* `DELETE /tx/:txid` - Removes a transaction, its descendants, and any connected state
