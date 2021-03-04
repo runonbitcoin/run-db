@@ -30,7 +30,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = new Set()
-    this.unexecuted = new Map()
+    this.unexecuted = new Map() // executable but not executed, or not yet downloaded
     this.numQueuedForExecution = 0
 
     this.onReadyToExecute = null
@@ -212,7 +212,6 @@ class Database {
     this.setTransactionTimeStmt.run(time, txid)
   }
 
-  // Non-executable might be berry data. We execute once we receive them.
   storeParsedNonExecutableTransaction (txid, hex) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
@@ -224,7 +223,10 @@ class Database {
 
       for (const downtx of tx.downstream) {
         downtx.upstream.delete(tx)
+      }
 
+      // Non-executable might be berry data. We execute once we receive them.
+      for (const downtx of tx.downstream) {
         this._checkExecutability(downtx)
       }
     })
