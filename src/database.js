@@ -31,7 +31,7 @@ class Database {
     this.db = null
     this.trustlist = null
     this.unexecuted = null
-    this.numQueuedForExecution = null
+    this.numQueuedForExecution = 0
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -191,9 +191,7 @@ class Database {
       readyToExecute.delete(downtx)
     }
 
-    this.numQueuedForExecution = readyToExecute.size
-    readyToExecute.forEach(tx => { tx.queuedForExecution = true })
-    this._onQueueForExecution(readyToExecute)
+    readyToExecute.forEach(tx => this._queueForExecution(tx))
 
     for (const tx of readyToExecute) {
       if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
@@ -252,13 +250,13 @@ class Database {
       for (const downtx of tx.downstream) {
         downtx.upstream.delete(tx)
 
-        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+        const queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
           !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
 
-        if (downtx.queuedForExecution) {
-          this.numQueuedForExecution++
-          this._onQueueForExecution([downtx])
-          if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
+        if (queuedForExecution) {
+          this._queueForExecution(downtx)
+
+          if (!downtx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
     })
@@ -291,19 +289,15 @@ class Database {
         }
       }
 
-      tx.queuedForExecution = (!hasCode || this.trustlist.has(txid)) &&
+      const queuedForExecution = (!hasCode || this.trustlist.has(txid)) &&
         !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
-      if (tx.queuedForExecution) {
-        this.numQueuedForExecution++
+      if (queuedForExecution) {
+        this._queueForExecution(tx)
 
-        this._onQueueForExecution([tx])
-
-        if (!tx.upstream.size) {
-          if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
-        }
+        if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(tx.txid)
       } else {
-        this._onDequeueFromExecution([tx])
+        this._dequeueFromExecution(tx)
       }
     })
   }
@@ -406,22 +400,17 @@ class Database {
     const tx = this.unexecuted.get(txid)
 
     this.transaction(() => {
-      if (tx.queuedForExecution) {
-        this.numQueuedForExecution--
-        tx.queuedForExecution = false
-        this._onDequeueFromExecution([tx])
-      }
+      if (tx.queuedForExecution) this._dequeueFromExecution(tx)
 
       for (const deptxid of deptxids) {
         this.addDep(tx, deptxid)
       }
 
-      tx.queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+      const queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
         !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
-      if (tx.queuedForExecution) {
-        this.numQueuedForExecution++
-        this._onQueueForExecution([tx])
+      if (queuedForExecution) {
+        this._queueForExecution(tx)
         if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(txid)
       }
     })
@@ -473,11 +462,10 @@ class Database {
     this.setTrustedStmt.run(txid, 1)
     this.trustlist.add(txid)
     const tx = this.unexecuted.get(txid)
-    tx.queuedForExecution = !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
-    if (tx.queuedForExecution) {
-      this.numQueuedForExecution++
-      this._onQueueForExecution([tx])
-      if (this.onReadyToExecute) this.onReadyToExecute(txid)
+    const queuedForExecution = !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
+    if (queuedForExecution) {
+      this._queueForExecution(tx)
+      if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(txid)
     }
     if (this.onTrustTransaction) this.onTrustTransaction(txid)
   }
@@ -540,8 +528,13 @@ class Database {
   // internal
   // --------------------------------------------------------------------------
 
-  _onQueueForExecution (start) {
-    const queue = [...start]
+  _queueForExecution (tx) {
+    if (tx.queuedForExecution) return
+
+    tx.queuedForExecution = true
+    this.numQueuedForExecution++
+
+    const queue = [tx]
 
     while (queue.length) {
       const tx = queue.shift()
@@ -559,14 +552,23 @@ class Database {
     }
   }
 
-  _onDequeueFromExecution (start) {
-    const queue = [...start]
+  _dequeueFromExecution (tx) {
+    if (!tx.queuedForExecution) return
+
+    tx.queuedForExecution = false
+    this.numQueuedForExecution--
+
+    const queue = [tx]
+
     while (queue.length) {
       const tx = queue.shift()
+
       for (const downtx of tx.downstream) {
         if (!downtx.queuedForExecution) continue
+
         downtx.queuedForExecution = false
         this.numQueuedForExecution--
+
         queue.push(downtx)
       }
     }
