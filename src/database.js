@@ -412,11 +412,33 @@ class Database {
 
   trust (txid) {
     if (this.trustlist.has(txid)) return
-    this.setTrustedStmt.run(txid, 1)
-    this.trustlist.add(txid)
+
+    const trusted = [txid]
+
     const tx = this.unexecuted.get(txid)
-    this._checkExecutability(tx)
-    if (this.onTrustTransaction) this.onTrustTransaction(txid)
+    if (tx) {
+      const queue = [...tx.upstream]
+      const visited = new Set()
+      while (queue.length) {
+        const tx = queue.shift()
+        if (visited.has(tx)) continue
+        visited.add(tx)
+        if (tx.hasCode && !this.trustlist.has(tx.txid)) trusted.push(tx.txid)
+        Array.from(tx.upstream).forEach(uptx => queue.push(uptx))
+      }
+    }
+
+    this.transaction(() => {
+      trusted.forEach(txid => this.setTrustedStmt.run(txid, 1))
+      trusted.forEach(txid => this.trustlist.add(txid))
+    })
+
+    trusted.forEach(txid => {
+      const tx = this.unexecuted.get(txid)
+      if (tx) this._checkExecutability(tx)
+    })
+
+    if (this.onTrustTransaction) trusted.forEach(txid => this.onTrustTransaction(txid))
   }
 
   untrust (txid) {
