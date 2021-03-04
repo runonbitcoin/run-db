@@ -36,7 +36,7 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
 * `GET /status` - Prints status information
 
-* `POST /trust/:txid` - Trusts code in a transaction
+* `POST /trust/:txid` - Trusts a transaction to execute its code, as well as any untrusted ancestors
 * `POST /tx/:txid` - Indexes a transaction and any ancestors. You may optionally add the `hex` query param.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction
