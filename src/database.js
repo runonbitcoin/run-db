@@ -29,8 +29,8 @@ class Database {
   constructor (path) {
     this.path = path
     this.db = null
-    this.trustlist = null
-    this.unexecuted = null
+    this.trustlist = new Set()
+    this.unexecuted = new Map()
     this.numQueuedForExecution = 0
 
     this.onReadyToExecute = null
@@ -169,29 +169,8 @@ class Database {
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
-    this.trustlist = new Set(this.getTrustlistStmt.raw(true).all().map(row => row[0]))
-
-    this.unexecuted = new Map()
-    const readyToExecute = new Set()
-
-    const unexecuted = this.getUnexecutedStmt.raw(true).all()
-    for (const [txid, downloaded, hasCode] of unexecuted) {
-      const tx = new Tx(txid, downloaded, hasCode)
-      this.unexecuted.set(txid, tx)
-      const untrusted = hasCode && !this.trustlist.has(txid)
-      if (downloaded && !untrusted) readyToExecute.add(tx)
-    }
-
-    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = this.unexecuted.get(up)
-      if (!uptx) continue
-      const downtx = this.unexecuted.get(down)
-      downtx.upstream.add(uptx)
-      uptx.downstream.add(downtx)
-      readyToExecute.delete(downtx)
-    }
-
-    readyToExecute.forEach(tx => this._queueForExecution(tx))
+    this._loadTrustlist()
+    this._loadUnexecuted()
   }
 
   close () {
@@ -246,10 +225,7 @@ class Database {
       for (const downtx of tx.downstream) {
         downtx.upstream.delete(tx)
 
-        const queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
-
-        if (queuedForExecution) this._queueForExecution(downtx)
+        this._checkExecutability(downtx)
       }
     })
   }
@@ -281,14 +257,7 @@ class Database {
         }
       }
 
-      const queuedForExecution = (!hasCode || this.trustlist.has(txid)) &&
-        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
-
-      if (queuedForExecution) {
-        this._queueForExecution(tx)
-      } else {
-        this._dequeueFromExecution(tx)
-      }
+      this._checkExecutability(tx)
     })
   }
 
@@ -386,23 +355,6 @@ class Database {
   // deps
   // --------------------------------------------------------------------------
 
-  addMissingDeps (txid, deptxids) {
-    const tx = this.unexecuted.get(txid)
-
-    this.transaction(() => {
-      if (tx.queuedForExecution) this._dequeueFromExecution(tx)
-
-      for (const deptxid of deptxids) {
-        this.addDep(tx, deptxid)
-      }
-
-      const queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
-        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
-
-      if (queuedForExecution) this._queueForExecution(tx)
-    })
-  }
-
   addDep (tx, deptxid) {
     this.addNewTransaction(deptxid)
     this.addDepStmt.run(deptxid, deptxid)
@@ -416,6 +368,18 @@ class Database {
         this.setTransactionExecutionFailed(tx.txid)
       }
     }
+  }
+
+  addMissingDeps (txid, deptxids) {
+    const tx = this.unexecuted.get(txid)
+
+    this.transaction(() => {
+      for (const deptxid of deptxids) {
+        this.addDep(tx, deptxid)
+      }
+
+      this._checkExecutability(tx)
+    })
   }
 
   // --------------------------------------------------------------------------
@@ -449,8 +413,7 @@ class Database {
     this.setTrustedStmt.run(txid, 1)
     this.trustlist.add(txid)
     const tx = this.unexecuted.get(txid)
-    const queuedForExecution = !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
-    if (queuedForExecution) this._queueForExecution(tx)
+    this._checkExecutability(tx)
     if (this.onTrustTransaction) this.onTrustTransaction(txid)
   }
 
@@ -512,53 +475,48 @@ class Database {
   // internal
   // --------------------------------------------------------------------------
 
-  _queueForExecution (tx) {
-    if (tx.queuedForExecution) return
+  _loadTrustlist () {
+    this.getTrustlistStmt.raw(true).all().forEach(row => this.trustlist.add(row[0]))
+  }
 
-    tx.queuedForExecution = true
+  _loadUnexecuted () {
+    const unexecuted = this.getUnexecutedStmt.raw(true).all()
+    for (const [txid, downloaded, hasCode] of unexecuted) {
+      const tx = new Tx(txid, downloaded, hasCode)
+      this.unexecuted.set(txid, tx)
+    }
 
-    this.numQueuedForExecution++
+    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
+      const uptx = this.unexecuted.get(up)
+      if (!uptx) continue
+      const downtx = this.unexecuted.get(down)
+      downtx.upstream.add(uptx)
+      uptx.downstream.add(downtx)
+    }
 
-    const queue = [tx]
+    for (const tx of this.unexecuted.values()) {
+      this._checkExecutability(tx)
+    }
+  }
 
-    while (queue.length) {
-      const tx = queue.shift()
+  _checkExecutability (tx) {
+    const queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+      !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
-      for (const downtx of tx.downstream) {
-        if (downtx.queuedForExecution) continue
+    if (queuedForExecution === tx.queuedForExecution) return
 
-        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
+    tx.queuedForExecution = queuedForExecution
 
-        if (downtx.queuedForExecution) {
-          this.numQueuedForExecution++
-          queue.push(downtx)
-        }
-      }
+    if (queuedForExecution) {
+      this.numQueuedForExecution++
+    } else {
+      this.numQueuedForExecution--
     }
 
     if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(tx.txid)
-  }
 
-  _dequeueFromExecution (tx) {
-    if (!tx.queuedForExecution) return
-
-    tx.queuedForExecution = false
-    this.numQueuedForExecution--
-
-    const queue = [tx]
-
-    while (queue.length) {
-      const tx = queue.shift()
-
-      for (const downtx of tx.downstream) {
-        if (!downtx.queuedForExecution) continue
-
-        downtx.queuedForExecution = false
-        this.numQueuedForExecution--
-
-        queue.push(downtx)
-      }
+    for (const downtx of tx.downstream) {
+      this._checkExecutability(downtx)
     }
   }
 }
