@@ -193,7 +193,7 @@ class Database {
 
     this.numQueuedForExecution = readyToExecute.size
     readyToExecute.forEach(tx => { tx.queuedForExecution = true })
-    this._markQueuedForExecution(readyToExecute)
+    this._onQueueForExecution(readyToExecute)
 
     for (const tx of readyToExecute) {
       if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
@@ -210,38 +210,6 @@ class Database {
   transaction (f) {
     if (!this.db) return
     this.db.transaction(f)()
-  }
-
-  _markQueuedForExecution (start) {
-    const queue = [...start]
-
-    while (queue.length) {
-      const tx = queue.shift()
-      for (const downtx of tx.downstream) {
-        if (downtx.queuedForExecution) continue
-
-        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
-
-        if (downtx.queuedForExecution) {
-          this.numQueuedForExecution++
-          queue.push(downtx)
-        }
-      }
-    }
-  }
-
-  _markNotQueuedForExecution (start) {
-    const queue = [...start]
-    while (queue.length) {
-      const tx = queue.shift()
-      for (const downtx of tx.downstream) {
-        if (!downtx.queuedForExecution) continue
-        downtx.queuedForExecution = false
-        this.numQueuedForExecution--
-        queue.push(downtx)
-      }
-    }
   }
 
   // --------------------------------------------------------------------------
@@ -289,7 +257,7 @@ class Database {
 
         if (downtx.queuedForExecution) {
           this.numQueuedForExecution++
-          this._markQueuedForExecution([downtx])
+          this._onQueueForExecution([downtx])
           if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
@@ -329,13 +297,13 @@ class Database {
       if (tx.queuedForExecution) {
         this.numQueuedForExecution++
 
-        this._markQueuedForExecution([tx])
+        this._onQueueForExecution([tx])
 
         if (!tx.upstream.size) {
           if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
         }
       } else {
-        this._markNotQueuedForExecution([tx])
+        this._onDequeueFromExecution([tx])
       }
     })
   }
@@ -441,7 +409,7 @@ class Database {
       if (tx.queuedForExecution) {
         this.numQueuedForExecution--
         tx.queuedForExecution = false
-        this._markNotQueuedForExecution([tx])
+        this._onDequeueFromExecution([tx])
       }
 
       for (const deptxid of deptxids) {
@@ -453,7 +421,7 @@ class Database {
 
       if (tx.queuedForExecution) {
         this.numQueuedForExecution++
-        this._markQueuedForExecution([tx])
+        this._onQueueForExecution([tx])
         if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(txid)
       }
     })
@@ -508,7 +476,7 @@ class Database {
     tx.queuedForExecution = !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
     if (tx.queuedForExecution) {
       this.numQueuedForExecution++
-      this._markQueuedForExecution([tx])
+      this._onQueueForExecution([tx])
       if (this.onReadyToExecute) this.onReadyToExecute(txid)
     }
     if (this.onTrustTransaction) this.onTrustTransaction(txid)
@@ -566,6 +534,42 @@ class Database {
 
   setHeightAndHash (height, hash) {
     this.setHeightAndHashStmt.run(height, hash)
+  }
+
+  // --------------------------------------------------------------------------
+  // internal
+  // --------------------------------------------------------------------------
+
+  _onQueueForExecution (start) {
+    const queue = [...start]
+
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (downtx.queuedForExecution) continue
+
+        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
+
+        if (downtx.queuedForExecution) {
+          this.numQueuedForExecution++
+          queue.push(downtx)
+        }
+      }
+    }
+  }
+
+  _onDequeueFromExecution (start) {
+    const queue = [...start]
+    while (queue.length) {
+      const tx = queue.shift()
+      for (const downtx of tx.downstream) {
+        if (!downtx.queuedForExecution) continue
+        downtx.queuedForExecution = false
+        this.numQueuedForExecution--
+        queue.push(downtx)
+      }
+    }
   }
 }
 
