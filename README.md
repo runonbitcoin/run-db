@@ -33,11 +33,14 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /tx/:txid` - Gets the raw transaction hex for an added transaction
 * `GET /time/:txid` - Gets the block or mempool time of a transaction in seconds since unix epoch
 * `GET /trust/:txid?` - Gets whether a particular txid is trusted, or the entire trust list
+* `GET /ban/:txid?` - Gets whether a particular txid is banned, or the entire ban list
 * `GET /untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
 * `GET /status` - Prints status information
 
 * `POST /trust/:txid` - Trusts a transaction to execute its code, as well as any untrusted ancestors
+* `POST /ban/:txid` - Bans a transaction from being executed
 * `POST /tx/:txid` - Indexes a transaction and any ancestors. You may optionally add the `hex` query param.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction
+* `DELETE /ban/:txid` - Removes a transaction ban
 * `DELETE /tx/:txid` - Removes a transaction, its descendants, and any connected state

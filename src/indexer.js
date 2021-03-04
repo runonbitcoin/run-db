@@ -45,6 +45,8 @@ class Indexer {
     this.database.onDeleteTransaction = this._onDeleteTransaction.bind(this)
     this.database.onTrustTransaction = this._onTrustTransaction.bind(this)
     this.database.onUntrustTransaction = this._onUntrustTransaction.bind(this)
+    this.database.onBanTransaction = this._onBanTransaction.bind(this)
+    this.database.onUnbanTransaction = this._onUnbanTransaction.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
@@ -115,6 +117,16 @@ class Indexer {
     this.database.untrust(txid)
   }
 
+  ban (txid) {
+    txid = this._parseTxid(txid)
+    this.database.ban(txid)
+  }
+
+  unban (txid) {
+    txid = this._parseTxid(txid)
+    this.database.unban(txid)
+  }
+
   untrusted (txid) {
     if (txid) {
       txid = this._parseTxid(txid)
@@ -179,6 +191,14 @@ class Indexer {
 
   _onUntrustTransaction (txid) {
     this.logger.info('Untrusted', txid)
+  }
+
+  _onBanTransaction (txid) {
+    this.logger.info('Banned', txid)
+  }
+
+  _onUnbanTransaction (txid) {
+    this.logger.info('Unbanned', txid)
   }
 
   _onMissingDeps (txid, deptxids) {

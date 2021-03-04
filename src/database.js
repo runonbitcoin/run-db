@@ -30,6 +30,7 @@ class Database {
     this.path = path
     this.db = null
     this.trustlist = new Set()
+    this.banlist = new Set()
     this.unexecuted = new Map() // executable but not executed, or not yet downloaded
     this.numQueuedForExecution = 0
 
@@ -38,6 +39,8 @@ class Database {
     this.onDeleteTransaction = null
     this.onTrustTransaction = null
     this.onUntrustTransaction = null
+    this.onBanTransaction = null
+    this.onUnbanTransaction = null
   }
 
   open () {
@@ -94,6 +97,12 @@ class Database {
       `CREATE TABLE IF NOT EXISTS trust (
         txid TEXT NOT NULL PRIMARY KEY,
         value INTEGER
+      ) WITHOUT ROWID`
+    ).run()
+
+    this.db.prepare(
+      `CREATE TABLE IF NOT EXISTS ban (
+        txid TEXT NOT NULL PRIMARY KEY
       ) WITHOUT ROWID`
     ).run()
 
@@ -165,11 +174,16 @@ class Database {
     this.setTrustedStmt = this.db.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
     this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust WHERE value = 1')
 
+    this.banStmt = this.db.prepare('INSERT OR REPLACE INTO ban (txid) VALUES (?)')
+    this.unbanStmt = this.db.prepare('DELETE FROM ban WHERE txid = ?')
+    this.getBanlistStmt = this.db.prepare('SELECT txid FROM ban')
+
     this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this._loadTrustlist()
+    this._loadBanlist()
     this._loadUnexecuted()
   }
 
@@ -478,6 +492,33 @@ class Database {
   }
 
   // --------------------------------------------------------------------------
+  // ban
+  // --------------------------------------------------------------------------
+
+  isBanned (txid) {
+    return this.banlist.has(txid)
+  }
+
+  ban (txid) {
+    if (this.banlist.has(txid)) return
+    this.banStmt.run(txid)
+    this.banlist.add(txid)
+    if (this.onBanTransaction) this.onBanTransaction(txid)
+  }
+
+  unban (txid) {
+    if (!this.banlist.has(txid)) return
+    // We don't remove state already calculated
+    this.unbanStmt.run(txid)
+    this.banlist.delete(txid)
+    if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
+  }
+
+  getBanlist () {
+    return Array.from(this.banlist)
+  }
+
+  // --------------------------------------------------------------------------
   // crawl
   // --------------------------------------------------------------------------
 
@@ -503,6 +544,10 @@ class Database {
     this.getTrustlistStmt.raw(true).all().forEach(row => this.trustlist.add(row[0]))
   }
 
+  _loadBanlist () {
+    this.getBanlistStmt.raw(true).all().forEach(row => this.banlist.add(row[0]))
+  }
+
   _loadUnexecuted () {
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, downloaded, hasCode] of unexecuted) {
@@ -524,7 +569,9 @@ class Database {
   }
 
   _checkExecutability (tx) {
-    const queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+    const queuedForExecution =
+      (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+      !this.banlist.has(tx.txid) &&
       !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
     if (queuedForExecution === tx.queuedForExecution) return

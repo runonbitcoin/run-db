@@ -34,13 +34,16 @@ class Server {
     app.get('/tx/:txid', this.getTx.bind(this))
     app.get('/time/:txid', this.getTime.bind(this))
     app.get('/trust/:txid?', this.getTrust.bind(this))
+    app.get('/ban/:txid?', this.getBan.bind(this))
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
     app.get('/status', this.getStatus.bind(this))
 
     app.post('/trust/:txid', this.postTrust.bind(this))
+    app.post('/ban/:txid', this.postBan.bind(this))
     app.post('/tx/:txid', this.postTx.bind(this))
 
     app.delete('/trust/:txid', this.deleteTrust.bind(this))
+    app.delete('/ban/:txid', this.deleteBan.bind(this))
     app.delete('/tx/:txid', this.deleteTx.bind(this))
 
     const listener = app.listen(this.port, () => {
@@ -104,6 +107,16 @@ class Server {
     } catch (e) { next(e) }
   }
 
+  async getBan (req, res, next) {
+    try {
+      if (req.params.txid) {
+        res.json(this.indexer.database.isBanned(req.params.txid))
+      } else {
+        res.json(Array.from(this.indexer.database.getBanlist()))
+      }
+    } catch (e) { next(e) }
+  }
+
   async getUntrusted (req, res, next) {
     try {
       const untrusted = this.indexer.untrusted(req.params.txid)
@@ -125,6 +138,13 @@ class Server {
     } catch (e) { next(e) }
   }
 
+  async postBan (req, res, next) {
+    try {
+      this.indexer.ban(req.params.txid)
+      res.send(`Banned ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
   async postTx (req, res, next) {
     try {
       this.indexer.add(req.params.txid, req.query.hex)
@@ -136,6 +156,13 @@ class Server {
     try {
       this.indexer.untrust(req.params.txid)
       res.send(`Untrusted ${req.params.txid}\n`)
+    } catch (e) { next(e) }
+  }
+
+  async deleteBan (req, res, next) {
+    try {
+      this.indexer.unban(req.params.txid)
+      res.send(`Unbanned ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
 
