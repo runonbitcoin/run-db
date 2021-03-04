@@ -15,7 +15,7 @@ class Tx {
   constructor (txid, downloaded, hasCode) {
     this.txid = txid
     this.hasCode = hasCode
-    this.pendingExecution = false
+    this.queuedForExecution = false
     this.upstream = new Set()
     this.downstream = new Set()
   }
@@ -31,7 +31,7 @@ class Database {
     this.db = null
     this.trustlist = null
     this.unexecuted = null
-    this.numPendingExecution = null
+    this.numQueuedForExecution = null
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -191,9 +191,9 @@ class Database {
       readyToExecute.delete(downtx)
     }
 
-    this.numPendingExecution = readyToExecute.size
-    readyToExecute.forEach(tx => { tx.pendingExecution = true })
-    this._markPendingExecution(readyToExecute)
+    this.numQueuedForExecution = readyToExecute.size
+    readyToExecute.forEach(tx => { tx.queuedForExecution = true })
+    this._markQueuedForExecution(readyToExecute)
 
     for (const tx of readyToExecute) {
       if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
@@ -212,33 +212,33 @@ class Database {
     this.db.transaction(f)()
   }
 
-  _markPendingExecution (start) {
+  _markQueuedForExecution (start) {
     const queue = [...start]
 
     while (queue.length) {
       const tx = queue.shift()
       for (const downtx of tx.downstream) {
-        if (downtx.pendingExecution) continue
+        if (downtx.queuedForExecution) continue
 
-        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          !Array.from(downtx.upstream).some(uptx => !uptx.pendingExecution)
+        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
 
-        if (downtx.pendingExecution) {
-          this.numPendingExecution++
+        if (downtx.queuedForExecution) {
+          this.numQueuedForExecution++
           queue.push(downtx)
         }
       }
     }
   }
 
-  _markNotPendingExecution (start) {
+  _markNotQueuedForExecution (start) {
     const queue = [...start]
     while (queue.length) {
       const tx = queue.shift()
       for (const downtx of tx.downstream) {
-        if (!downtx.pendingExecution) continue
-        downtx.pendingExecution = false
-        this.numPendingExecution--
+        if (!downtx.queuedForExecution) continue
+        downtx.queuedForExecution = false
+        this.numQueuedForExecution--
         queue.push(downtx)
       }
     }
@@ -284,12 +284,12 @@ class Database {
       for (const downtx of tx.downstream) {
         downtx.upstream.delete(tx)
 
-        downtx.pendingExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
-          !Array.from(downtx.upstream).some(uptx => !uptx.pendingExecution)
+        downtx.queuedForExecution = (!downtx.hasCode || this.trustlist.has(downtx.txid)) &&
+          !Array.from(downtx.upstream).some(uptx => !uptx.queuedForExecution)
 
-        if (downtx.pendingExecution) {
-          this.numPendingExecution++
-          this._markPendingExecution([downtx])
+        if (downtx.queuedForExecution) {
+          this.numQueuedForExecution++
+          this._markQueuedForExecution([downtx])
           if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
@@ -323,19 +323,19 @@ class Database {
         }
       }
 
-      tx.pendingExecution = (!hasCode || this.trustlist.has(txid)) &&
-        !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
+      tx.queuedForExecution = (!hasCode || this.trustlist.has(txid)) &&
+        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
-      if (tx.pendingExecution) {
-        this.numPendingExecution++
+      if (tx.queuedForExecution) {
+        this.numQueuedForExecution++
 
-        this._markPendingExecution([tx])
+        this._markQueuedForExecution([tx])
 
         if (!tx.upstream.size) {
           if (this.onReadyToExecute) this.onReadyToExecute(tx.txid)
         }
       } else {
-        this._markNotPendingExecution([tx])
+        this._markNotQueuedForExecution([tx])
       }
     })
   }
@@ -364,11 +364,11 @@ class Database {
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecuted.delete(txid)
-      if (tx.pendingExecution) this.numPendingExecution--
-      tx.pendingExecution = false
+      if (tx.queuedForExecution) this.numQueuedForExecution--
+      tx.queuedForExecution = false
 
       for (const downtx of tx.downstream) {
-        if (downtx.pendingExecution && !downtx.upstream.size) {
+        if (downtx.queuedForExecution && !downtx.upstream.size) {
           if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
         }
       }
@@ -385,7 +385,7 @@ class Database {
       this.setTransactionIndexedStmt.run(0, txid)
 
       this.unexecuted.delete(txid)
-      if (tx.pendingExecution) this.numPendingExecution--
+      if (tx.queuedForExecution) this.numQueuedForExecution--
 
       for (const downtx of tx.downstream) {
         this.setTransactionExecutionFailed(downtx.txid)
@@ -411,7 +411,7 @@ class Database {
       this.deleteDepsStmt.run(txid)
 
       const tx = this.unexecuted.get(txid)
-      if (tx && tx.pendingExecution) this.numPendingExecution--
+      if (tx && tx.queuedForExecution) this.numQueuedForExecution--
       this.unexecuted.delete(txid)
 
       if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
@@ -428,7 +428,7 @@ class Database {
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
   getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
-  getRemainingToExecute () { return this.numPendingExecution }
+  getNumQueuedForExecution () { return this.numQueuedForExecution }
 
   // --------------------------------------------------------------------------
   // deps
@@ -438,22 +438,22 @@ class Database {
     const tx = this.unexecuted.get(txid)
 
     this.transaction(() => {
-      if (tx.pendingExecution) {
-        this.numPendingExecution--
-        tx.pendingExecution = false
-        this._markNotPendingExecution([tx])
+      if (tx.queuedForExecution) {
+        this.numQueuedForExecution--
+        tx.queuedForExecution = false
+        this._markNotQueuedForExecution([tx])
       }
 
       for (const deptxid of deptxids) {
         this.addDep(tx, deptxid)
       }
 
-      tx.pendingExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
-        !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
+      tx.queuedForExecution = (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
 
-      if (tx.pendingExecution) {
-        this.numPendingExecution++
-        this._markPendingExecution([tx])
+      if (tx.queuedForExecution) {
+        this.numQueuedForExecution++
+        this._markQueuedForExecution([tx])
         if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(txid)
       }
     })
@@ -505,10 +505,10 @@ class Database {
     this.setTrustedStmt.run(txid, 1)
     this.trustlist.add(txid)
     const tx = this.unexecuted.get(txid)
-    tx.pendingExecution = !Array.from(tx.upstream).some(uptx => !uptx.pendingExecution)
-    if (tx.pendingExecution) {
-      this.numPendingExecution++
-      this._markPendingExecution([tx])
+    tx.queuedForExecution = !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
+    if (tx.queuedForExecution) {
+      this.numQueuedForExecution++
+      this._markQueuedForExecution([tx])
       if (this.onReadyToExecute) this.onReadyToExecute(txid)
     }
     if (this.onTrustTransaction) this.onTrustTransaction(txid)

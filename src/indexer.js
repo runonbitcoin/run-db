@@ -131,7 +131,7 @@ class Indexer {
       indexed: this.database.getIndexedCount(),
       downloaded: this.database.getDownloadedCount(),
       downloading: this.downloader.remaining(),
-      executing: this.database.getRemainingToExecute()
+      executing: this.database.getNumQueuedForExecution()
     }
   }
 
@@ -150,7 +150,7 @@ class Indexer {
 
   _onIndexed (txid, state) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid} (${this.database.getRemainingToExecute() - 1} remaining)`)
+    this.logger.info(`Executed ${txid} (${this.database.getNumQueuedForExecution() - 1} remaining)`)
     this.database.storeExecutedTransaction(txid, state)
     if (this.onIndex) this.onIndex(txid)
   }
