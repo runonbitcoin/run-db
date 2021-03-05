@@ -13,25 +13,16 @@ const Indexer = require('../src/indexer')
 
 const fetch = txid => require('./txns.json')[txid]
 const api = { fetch }
-// const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-// const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
+const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
+const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
 describe('Indexer', () => {
-  it('add downloads dependencies', async () => {
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, console, 0)
-    await indexer.start()
-    indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    await new Promise((resolve, reject) => setTimeout(resolve, 1000))
-    await indexer.stop()
-  })
-
-  /*
   it('add and index', async () => {
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.add('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
@@ -42,7 +33,7 @@ describe('Indexer', () => {
   // --------------------------------------------------------------------------
 
   it('add in reverse and index', async () => {
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     indexer.add('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
@@ -53,7 +44,7 @@ describe('Indexer', () => {
   // --------------------------------------------------------------------------
 
   it('fail to index', async () => {
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.trust('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
     indexer.trust('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
@@ -66,7 +57,7 @@ describe('Indexer', () => {
   // --------------------------------------------------------------------------
 
   it('discovered berry transaction', async () => {
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.add('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
     indexer.add('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a') // B (old)
@@ -77,7 +68,16 @@ describe('Indexer', () => {
     await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     await indexer.stop()
   })
-  */
+
+  // --------------------------------------------------------------------------
+
+  it('add downloaded dependencies', async () => {
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    await indexer.start()
+    indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await new Promise((resolve, reject) => setTimeout(resolve, 1000))
+    await indexer.stop()
+  })
 })
 
 // ------------------------------------------------------------------------------------------------
