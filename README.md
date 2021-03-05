@@ -38,9 +38,9 @@ Create a .env file or set the following environment variables to configure the D
 * `GET /status` - Prints status information
 
 * `POST /trust/:txid` - Trusts a transaction to execute its code, as well as any untrusted ancestors
-* `POST /ban/:txid` - Bans a transaction from being executed
+* `POST /ban/:txid` - Bans a transaction from being executed, and unindexes it and its descendents
 * `POST /tx/:txid` - Indexes a transaction and any ancestors. You may optionally add the `hex` query param.
 
-* `DELETE /trust/:txid` - Removes trust for a transaction
-* `DELETE /ban/:txid` - Removes a transaction ban
-* `DELETE /tx/:txid` - Removes a transaction, its descendants, and any connected state
+* `DELETE /trust/:txid` - Removes trust for a transaction, and unindexes it and its descendents
+* `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
+* `DELETE /tx/:txid` - Removes a transaction, its descendents, and any connected state
