@@ -6,3 +6,4 @@
 
 require('./crawler')
 require('./indexer')
+require('./server')

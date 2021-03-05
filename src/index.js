@@ -62,6 +62,7 @@ async function main () {
 // ------------------------------------------------------------------------------------------------
 
 async function shutdown () {
+  server.stop()
   await indexer.stop()
   process.exit(0)
 }

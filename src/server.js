@@ -6,6 +6,8 @@
 
 const express = require('express')
 const morgan = require('morgan')
+const bodyParser = require('body-parser')
+const bsv = require('bsv')
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -16,18 +18,16 @@ class Server {
     this.indexer = indexer
     this.logger = logger
     this.port = port
-    this.app = null
+    this.listener = null
+    this.onListening = null
   }
 
   start () {
     const app = express()
 
-    app.use(morgan('tiny'))
+    if (this.logger) app.use(morgan('tiny'))
 
-    app.use(function (err, req, res, next) {
-      this.logger.error(err.stack)
-      res.status(500).send('Something broke!')
-    })
+    app.use(bodyParser.text())
 
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
@@ -46,9 +46,22 @@ class Server {
     app.delete('/ban/:txid', this.deleteBan.bind(this))
     app.delete('/tx/:txid', this.deleteTx.bind(this))
 
-    const listener = app.listen(this.port, () => {
-      this.logger.info(`Listening at http://localhost:${listener.address().port}`)
+    app.use((err, req, res, next) => {
+      if (this.logger) this.logger.error(err.stack)
+      res.status(500).send('Something broke!')
     })
+
+    this.listener = app.listen(this.port, () => {
+      if (this.lgoger) this.logger.info(`Listening at http://localhost:${this.listener.address().port}`)
+      this.port = this.listener.address().port
+      if (this.onListening) this.onListening()
+    })
+  }
+
+  stop () {
+    if (!this.listener) return
+    this.listener.close()
+    this.listener = null
   }
 
   async getJig (req, res, next) {
@@ -147,8 +160,17 @@ class Server {
 
   async postTx (req, res, next) {
     try {
-      this.indexer.add(req.params.txid, req.query.hex)
-      res.send(`Added ${req.params.txid}\n`)
+      let txid = req.params.txid
+      const hex = req.body
+      if (req.body !== 'undefined') {
+        if (typeof hex !== 'string' || !hex.length) throw new Error(`Invalid rawtx: ${hex}`)
+        const bsvtx = new bsv.Transaction(hex)
+        if (!txid) txid = bsvtx.hash
+        if (txid && txid !== bsvtx.hash) throw new Error('txid does not match rawtx')
+      }
+      if (!txid) throw new Error('Invalid request parameters')
+      this.indexer.add(txid, hex)
+      res.send(`Added ${txid}\n`)
     } catch (e) { next(e) }
   }
 

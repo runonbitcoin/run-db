@@ -39,7 +39,7 @@ Create a .env file or set the following environment variables to configure the D
 
 * `POST /trust/:txid` - Trusts a transaction to execute its code, as well as any untrusted ancestors
 * `POST /ban/:txid` - Bans a transaction from being executed, and unindexes it and its descendents
-* `POST /tx/:txid` - Indexes a transaction and any ancestors. You may optionally add the `hex` query param.
+* `POST /tx/:txid?` - Indexes a transaction and any ancestors. You may optionally add the raw hex data for the transaction in the body as text/plain.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction, and unindexes it and its descendents
 * `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
