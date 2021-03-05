@@ -494,8 +494,10 @@ class Database {
 
   untrust (txid) {
     if (!this.trustlist.has(txid)) return
-    // We don't remove state already calculated
-    this.setTrustedStmt.run(txid, 0)
+    this.transaction(() => {
+      this.unindexTransaction(txid)
+      this.setTrustedStmt.run(txid, 0)
+    })
     this.trustlist.delete(txid)
     if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
   }
