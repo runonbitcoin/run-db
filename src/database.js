@@ -41,6 +41,7 @@ class Database {
     this.onUntrustTransaction = null
     this.onBanTransaction = null
     this.onUnbanTransaction = null
+    this.onUntrustTransaction = null
   }
 
   open () {
@@ -135,6 +136,7 @@ class Database {
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
     this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
+    this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
@@ -151,7 +153,7 @@ class Database {
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
     this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
     this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
-    this.getUpstreamUnexecuted = this.db.prepare(`
+    this.getUpstreamUnexecutedStmt = this.db.prepare(`
       SELECT txdeps.txid as txid
       FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
       JOIN tx ON tx.txid = txdeps.txid
@@ -358,6 +360,41 @@ class Database {
     })
   }
 
+  unindexTransaction (txid) {
+    const tx = this.unexecuted.get(txid)
+
+    if (tx) {
+      this._checkExecutability(tx, false)
+      return
+    }
+
+    this.transaction(() => {
+      if (this.getTransactionIndexedStmt.raw(true).get(txid)[0]) {
+        this.setTransactionExecutedStmt.run(0, txid)
+        this.setTransactionIndexedStmt.run(0, txid)
+        this.deleteJigStatesStmt.run(txid)
+        this.deleteBerryStatesStmt.run(txid)
+
+        const downloaded = this.getTransactionDownloadedStmt.raw(true).get(txid)[0]
+        const hasCode = downloaded ? this.getTransactionHasCodeStmt.raw(true).get(txid)[0] : null
+        const tx = new Tx(txid, downloaded, hasCode)
+        const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(txid).map(row => row[0])
+        for (const uptxid of upstreamUnexecuted) {
+          const uptx = this.unexecuted.get(uptxid)
+          if (!uptx) continue
+          tx.upstream.add(uptx)
+          uptx.downstream.add(tx)
+        }
+        this.unexecuted.set(txid, tx)
+
+        const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+        downtxids.forEach(downtxid => this.unindexTransaction(downtxid))
+
+        if (this.onUnindexTransaction) this.onUnindexTransaction(txid)
+      }
+    })
+  }
+
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
   isTransactionDownloaded (txid) { return !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0] }
   getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
@@ -481,7 +518,7 @@ class Database {
       const next = queue.shift()
       const tx = this.unexecuted.get(next)
       if (tx.hasCode && !this.trustlist.has(next)) untrusted.add(next)
-      const upstreamUnexecuted = this.getUpstreamUnexecuted.raw(true).all(next).map(row => row[0])
+      const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(next).map(row => row[0])
       upstreamUnexecuted.forEach(uptxid => {
         if (visited.has(uptxid)) return
         visited.add(uptxid)
@@ -501,16 +538,20 @@ class Database {
 
   ban (txid) {
     if (this.banlist.has(txid)) return
-    this.banStmt.run(txid)
+    this.transaction(() => {
+      this.unindexTransaction(txid)
+      this.banStmt.run(txid)
+    })
     this.banlist.add(txid)
     if (this.onBanTransaction) this.onBanTransaction(txid)
   }
 
   unban (txid) {
     if (!this.banlist.has(txid)) return
-    // We don't remove state already calculated
     this.unbanStmt.run(txid)
     this.banlist.delete(txid)
+    const tx = this.unexecuted.get(txid)
+    if (tx) this._checkExecutability(tx)
     if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
   }
 
@@ -568,11 +609,17 @@ class Database {
     }
   }
 
-  _checkExecutability (tx) {
-    const queuedForExecution =
-      (!tx.hasCode || this.trustlist.has(tx.txid)) &&
-      !this.banlist.has(tx.txid) &&
-      !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
+  _checkExecutability (tx, forceQueuedForExecution) {
+    let queuedForExecution
+
+    if (typeof forceQueuedForExecution !== 'undefined') {
+      queuedForExecution = forceQueuedForExecution
+    } else {
+      queuedForExecution =
+        (!tx.hasCode || this.trustlist.has(tx.txid)) &&
+        !this.banlist.has(tx.txid) &&
+        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
+    }
 
     if (queuedForExecution === tx.queuedForExecution) return
 
