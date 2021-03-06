@@ -1,7 +1,8 @@
 const { parentPort, workerData } = require('worker_threads')
-const Run = require('./run.node.min')
 const bsv = require('bsv')
+const crypto = require('crypto')
 const Bus = require('./bus')
+const Run = require('./run.node.min')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
@@ -48,6 +49,14 @@ class Blockchain {
 }
 
 // ------------------------------------------------------------------------------------------------
+// scripthash
+// ------------------------------------------------------------------------------------------------
+
+const sha256 = crypto.createHash('sha256')
+
+const scripthash = x => sha256.copy().update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
+
+// ------------------------------------------------------------------------------------------------
 // execute
 // ------------------------------------------------------------------------------------------------
 
@@ -71,11 +80,16 @@ async function execute (txid, hex, trustlist) {
   const inputs = bsvtx.inputs.slice(0, Run.util.metadata(hex).in)
   const spends = inputs.map(input => `${input.prevTxId.toString('hex')}_o${input.outputIndex}`)
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
-  const classes = Object.fromEntries(jigs.map(jig => [jig.location, jig.constructor.origin]))
-  const jigsWithLocks = jigs.filter(jig => jig.owner instanceof Run.api.Lock)
-  const locks = Object.fromEntries(jigsWithLocks.map(jig => [jig.location, jig.owner.constructor.origin]))
+  const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
+  const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)
+  const customLocks = creationsWithLocks.map(creation => [creation.location, creation.owner])
+  const locks = customLocks.map(([location, lock]) => [location, lock.constructor.origin])
+  const creationsWithoutLocks = tx.outputs.filter(creation => typeof creation.owner === 'string')
+  const commonLocks = creationsWithoutLocks.map(creation => [creation.location, new Run.util.CommonLock(creation.owner)])
+  const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
+  const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
 
-  return { cache, spends, classes, locks }
+  return { cache, spends, classes, locks, scripthashes }
 }
 
 // ------------------------------------------------------------------------------------------------

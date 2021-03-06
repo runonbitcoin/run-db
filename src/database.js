@@ -81,6 +81,7 @@ class Database {
         location TEXT NOT NULL PRIMARY KEY,
         state TEXT NOT NULL,
         class TEXT,
+        scripthash TEXT,
         lock TEXT,
         spend TEXT
       ) WITHOUT ROWID`
@@ -172,10 +173,11 @@ class Database {
       WHERE tx.executable = 1 AND tx.executed = 0
     `)
 
-    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, spend) VALUES (?, ?, null, null, null)')
+    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash, spend) VALUES (?, ?, null, null, null, null)')
     this.setJigSpendStmt = this.db.prepare('UPDATE jig SET spend = ? WHERE location = ?')
     this.setJigClassStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
-    this.setJigLockStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
+    this.setJigLockStmt = this.db.prepare('UPDATE jig SET lock = ? WHERE location = ?')
+    this.setJigScripthashStmt = this.db.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
     this.getJigSpendStmt = this.db.prepare('SELECT spend FROM jig WHERE location = ?')
     this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL')
@@ -295,7 +297,7 @@ class Database {
   }
 
   storeExecutedTransaction (txid, result) {
-    const { cache, spends, classes, locks } = result
+    const { cache, spends, classes, locks, scripthashes } = result
 
     const tx = this.unexecuted.get(txid)
     if (!tx) return
@@ -322,12 +324,16 @@ class Database {
         this.setJigSpendStmt.run(txid, location)
       })
 
-      for (const location of Object.keys(classes)) {
-        this.setJigClassStmt.run(classes[location], location)
+      for (const [location, cls] of classes) {
+        this.setJigClassStmt.run(cls, location)
       }
 
-      for (const location of Object.keys(locks)) {
-        this.setJigLockStmt.run(locks[location], location)
+      for (const [location, lock] of locks) {
+        this.setJigLockStmt.run(lock, location)
+      }
+
+      for (const [location, scripthash] of scripthashes) {
+        this.setJigScripthashStmt.run(scripthash, location)
       }
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
