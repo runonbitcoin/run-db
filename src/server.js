@@ -8,6 +8,15 @@ const express = require('express')
 const morgan = require('morgan')
 const bodyParser = require('body-parser')
 const bsv = require('bsv')
+const crypto = require('crypto')
+const Run = require('run-sdk')
+
+// ------------------------------------------------------------------------------------------------
+// Globals
+// ------------------------------------------------------------------------------------------------
+
+const sha256 = crypto.createHash('sha256')
+const calculateScripthash = x => sha256.copy().update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -125,8 +134,26 @@ class Server {
 
   async getUnspent (req, res, next) {
     try {
-      if (req.query.class) {
-        res.json(this.indexer.database.getAllUnspentByClassOrigin(req.query.class))
+      const cls = req.query.class
+      const lock = req.query.lock
+      let scripthash = req.query.scripthash
+      if (req.query.address) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.address).script())
+      if (req.query.pubkey) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.pubkey).script())
+
+      if (cls && lock && scripthash) {
+        res.json(this.indexer.database.getAllUnspentByClassOriginAndLockOriginAndScripthash(cls, lock, scripthash))
+      } else if (cls && lock) {
+        res.json(this.indexer.database.getAllUnspentByClassOriginAndLockOrigin(cls, lock))
+      } else if (cls && scripthash) {
+        res.json(this.indexer.database.getAllUnspentByClassOriginAndScripthash(cls, scripthash))
+      } else if (lock && scripthash) {
+        res.json(this.indexer.database.getAllUnspentByLockOriginAndScripthash(lock, scripthash))
+      } else if (scripthash) {
+        res.json(this.indexer.database.getAllUnspentByScripthash(scripthash))
+      } else if (lock) {
+        res.json(this.indexer.database.getAllUnspentByLockOrigin(lock))
+      } else if (cls) {
+        res.json(this.indexer.database.getAllUnspentByClassOrigin(cls))
       } else {
         res.json(this.indexer.database.getAllUnspent())
       }

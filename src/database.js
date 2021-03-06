@@ -182,6 +182,12 @@ class Database {
     this.getJigSpendStmt = this.db.prepare('SELECT spend FROM jig WHERE location = ?')
     this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL')
     this.getAllUnspentByClassStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ?')
+    this.getAllUnspentByLockStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND lock = ?')
+    this.getAllUnspentByScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND scripthash = ?')
+    this.getAllUnspentByClassLockStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND lock = ?')
+    this.getAllUnspentByClassScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND scripthash = ?')
+    this.getAllUnspentByLockScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND lock = ? AND scripthash = ?')
+    this.getAllUnspentByClassLockScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND lock = ? AND scripthash = ?')
     this.getNumUnspentStmt = this.db.prepare('SELECT COUNT(*) as unspent FROM jig WHERE spend IS NULL')
     this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
     this.deleteJigSpendsStmt = this.db.prepare('UPDATE jig SET spend = null WHERE spend = ?')
@@ -491,6 +497,30 @@ class Database {
 
   getAllUnspentByClassOrigin (origin) {
     return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
+  }
+
+  getAllUnspentByLockOrigin (origin) {
+    return this.getAllUnspentByLockStmt.raw(true).all(origin).map(row => row[0])
+  }
+
+  getAllUnspentByScripthash (scripthash) {
+    return this.getAllUnspentByScripthashStmt.raw(true).all(scripthash).map(row => row[0])
+  }
+
+  getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
+    return this.getAllUnspentByClassLockStmt.raw(true).all(clsOrigin, lockOrigin).map(row => row[0])
+  }
+
+  getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
+    return this.getAllUnspentByClassScripthashStmt.raw(true).all(clsOrigin, scripthash).map(row => row[0])
+  }
+
+  getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
+    return this.getAllUnspentByLockScripthashStmt.raw(true).all(lockOrigin, scripthash).map(row => row[0])
+  }
+
+  getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
+    return this.getAllUnspentByClassLockScripthashStmt.raw(true).all(clsOrigin, lockOrigin, scripthash).map(row => row[0])
   }
 
   getNumUnspent () {
