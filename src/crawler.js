@@ -1,7 +1,7 @@
 /**
  * crawler.js
  *
- * Generic blockchain crawler that adds and removes transactions to the run.db
+ * Generic blockchain crawler that adds and removes transactions to the db
  */
 
 // ------------------------------------------------------------------------------------------------

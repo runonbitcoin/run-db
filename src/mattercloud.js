@@ -1,7 +1,7 @@
 /**
  * mattercloud.js
  *
- * MatterCloud API functions
+ * MatterCloud API
  */
 
 const axios = require('axios')

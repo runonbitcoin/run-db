@@ -1,3 +1,9 @@
+/**
+ * worker.js
+ * 
+ * Background worker that executes Run transactions
+ */
+
 const { parentPort, workerData } = require('worker_threads')
 const bsv = require('bsv')
 const crypto = require('crypto')

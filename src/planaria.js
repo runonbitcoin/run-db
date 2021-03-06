@@ -1,7 +1,7 @@
 /**
  * planaria.js
  *
- * Bitbus and Bitsocket crawler. Uses the Run API to fetch transactions.
+ * Bitbus and Bitsocket API. Uses the Run API to fetch transactions.
  */
 
 const axios = require('axios')

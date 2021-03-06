@@ -1,7 +1,7 @@
 /**
  * server.js
  *
- * Express server handlers
+ * Express server that exposes the Indexer
  */
 
 const express = require('express')
