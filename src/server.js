@@ -54,7 +54,7 @@ class Server {
     })
 
     this.listener = app.listen(this.port, () => {
-      if (this.lgoger) this.logger.info(`Listening at http://localhost:${this.listener.address().port}`)
+      if (this.logger) this.logger.info(`Listening at http://localhost:${this.listener.address().port}`)
       this.port = this.listener.address().port
       if (this.onListening) this.onListening()
     })
@@ -125,8 +125,11 @@ class Server {
 
   async getUnspent (req, res, next) {
     try {
-      const locations = this.indexer.database.getAllUnspent()
-      return res.json(locations)
+      if (req.query.class) {
+        res.json(this.indexer.database.getAllUnspentByClassOrigin(req.query.class))
+      } else {
+        res.json(this.indexer.database.getAllUnspent())
+      }
     } catch (e) { next(e) }
   }
 
@@ -181,9 +184,9 @@ class Server {
   async postTx (req, res, next) {
     try {
       let txid = req.params.txid
-      const hex = req.body
-      if (req.body !== 'undefined') {
-        if (typeof hex !== 'string' || !hex.length) throw new Error(`Invalid rawtx: ${hex}`)
+      let hex = null
+      if (typeof hex === 'string') {
+        hex = req.body
         const bsvtx = new bsv.Transaction(hex)
         if (!txid) txid = bsvtx.hash
         if (txid && txid !== bsvtx.hash) throw new Error('txid does not match rawtx')

@@ -148,7 +148,8 @@ class Indexer {
       indexed: this.database.getIndexedCount(),
       downloaded: this.database.getDownloadedCount(),
       downloading: this.downloader.remaining(),
-      executing: this.database.getNumQueuedForExecution()
+      executing: this.database.getNumQueuedForExecution(),
+      unspent: this.database.getNumUnspent()
     }
   }
 

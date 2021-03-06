@@ -80,6 +80,7 @@ class Database {
       `CREATE TABLE IF NOT EXISTS jig (
         location TEXT NOT NULL PRIMARY KEY,
         state TEXT NOT NULL,
+        class TEXT,
         spend TEXT
       ) WITHOUT ROWID`
     ).run()
@@ -172,9 +173,12 @@ class Database {
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, spend) VALUES (?, ?, null)')
     this.setJigSpendStmt = this.db.prepare('UPDATE jig SET spend = ? WHERE location = ?')
+    this.setJigClassStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
     this.getJigSpendStmt = this.db.prepare('SELECT spend FROM jig WHERE location = ?')
-    this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NOT NULL')
+    this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL')
+    this.getAllUnspentByClassStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ?')
+    this.getNumUnspentStmt = this.db.prepare('SELECT COUNT(*) as unspent FROM jig WHERE spend IS NULL')
     this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
     this.deleteJigSpendsStmt = this.db.prepare('UPDATE jig SET spend = null WHERE spend = ?')
 
@@ -289,7 +293,7 @@ class Database {
   }
 
   storeExecutedTransaction (txid, result) {
-    const { cache, spends } = result
+    const { cache, spends, classes } = result
 
     const tx = this.unexecuted.get(txid)
     if (!tx) return
@@ -312,7 +316,13 @@ class Database {
         }
       }
 
-      spends.forEach(location => this.setJigSpendStmt.run(txid, location))
+      spends.forEach(location => {
+        this.setJigSpendStmt.run(txid, location)
+      })
+
+      for (const location of Object.keys(classes)) {
+        this.setJigClassStmt.run(classes[location], location)
+      }
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecuted.delete(txid)
@@ -465,6 +475,14 @@ class Database {
 
   getAllUnspent () {
     return this.getAllUnspentStmt.raw(true).all().map(row => row[0])
+  }
+
+  getAllUnspentByClassOrigin (origin) {
+    return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
+  }
+
+  getNumUnspent () {
+    return this.getNumUnspentStmt.get().unspent
   }
 
   // --------------------------------------------------------------------------

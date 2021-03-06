@@ -1,5 +1,5 @@
 const { parentPort, workerData } = require('worker_threads')
-const Run = require('run-sdk')
+const Run = require('./run.node.min')
 const bsv = require('bsv')
 const Bus = require('./bus')
 
@@ -70,8 +70,10 @@ async function execute (txid, hex, trustlist) {
   const bsvtx = new bsv.Transaction(hex)
   const inputs = bsvtx.inputs.slice(0, Run.util.metadata(hex).in)
   const spends = inputs.map(input => `${input.prevTxId.toString('hex')}_o${input.outputIndex}`)
+  const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
+  const classes = Object.fromEntries(jigs.map(jig => [jig.location, jig.constructor.origin]))
 
-  return { cache, spends }
+  return { cache, spends, classes }
 }
 
 // ------------------------------------------------------------------------------------------------
