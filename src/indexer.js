@@ -94,6 +94,10 @@ class Indexer {
     return this.database.getJigState(location)
   }
 
+  spends (location) {
+    return this.database.getJigSpend(location)
+  }
+
   berry (location) {
     return this.database.getBerryState(location)
   }
@@ -161,10 +165,10 @@ class Indexer {
     this.logger.info('Retrying download', txid, 'after', secondsToRetry, 'seconds')
   }
 
-  _onIndexed (txid, state) {
+  _onIndexed (txid, result) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid} (${this.database.getNumQueuedForExecution() - 1} remaining)`)
-    this.database.storeExecutedTransaction(txid, state)
+    this.database.storeExecutedTransaction(txid, result)
     if (this.onIndex) this.onIndex(txid)
   }
 

@@ -71,9 +71,9 @@ class Executor {
     const trustlist = this.database.getTrustlist()
 
     try {
-      const state = await Bus.sendRequest(worker, 'execute', txid, hex, trustlist)
+      const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustlist)
 
-      if (this.onIndexed) this.onIndexed(txid, state)
+      if (this.onIndexed) this.onIndexed(txid, result)
     } catch (e) {
       if (worker.missingDeps.size) {
         if (this.onMissingDeps) this.onMissingDeps(txid, Array.from(worker.missingDeps))

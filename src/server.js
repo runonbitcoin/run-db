@@ -33,6 +33,8 @@ class Server {
     app.get('/berry/:location', this.getBerry.bind(this))
     app.get('/tx/:txid', this.getTx.bind(this))
     app.get('/time/:txid', this.getTime.bind(this))
+    app.get('/spends/:location', this.getSpends.bind(this))
+    app.get('/unspent', this.getUnspent.bind(this))
     app.get('/trust/:txid?', this.getTrust.bind(this))
     app.get('/ban/:txid?', this.getBan.bind(this))
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
@@ -107,6 +109,24 @@ class Server {
       } else {
         res.status(404).send(`Not found: ${req.params.txid}\n`)
       }
+    } catch (e) { next(e) }
+  }
+
+  async getSpends (req, res, next) {
+    try {
+      const txid = this.indexer.spends(req.params.location)
+      if (txid) {
+        res.send(txid)
+      } else {
+        res.status(404).send(`Not spent: ${req.params.location}\n`)
+      }
+    } catch (e) { next(e) }
+  }
+
+  async getUnspent (req, res, next) {
+    try {
+      const locations = this.indexer.database.getAllUnspent()
+      return res.json(locations)
     } catch (e) { next(e) }
   }
 

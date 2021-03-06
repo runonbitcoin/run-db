@@ -1,5 +1,6 @@
 const { parentPort, workerData } = require('worker_threads')
 const Run = require('run-sdk')
+const bsv = require('bsv')
 const Bus = require('./bus')
 
 // ------------------------------------------------------------------------------------------------
@@ -65,7 +66,12 @@ async function execute (txid, hex, trustlist) {
 
   await tx.cache()
 
-  return run.cache.state
+  const cache = run.cache.state
+  const bsvtx = new bsv.Transaction(hex)
+  const inputs = bsvtx.inputs.slice(0, Run.util.metadata(hex).in)
+  const spends = inputs.map(input => `${input.prevTxId.toString('hex')}_o${input.outputIndex}`)
+
+  return { cache, spends }
 }
 
 // ------------------------------------------------------------------------------------------------

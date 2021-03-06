@@ -69,10 +69,6 @@ class Database {
     ).run()
 
     this.db.prepare(
-      'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
-    ).run()
-
-    this.db.prepare(
       `CREATE TABLE IF NOT EXISTS deps (
         up TEXT NOT NULL,
         down TEXT NOT NULL,
@@ -83,7 +79,8 @@ class Database {
     this.db.prepare(
       `CREATE TABLE IF NOT EXISTS jig (
         location TEXT NOT NULL PRIMARY KEY,
-        state TEXT NOT NULL
+        state TEXT NOT NULL,
+        spend TEXT
       ) WITHOUT ROWID`
     ).run()
 
@@ -113,6 +110,14 @@ class Database {
         height INTEGER,
         hash TEXT
       )`
+    ).run()
+
+    this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
+    ).run()
+
+    this.db.prepare(
+      'CREATE INDEX IF NOT EXISTS jig_spend_index ON jig (spend)'
     ).run()
 
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
@@ -165,9 +170,13 @@ class Database {
       WHERE tx.executable = 1 AND tx.executed = 0
     `)
 
-    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state) VALUES (?, ?)')
+    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, spend) VALUES (?, ?, null)')
+    this.setJigSpendStmt = this.db.prepare('UPDATE jig SET spend = ? WHERE location = ?')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
+    this.getJigSpendStmt = this.db.prepare('SELECT spend FROM jig WHERE location = ?')
+    this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NOT NULL')
     this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
+    this.deleteJigSpendsStmt = this.db.prepare('UPDATE jig SET spend = null WHERE spend = ?')
 
     this.setBerryStateStmt = this.db.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
     this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
@@ -279,7 +288,9 @@ class Database {
     })
   }
 
-  storeExecutedTransaction (txid, state) {
+  storeExecutedTransaction (txid, result) {
+    const { cache, spends } = result
+
     const tx = this.unexecuted.get(txid)
     if (!tx) return
 
@@ -287,19 +298,21 @@ class Database {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(1, txid)
 
-      for (const key of Object.keys(state)) {
+      for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
-          this.setJigStateStmt.run(location, JSON.stringify(state[key]))
+          this.setJigStateStmt.run(location, JSON.stringify(cache[key]))
           continue
         }
 
         if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
-          this.setBerryStateStmt.run(location, JSON.stringify(state[key]))
+          this.setBerryStateStmt.run(location, JSON.stringify(cache[key]))
           continue
         }
       }
+
+      spends.forEach(location => this.setJigSpendStmt.run(txid, location))
 
       for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecuted.delete(txid)
@@ -346,6 +359,7 @@ class Database {
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
       this.deleteJigStatesStmt.run(txid)
+      this.deleteJigSpendsStmt.run(txid)
       this.deleteBerryStatesStmt.run(txid)
       this.deleteDepsStmt.run(txid)
 
@@ -442,6 +456,15 @@ class Database {
   getJigState (location) {
     const row = this.getJigStateStmt.raw(true).get(location)
     return row && row[0]
+  }
+
+  getJigSpend (location) {
+    const row = this.getJigSpendStmt.raw(true).get(location)
+    return row && row[0]
+  }
+
+  getAllUnspent () {
+    return this.getAllUnspentStmt.raw(true).all().map(row => row[0])
   }
 
   // --------------------------------------------------------------------------

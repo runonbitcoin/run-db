@@ -5,6 +5,7 @@
  */
 
 const { describe, it } = require('mocha')
+const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 
 // ------------------------------------------------------------------------------------------------
@@ -71,13 +72,27 @@ describe('Indexer', () => {
 
   // --------------------------------------------------------------------------
 
-  it('add downloaded dependencies', async () => {
+  it('add and download dependencies', async () => {
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await new Promise((resolve, reject) => setTimeout(resolve, 1000))
     await indexer.stop()
   })
+
+  // --------------------------------------------------------------------------
+
+  it('get spent', async () => {
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    await indexer.start()
+    indexer.add('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
+    await indexed(indexer, '11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
+    expect(indexer.spends('7fa1b0eb8408047e138aadf72ee0980e42afab2208181429b050ad495a384d39_o1'))
+      .to.equal('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
+    expect(indexer.spends('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83_o1'))
+      .to.equal(null)
+    await indexer.stop()
+  }).timeout(40000)
 })
 
 // ------------------------------------------------------------------------------------------------
