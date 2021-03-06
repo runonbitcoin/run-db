@@ -72,8 +72,10 @@ async function execute (txid, hex, trustlist) {
   const spends = inputs.map(input => `${input.prevTxId.toString('hex')}_o${input.outputIndex}`)
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
   const classes = Object.fromEntries(jigs.map(jig => [jig.location, jig.constructor.origin]))
+  const jigsWithLocks = jigs.filter(jig => jig.owner instanceof Run.api.Lock)
+  const locks = Object.fromEntries(jigsWithLocks.map(jig => [jig.location, jig.owner.constructor.origin]))
 
-  return { cache, spends, classes }
+  return { cache, spends, classes, locks }
 }
 
 // ------------------------------------------------------------------------------------------------
