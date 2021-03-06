@@ -35,6 +35,7 @@ class Server {
     app.get('/time/:txid', this.getTime.bind(this))
     app.get('/spends/:location', this.getSpends.bind(this))
     app.get('/unspent', this.getUnspent.bind(this))
+    app.get('/jigs', this.getJigs.bind(this))
     app.get('/trust/:txid?', this.getTrust.bind(this))
     app.get('/ban/:txid?', this.getBan.bind(this))
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
@@ -130,6 +131,30 @@ class Server {
       } else {
         res.json(this.indexer.database.getAllUnspent())
       }
+    } catch (e) { next(e) }
+  }
+
+  async getJigs (req, res, next) {
+    try {
+      const { origin, unspent, owner, lock } = req.query;
+      const jigs = await this.indexer.database.getJigList(origin, unspent);
+      let list = jigs;
+      if (owner || lock) {
+        list = jigs.filter(jig => {
+          const state = jig.state;
+          const jigOwner = state.props.owner;
+          if (!jigOwner) {
+            return false;
+          }
+          const ownerType = typeof (jigOwner) === 'string' ? 'address' : 'lock';
+          if (owner) {
+            return jigOwner === owner;
+          } else {
+            return (ownerType === 'lock' && jigOwner.T && jigOwner.T['$jig'] === lock);
+          }
+        });
+      }
+      res.json(list.map(jig => jig.location));
     } catch (e) { next(e) }
   }
 

@@ -33,6 +33,7 @@ Create a .env file or set the following environment variables to configure the D
 ## Endpoints
 
 * `GET /jig/:location` - Gets the state for a jig at a particular location
+* `GET /jigs` - Get a list of jigs. Optionally pass in the following query params: `orgin` to filter by contract origin, `unspent` to filter by unspent, `lock` to filter by lock orgin, `owner` to filter by owner.
 * `GET /berry/:location` - Gets the state for a berry at a particular location
 * `GET /tx/:txid` - Gets the raw transaction hex for an added transaction
 * `GET /time/:txid` - Gets the block or mempool time of a transaction in seconds since unix epoch

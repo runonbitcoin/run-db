@@ -481,6 +481,28 @@ class Database {
     return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
   }
 
+  getJigList(origin, unspent) {
+    const base = 'SELECT location, state FROM jig';
+    const where = [];
+    const params = [];
+    if (origin) {
+      where.push(`class = ?`);
+      params.push(origin);
+    }
+    if (unspent) {
+      where.push(`spend IS NULL`);
+    }
+    const sql = base + (where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '');
+    console.log(sql);
+    const statement = this.db.prepare(sql);
+    return statement.raw(true).all(...params).map(row => {
+      return {
+        location: row[0],
+        state: JSON.parse(row[1])
+      }
+    });
+  }
+
   getNumUnspent () {
     return this.getNumUnspentStmt.get().unspent
   }
