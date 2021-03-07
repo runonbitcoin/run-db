@@ -1,6 +1,6 @@
 /**
  * worker.js
- * 
+ *
  * Background worker that executes Run transactions
  */
 

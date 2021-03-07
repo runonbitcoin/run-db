@@ -8,16 +8,16 @@ const Sqlite3Database = require('better-sqlite3')
 const { DEFAULT_TRUSTLIST } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
-// Tx
+// UnexecutedTx
 // ------------------------------------------------------------------------------------------------
 
-class Tx {
+class UnexecutedTx {
   constructor (txid, downloaded, hasCode) {
     this.txid = txid
     this.hasCode = hasCode
     this.queuedForExecution = false
-    this.upstream = new Set()
-    this.downstream = new Set()
+    this.upstream = new Set() // unexecuted txns we depend on
+    this.downstream = new Set() // unexecuted txns that depend on us
   }
 }
 
@@ -238,7 +238,7 @@ class Database {
     if (this.onAddTransaction) this.onAddTransaction(txid)
 
     if (!this.unexecuted.has(txid)) {
-      const tx = new Tx(txid, false, null)
+      const tx = new UnexecutedTx(txid, false, null)
       this.unexecuted.set(txid, tx)
     }
   }
@@ -419,7 +419,7 @@ class Database {
 
         const downloaded = this.getTransactionDownloadedStmt.raw(true).get(txid)[0]
         const hasCode = downloaded ? this.getTransactionHasCodeStmt.raw(true).get(txid)[0] : null
-        const tx = new Tx(txid, downloaded, hasCode)
+        const tx = new UnexecutedTx(txid, downloaded, hasCode)
         const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(txid).map(row => row[0])
         for (const uptxid of upstreamUnexecuted) {
           const uptx = this.unexecuted.get(uptxid)
@@ -677,7 +677,7 @@ class Database {
   _loadUnexecuted () {
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, downloaded, hasCode] of unexecuted) {
-      const tx = new Tx(txid, downloaded, hasCode)
+      const tx = new UnexecutedTx(txid, downloaded, hasCode)
       this.unexecuted.set(txid, tx)
     }
 
