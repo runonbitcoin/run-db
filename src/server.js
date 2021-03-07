@@ -37,6 +37,7 @@ class Server {
     if (this.logger) app.use(morgan('tiny'))
 
     app.use(bodyParser.text())
+    app.use(bodyParser.json())
 
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
@@ -49,7 +50,7 @@ class Server {
     app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
     app.get('/status', this.getStatus.bind(this))
 
-    app.post('/trust/:txid', this.postTrust.bind(this))
+    app.post('/trust/:txid?', this.postTrust.bind(this))
     app.post('/ban/:txid', this.postBan.bind(this))
     app.post('/tx/:txid', this.postTx.bind(this))
 
@@ -196,8 +197,13 @@ class Server {
 
   async postTrust (req, res, next) {
     try {
-      this.indexer.trust(req.params.txid)
-      res.send(`Trusted ${req.params.txid}\n`)
+      if (Array.isArray(req.body)) {
+        req.body.forEach(txid => this.indexer.trust(txid))
+        res.send(`Trusted ${req.body.length} transactions\n`)
+      } else {
+        this.indexer.trust(req.params.txid)
+        res.send(`Trusted ${req.params.txid}\n`)
+      }
     } catch (e) { next(e) }
   }
 

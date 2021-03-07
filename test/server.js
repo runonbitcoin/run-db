@@ -54,6 +54,25 @@ describe('Server', () => {
     server.stop()
     indexer.stop()
   })
+
+  // ------------------------------------------------------------------------
+
+  it('trust multiple', async () => {
+    const indexer = new Indexer(':memory:', {}, 'main', 1, 1, null, 0, Infinity)
+    const server = new Server(indexer, null, null)
+    indexer.start()
+    server.start()
+    await listening(server)
+    const trustlist = [
+      '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64',
+      'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d'
+    ]
+    const options = { headers: { 'Content-Type': 'application/json' } }
+    await axios.post(`http://localhost:${server.port}/trust`, trustlist, options)
+    trustlist.forEach(txid => expect(indexer.database.isTrusted(txid)).to.equal(true))
+    server.stop()
+    indexer.stop()
+  })
 })
 
 // ------------------------------------------------------------------------------------------------
