@@ -212,7 +212,7 @@ class Server {
     try {
       let txid = req.params.txid
       let hex = null
-      if (typeof hex === 'string') {
+      if (typeof req.body === 'string') {
         hex = req.body
         const bsvtx = new bsv.Transaction(hex)
         if (!txid) txid = bsvtx.hash
