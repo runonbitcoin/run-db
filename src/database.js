@@ -14,6 +14,7 @@ const { DEFAULT_TRUSTLIST } = require('./config')
 class UnexecutedTx {
   constructor (txid, downloaded, hasCode) {
     this.txid = txid
+    this.downloaded = downloaded
     this.hasCode = hasCode
     this.queuedForExecution = false
     this.upstream = new Set() // unexecuted txns we depend on
@@ -258,6 +259,8 @@ class Database {
 
       const tx = this.unexecuted.get(txid)
 
+      tx.downloaded = true
+
       this.unexecuted.delete(txid)
 
       for (const downtx of tx.downstream) {
@@ -280,6 +283,7 @@ class Database {
       const tx = this.unexecuted.get(txid)
 
       tx.hasCode = hasCode
+      tx.downloaded = true
 
       for (const deptxid of deps) {
         this.addNewTransaction(deptxid)
@@ -417,8 +421,8 @@ class Database {
         this.deleteJigStatesStmt.run(txid)
         this.deleteBerryStatesStmt.run(txid)
 
-        const downloaded = this.getTransactionDownloadedStmt.raw(true).get(txid)[0]
-        const hasCode = downloaded ? this.getTransactionHasCodeStmt.raw(true).get(txid)[0] : null
+        const downloaded = !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0]
+        const hasCode = downloaded ? !!this.getTransactionHasCodeStmt.raw(true).get(txid)[0] : null
         const tx = new UnexecutedTx(txid, downloaded, hasCode)
         const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(txid).map(row => row[0])
         for (const uptxid of upstreamUnexecuted) {
@@ -677,7 +681,7 @@ class Database {
   _loadUnexecuted () {
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
     for (const [txid, downloaded, hasCode] of unexecuted) {
-      const tx = new UnexecutedTx(txid, downloaded, hasCode)
+      const tx = new UnexecutedTx(txid, !!downloaded, !!hasCode)
       this.unexecuted.set(txid, tx)
     }
 
@@ -701,6 +705,7 @@ class Database {
       queuedForExecution = forceQueuedForExecution
     } else {
       queuedForExecution =
+        tx.downloaded &&
         (!tx.hasCode || this.trustlist.has(tx.txid)) &&
         !this.banlist.has(tx.txid) &&
         !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
@@ -708,15 +713,17 @@ class Database {
 
     if (queuedForExecution === tx.queuedForExecution) return
 
-    tx.queuedForExecution = queuedForExecution
-
     if (queuedForExecution) {
       this.numQueuedForExecution++
     } else {
       this.numQueuedForExecution--
     }
 
-    if (!tx.upstream.size && this.onReadyToExecute) this.onReadyToExecute(tx.txid)
+    tx.queuedForExecution = queuedForExecution
+
+    if (!tx.upstream.size && this.onReadyToExecute && queuedForExecution) {
+      this.onReadyToExecute(tx.txid)
+    }
 
     for (const downtx of tx.downstream) {
       this._checkExecutability(downtx)
