@@ -49,12 +49,10 @@ class Crawler {
   }
 
   _expireMempoolTransactions () {
-    // Disabled for now - until large Planaria and other discovered transactions get block height
-
-    // if (!this.started) return
-    // if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
-    // this.expireMempoolTransactionsTimerId = setTimeout(
-    // this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
+    if (!this.started) return
+    if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
+    this.expireMempoolTransactionsTimerId = setTimeout(
+      this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
   }
 
   async _pollForNewBlocks () {

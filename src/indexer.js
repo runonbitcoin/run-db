@@ -245,7 +245,7 @@ class Indexer {
   }
 
   _onMempoolTransaction (txid, hex) {
-    this._addTransactions([txid], [hex], null, null)
+    this._addTransactions([txid], [hex], Database.HEIGHT_MEMPOOL, null)
   }
 
   _onExpireMempoolTransactions () {

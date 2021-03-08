@@ -8,6 +8,13 @@ const Sqlite3Database = require('better-sqlite3')
 const { DEFAULT_TRUSTLIST } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
+// Globals
+// ------------------------------------------------------------------------------------------------
+
+const HEIGHT_MEMPOOL = -1
+const HEIGHT_UNKNOWN = null
+
+// ------------------------------------------------------------------------------------------------
 // UnexecutedTx
 // ------------------------------------------------------------------------------------------------
 
@@ -150,7 +157,7 @@ class Database {
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
-    this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare('SELECT txid FROM tx WHERE height IS NULL AND time < ?')
+    this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
@@ -732,5 +739,8 @@ class Database {
 }
 
 // ------------------------------------------------------------------------------------------------
+
+Database.HEIGHT_MEMPOOL = HEIGHT_MEMPOOL
+Database.HEIGHT_UNKNOWN = HEIGHT_UNKNOWN
 
 module.exports = Database

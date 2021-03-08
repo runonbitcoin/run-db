@@ -2,6 +2,11 @@
  * planaria.js
  *
  * Bitbus and Bitsocket API. Uses the Run API to fetch transactions.
+ *
+ * Note: Bitbus does not return transactions with more than 100 outputs. Because of this,
+ * some transactions may get discovered later when they are spent and will not be immediately
+ * indexed by Run. They may not also have proper heights. We recommend using MatterCloud for
+ * production services.
  */
 
 const axios = require('axios')
