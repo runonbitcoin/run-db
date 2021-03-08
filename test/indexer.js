@@ -12,7 +12,7 @@ const Indexer = require('../src/indexer')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = txid => require('./txns.json')[txid]
+const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })

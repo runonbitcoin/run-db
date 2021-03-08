@@ -9,12 +9,12 @@
  * production services.
  */
 
-const axios = require('axios')
 const fetch = require('node-fetch')
 const AbortController = require('abort-controller')
 const es = require('event-stream')
 global.EventSource = require('eventsource')
 const { default: ReconnectingEventSource } = require('reconnecting-eventsource')
+const RunConnectFetcher = require('./run-connect')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -34,6 +34,7 @@ class Planaria {
     this.abortController = new AbortController()
     this.recrawlInterveral = 10000
     this.maxReorgDepth = 10
+    this.runConnectFetcher = new RunConnectFetcher()
 
     this.txns = []
     this.network = null
@@ -44,6 +45,8 @@ class Planaria {
   }
 
   async connect (height, network) {
+    this.runConnectFetcher.connect(height, network)
+
     this.network = network
     this.lastCrawlHeight = height
     this.logger.info('Crawing for new blocks via BitBus')
@@ -63,8 +66,7 @@ class Planaria {
 
   async fetch (txid) {
     // Planaria doesn't have a fetch endpoint, so we use Run Connect
-    const response = await axios.get(`https://api.run.network/v1/${this.network}/tx/${txid}`)
-    return response.data.hex
+    return await this.runConnectFetcher.fetch(txid)
   }
 
   async getNextBlock (currHeight, currHash) {

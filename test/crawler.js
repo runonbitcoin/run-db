@@ -13,7 +13,7 @@ const txns = require('./txns.json')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = txid => require('./txns.json')[txid]
+const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const crawled = (indexer) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
 const reorged = (indexer) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })

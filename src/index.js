@@ -4,7 +4,6 @@
  * Entry point
  */
 
-const axios = require('axios')
 const Indexer = require('./indexer')
 const Server = require('./server')
 const {
@@ -13,21 +12,7 @@ const {
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
-
-// ------------------------------------------------------------------------------------------------
-// RunConnectFetcher
-// ------------------------------------------------------------------------------------------------
-
-class RunConnectFetcher {
-  async connect (height, network) {
-    this.network = network
-  }
-
-  async fetch (txid) {
-    const response = await axios.get(`https://api.run.network/v1/${this.network}/tx/${txid}`)
-    return response.data.hex
-  }
-}
+const RunConnectFetcher = require('./run-connect')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
