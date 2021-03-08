@@ -41,7 +41,8 @@ class MatterCloud {
     const response = await axios.get(`https://media.bitcoinfiles.org/tx/${txid}${this.suffix}`)
     const hex = response.data.rawtx
     const height = response.data.blockheight === 0 ? -1 : response.data.blockheight
-    return { hex, height }
+    const time = response.data.blocktime === 0 ? null : response.data.blocktime
+    return { hex, height, time }
   }
 
   async getNextBlock (currHeight, currHash) {

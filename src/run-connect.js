@@ -19,7 +19,8 @@ class RunConnectFetcher {
     const response = await axios.get(`https://api.run.network/v1/${this.network}/tx/${txid}`)
     const hex = response.data.hex
     const height = typeof response.data.blockheight === 'number' ? response.data.blockheight : null
-    return { hex, height }
+    const time = typeof response.data.blocktime === 'number' ? response.data.blocktime : null
+    return { hex, height, time }
   }
 }
 

@@ -64,9 +64,9 @@ class Downloader {
     this.fetching.add(txid)
 
     try {
-      const { hex, height } = await this.fetchFunction(txid)
+      const { hex, height, time } = await this.fetchFunction(txid)
 
-      this._onFetchSucceed(txid, hex, height)
+      this._onFetchSucceed(txid, hex, height, time)
     } catch (e) {
       this._onFetchFailed(txid, e)
     } finally {
@@ -74,12 +74,12 @@ class Downloader {
     }
   }
 
-  _onFetchSucceed (txid, hex, height) {
+  _onFetchSucceed (txid, hex, height, time) {
     if (!this.fetching.delete(txid)) return
 
     this.attempts.delete(txid)
 
-    if (this.onDownloadTransaction) this.onDownloadTransaction(txid, hex, height)
+    if (this.onDownloadTransaction) this.onDownloadTransaction(txid, hex, height, time)
   }
 
   _onFetchFailed (txid, e) {
