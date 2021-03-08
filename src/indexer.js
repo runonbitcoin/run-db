@@ -259,13 +259,12 @@ class Indexer {
 
   _addTransactions (txids, txhexs, height, time) {
     this.database.transaction(() => {
-      txids
-        .filter(txid => !this.database.hasTransaction(txid))
-        .forEach((txid, i) => {
-          this.database.addNewTransaction(txid, height)
-          if (height) this.database.setTransactionHeight(txid, height)
-          if (time) this.database.setTransactionTime(txid, time)
-        })
+      txids.forEach((txid, i) => {
+        this.database.addNewTransaction(txid)
+        console.log(txid, height)
+        if (height) this.database.setTransactionHeight(txid, height)
+        if (time) this.database.setTransactionTime(txid, time)
+      })
 
       txids
         .filter(txid => !this.database.isTransactionDownloaded(txid))

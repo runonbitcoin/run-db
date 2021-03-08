@@ -141,7 +141,7 @@ class Database {
       }
     })
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, time, has_code, executable, executed, indexed) VALUES (?, null, ?, ?, 0, 0, 0, 0)')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, time, has_code, executable, executed, indexed) VALUES (?, null, null, ?, 0, 0, 0, 0)')
     this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
     this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
@@ -236,12 +236,12 @@ class Database {
   // tx
   // --------------------------------------------------------------------------
 
-  addNewTransaction (txid, height = null) {
+  addNewTransaction (txid) {
     if (this.hasTransaction(txid)) return
 
     const time = Math.round(Date.now() / 1000)
 
-    this.addNewTransactionStmt.run(txid, height, time)
+    this.addNewTransactionStmt.run(txid, time)
 
     if (this.onAddTransaction) this.onAddTransaction(txid)
 
