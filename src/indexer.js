@@ -4,7 +4,7 @@
  * Main object that discovers, downloads, executes and stores Run transactions
  */
 
-const Run = require('run-sdk')
+const Run = require('./run.node.min')
 const bsv = require('bsv')
 const Database = require('./database')
 const Downloader = require('./downloader')

@@ -9,7 +9,7 @@ const morgan = require('morgan')
 const bodyParser = require('body-parser')
 const bsv = require('bsv')
 const crypto = require('crypto')
-const Run = require('run-sdk')
+const Run = require('./run.node.min')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
