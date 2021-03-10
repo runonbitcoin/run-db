@@ -155,6 +155,7 @@ class Indexer {
 
   _onDownloadTransaction (txid, hex, height, time) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
+    if (!this.database.hasTransaction(txid)) return
     if (height) this.database.setTransactionHeight(txid, height)
     if (time) this.database.setTransactionTime(txid, time)
     this._parseAndStoreTransaction(txid, hex)
