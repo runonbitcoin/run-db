@@ -59,6 +59,7 @@ const DEFAULT_TRUSTLIST = [
    */
   'ce8629aa37a1777d6aa64d0d33cd739fd4e231dc85cfe2f9368473ab09078b78', // SHUA
   'ca1818540d2865c5b6a53e06650eafadc10b478703aa7cf324145f848fec629b', // SHUA
+  '1de3951603784df7c872519c096445a415d9b0d3dce7bbe3b7a36ca82cf1a91c', // SHUA
 
   /**
    * Run ▸ Extras (testnet)
