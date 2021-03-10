@@ -261,7 +261,6 @@ class Indexer {
     this.database.transaction(() => {
       txids.forEach((txid, i) => {
         this.database.addNewTransaction(txid)
-        console.log(txid, height)
         if (height) this.database.setTransactionHeight(txid, height)
         if (time) this.database.setTransactionTime(txid, time)
       })

@@ -82,6 +82,19 @@ describe('Indexer', () => {
 
   // --------------------------------------------------------------------------
 
+  it('remove discovered dep', async () => {
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    await indexer.start()
+    indexer.add('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
+    await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+    expect(await indexer.tx('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).not.to.equal(undefined)
+    indexer.remove('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
+    expect(await indexer.tx('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).to.equal(undefined)
+    await indexer.stop()
+  })
+
+  // --------------------------------------------------------------------------
+
   it('get spent', async () => {
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()

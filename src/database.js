@@ -463,7 +463,7 @@ class Database {
 
   addDep (tx, deptxid) {
     this.addNewTransaction(deptxid)
-    this.addDepStmt.run(deptxid, deptxid)
+    this.addDepStmt.run(deptxid, tx.txid)
 
     const deptx = this.unexecuted.get(deptxid)
     if (deptx) {
