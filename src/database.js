@@ -613,6 +613,7 @@ class Database {
     while (queue.length) {
       const next = queue.shift()
       const tx = this.unexecuted.get(next)
+      if (!tx) continue
       if (tx.hasCode && !this.trustlist.has(next)) untrusted.add(next)
       const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(next).map(row => row[0])
       upstreamUnexecuted.forEach(uptxid => {

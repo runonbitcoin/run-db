@@ -106,6 +106,15 @@ describe('Indexer', () => {
       .to.equal(null)
     await indexer.stop()
   }).timeout(40000)
+
+  // --------------------------------------------------------------------------
+
+  it('get untrusted of missing transaction', async () => {
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    await indexer.start()
+    expect((await indexer.untrusted('0000000000000000000000000000000000000000000000000000000000000000')).length).to.equal(0)
+    await indexer.stop()
+  })
 })
 
 // ------------------------------------------------------------------------------------------------
