@@ -290,7 +290,7 @@ class Indexer {
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
-      console.log(`${txid} => ${e.message}`)
+      this.logger.error(`${txid} => ${e.message}`)
       this.database.storeParsedNonExecutableTransaction(txid, hex)
       return
     }
