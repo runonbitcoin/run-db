@@ -95,7 +95,8 @@ describe('Indexer', () => {
 
   // --------------------------------------------------------------------------
 
-  it('get spent', async () => {
+  it('get spent', async function () {
+    this.timeout(40000)
     const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
     await indexer.start()
     indexer.add('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
@@ -105,7 +106,7 @@ describe('Indexer', () => {
     expect(indexer.spends('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83_o1'))
       .to.equal(null)
     await indexer.stop()
-  }).timeout(40000)
+  })
 
   // --------------------------------------------------------------------------
 
