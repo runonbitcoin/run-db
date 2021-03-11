@@ -286,9 +286,11 @@ class Indexer {
     let bsvtx = null
 
     try {
+      if (!hex) throw new Error('No hex')
       metadata = Run.util.metadata(hex)
       bsvtx = new bsv.Transaction(hex)
     } catch (e) {
+      console.log(`${txid} => ${e.message}`)
       this.database.storeParsedNonExecutableTransaction(txid, hex)
       return
     }
