@@ -1,7 +1,7 @@
 /**
  * indexer.js
  *
- * Main object that discovers, downloads, executes and stores Run transactions
+ * Main object that discovers, downloads, executes and stores RUN transactions
  */
 
 const Run = require('run-sdk')

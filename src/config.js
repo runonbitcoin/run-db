@@ -30,7 +30,7 @@ require('axios').default.defaults.timeout = TIMEOUT
 
 const DEFAULT_TRUSTLIST = [
   /**
-   * Run ▸ Extras
+   * RUN ▸ Extras
    */
   '61e1265acb3d93f1bf24a593d70b2a6b1c650ec1df90ddece8d6954ae3cdd915', // asm
   '49145693676af7567ebe20671c5cb01369ac788c20f3b1c804f624a1eda18f3f', // asm
@@ -62,7 +62,7 @@ const DEFAULT_TRUSTLIST = [
   '1de3951603784df7c872519c096445a415d9b0d3dce7bbe3b7a36ca82cf1a91c', // SHUA
 
   /**
-   * Run ▸ Extras (testnet)
+   * RUN ▸ Extras (testnet)
    */
   '1f0abf8d94477b1cb57629d861376616f6e1d7b78aba23a19da3e6169caf489e', // asm
   '8b9380d445b6fe01ec7230d8363febddc99feee6064d969ae8f98fdb25e1393f', // asm

@@ -1,7 +1,7 @@
 /**
  * executor.js
  *
- * Executes Run transactions and calculates state
+ * Executes RUN transactions and calculates state
  */
 
 const { Worker } = require('worker_threads')

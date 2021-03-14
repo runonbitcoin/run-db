@@ -1,7 +1,7 @@
 /**
  * worker.js
  *
- * Background worker that executes Run transactions
+ * Background worker that executes RUN transactions
  */
 
 const { parentPort, workerData } = require('worker_threads')

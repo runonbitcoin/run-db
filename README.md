@@ -1,8 +1,8 @@
-# Run DB
+# RUN DB
 
 ![](demo.gif)
 
-Crawls the blockchain and indexes Run state.
+Crawls the blockchain and indexes RUN state.
 
 ## Getting started
 
