@@ -31,7 +31,7 @@ class MatterCloud {
   }
 
   async disconnect () {
-    if (this._mempoolEvents) {
+    if (this.mempoolEvents) {
       this.mempoolEvents.close()
       this.mempoolEvents = null
     }

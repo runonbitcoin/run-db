@@ -58,7 +58,7 @@ class Planaria {
 
     this.abortController.abort()
 
-    if (this._mempoolEvents) {
+    if (this.mempoolEvents) {
       this.mempoolEvents.close()
       this.mempoolEvents = null
     }
