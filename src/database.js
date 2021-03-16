@@ -58,9 +58,9 @@ class Database {
     this.db = new Sqlite3Database(this.path)
 
     this.db.pragma('cache_size = 128000')
+    this.db.pragma('page_size = 32768')
     this.db.pragma('journal_mode = WAL')
-    this.db.pragma('synchronous = OFF')
-    this.db.pragma('journal_mode = MEMORY')
+    this.db.pragma('synchronous = NORMAL')
 
     this.db.prepare(
       `CREATE TABLE IF NOT EXISTS tx (
