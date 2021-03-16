@@ -237,9 +237,10 @@ class Indexer {
     const txids = this.database.getTransactionsAboveHeight(newHeight)
 
     this.database.transaction(() => {
-      txids.forEach(txid => {
-        this.database.deleteTransaction(txid)
-      })
+      // Put all transactions back into the mempool. This is better than deleting them, because
+      // when we assume they will just go into a different block, we don't need to re-execute.
+      // If they don't make it into a block, then they will be expired in time.
+      txids.forEach(txid => this.database.unconfirmTransaction(txid))
 
       this.database.setHeightAndHash(newHeight, null)
     })

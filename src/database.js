@@ -152,10 +152,12 @@ class Database {
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
     this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
+    this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
     this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
+    this.unconfirmTransactionStmt = this.db.prepare('UPDATE tx SET height = -1 WHERE txid = ?')
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
@@ -394,6 +396,11 @@ class Database {
     return row && row[0]
   }
 
+  getTransactionHeight (txid) {
+    const row = this.getTransactionHeightStmt.raw(true).get(txid)
+    return row && row[0]
+  }
+
   deleteTransaction (txid) {
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
@@ -411,6 +418,10 @@ class Database {
       const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
       downtxids.forEach(downtxid => this.deleteTransaction(downtxid))
     })
+  }
+
+  unconfirmTransaction (txid) {
+    this.unconfirmTransactionStmt.run(txid)
   }
 
   unindexTransaction (txid) {
