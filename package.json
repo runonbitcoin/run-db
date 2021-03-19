@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "standard --fix",
     "start": "node .",
-    "test": "mocha"
+    "test": "mocha",
+    "test:cover": "nyc -r=text -r=lcovonly -x=test/** mocha"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",
@@ -26,6 +27,7 @@
     "chai": "^4.3.3",
     "chai-as-promised": "^7.1.1",
     "mocha": "^8.3.1",
+    "nyc": "^15.1.0",
     "standard": "^16.0.3"
   }
 }
