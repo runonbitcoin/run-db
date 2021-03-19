@@ -267,16 +267,17 @@ class Indexer {
         if (time) this.database.setTransactionTime(txid, time)
       })
 
-      txids
-        .filter(txid => !this.database.isTransactionDownloaded(txid))
-        .forEach((txid, i) => {
-          const hex = txhexs && txhexs[i]
-          if (hex) {
-            this._parseAndStoreTransaction(txid, hex)
-          } else {
-            this.downloader.add(txid)
-          }
-        })
+      txids.forEach((txid, i) => {
+        const downloaded = this.database.isTransactionDownloaded(txid)
+        if (downloaded) return
+
+        const hex = txhexs && txhexs[i]
+        if (hex) {
+          this._parseAndStoreTransaction(txid, hex)
+        } else {
+          this.downloader.add(txid)
+        }
+      })
     })
   }
 

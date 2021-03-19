@@ -55,6 +55,34 @@ describe('Crawler', () => {
 
   // --------------------------------------------------------------------------
 
+  it('add block with already downloaded transactions', async () => {
+    const txids = [
+      '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64',
+      'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d',
+      'ca9555f54dd44457d7c912e8eea375a8ed6d8ea1806a206b43af5c7f94ea47e7'
+    ]
+    let indexedMiddleTransaction = false
+    function getNextBlock (height, hash) {
+      if (!indexedMiddleTransaction) return null
+      if (height === 1) return null
+      return { height: 1, hash: 'abc', txids, txhexs: txids.map(txid => txns[txid]) }
+    }
+    const api = { getNextBlock, fetch }
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    indexer.crawler.pollForNewBlocksInterval = 10
+    await indexer.start()
+    await indexer.add(txids[1])
+    await indexed(indexer, txids[1])
+    indexedMiddleTransaction = true
+    await indexed(indexer, txids[0])
+    expect(indexer.tx(txids[0])).to.equal(txns[txids[0]])
+    expect(indexer.tx(txids[1])).to.equal(txns[txids[1]])
+    expect(indexer.tx(txids[2])).to.equal(txns[txids[2]])
+    await indexer.stop()
+  })
+
+  // --------------------------------------------------------------------------
+
   it('reorg blocks', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     let didReorg = false
