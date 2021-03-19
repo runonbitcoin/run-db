@@ -1,4 +1,4 @@
-# RUN DB
+# RUN-DB
 
 ![](demo.gif)
 
@@ -10,7 +10,7 @@ Run `npm run start`
 
 ## Requirements
 
-Node 12
+Node 10+
 
 ## Configuration
 

@@ -5,9 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "lint": "standard --fix",
-    "start": "node .",
-    "test": "mocha",
-    "test:cover": "nyc -r=text -r=lcovonly -x=test/** mocha"
+    "start": "node --experimental-worker .",
+    "test": "node --experimental-worker node_modules/mocha/bin/mocha",
+    "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",

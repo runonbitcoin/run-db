@@ -58,9 +58,7 @@ class Blockchain {
 // scripthash
 // ------------------------------------------------------------------------------------------------
 
-const sha256 = crypto.createHash('sha256')
-
-const scripthash = x => sha256.copy().update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
+const scripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
 
 // ------------------------------------------------------------------------------------------------
 // execute
