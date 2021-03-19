@@ -1,5 +1,7 @@
 # RUN-DB
 
+[![tests](https://github.com/runonbitcoin/run-db/workflows/tests/badge.svg)](https://github.com/runonbitcoin/run-db/actions) [![codecov](https://codecov.io/gh/runonbitcoin/run-db/branch/master/graph/badge.svg?token=auXAJR3INN)](https://codecov.io/gh/runonbitcoin/run-db)
+
 ![](demo.gif)
 
 Crawls the blockchain and indexes RUN state.
