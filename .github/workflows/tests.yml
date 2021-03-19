@@ -23,7 +23,7 @@ jobs:
         cache-version: 1
       with:
         path: node_modules
-        key: v${{ env.cache-version }}-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+        key: v${{ env.cache-version }}-node10-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -64,7 +64,7 @@ jobs:
         cache-version: 1
       with:
         path: node_modules
-        key: v${{ env.cache-version }}-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+        key: v${{ env.cache-version }}-node12-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
