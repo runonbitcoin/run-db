@@ -64,7 +64,7 @@ const scripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')
 // execute
 // ------------------------------------------------------------------------------------------------
 
-const run = new Run()
+const run = new Run({ network, logger: null })
 
 async function execute (txid, hex, trustlist) {
   run.cache = new Cache()
