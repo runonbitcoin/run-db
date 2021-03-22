@@ -92,6 +92,18 @@ RUN-DB uses SQLite as its underlying database. SQLite allows multiple connection
 
 For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLite extension.
 
+#### Calculate SHUA supply
+
+```
+SELECT SUM(amount) as supply
+FROM (
+    SELECT
+        json_extract(jig.state, '$.props.amount') AS amount
+    FROM jig JOIN spends ON jig.location = spends.location
+    WHERE spends.spend_txid IS NULL
+    AND jig.class = 'ce8629aa37a1777d6aa64d0d33cd739fd4e231dc85cfe2f9368473ab09078b78_o1')
+```
+
 #### Calculate SHUA token balances for address owners
 
 ```
