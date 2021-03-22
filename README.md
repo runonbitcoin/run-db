@@ -6,6 +6,12 @@
 
 Crawls the blockchain and indexes RUN state.
 
+Use RUN-DB to:
+- Operate a State Server to improve RUN performance by pre-loading jigs
+- Query balances, volume, history, and other information across many users and contracts
+- Blacklist individual transactions and their descendants easily
+- Create your own local database of transactions your app uses
+
 ## Requirements
 
 Node 10+
