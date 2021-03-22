@@ -1,2 +1,6 @@
 .github
 test
+.env
+.nyc_output
+coverage
+run.db
