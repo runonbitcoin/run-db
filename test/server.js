@@ -126,6 +126,45 @@ describe('Server', () => {
   })
 
   // --------------------------------------------------------------------------
+  // get berry
+  // --------------------------------------------------------------------------
+
+  describe('get berry', () => {
+    it('returns state if exists', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      indexer.add('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+      await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+      const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
+      const state = (await axios.get(`http://localhost:${server.port}/berry/${encodeURIComponent(location)}`)).data
+      expect(typeof state).to.equal('object')
+      expect(state.kind).to.equal('berry')
+      server.stop()
+      await indexer.stop()
+    })
+
+    // ------------------------------------------------------------------------
+
+    it('returns 404 if missing', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
+      await expect(axios.get(`http://localhost:${server.port}/berry/${location}`)).to.be.rejected
+      try {
+        await axios.get(`http://localhost:${server.port}/berry/${location}`)
+      } catch (e) {
+        expect(e.response.status).to.equal(404)
+      }
+      server.stop()
+      await indexer.stop()
+    })
+  })
+
+  // --------------------------------------------------------------------------
   // get unspent
   // --------------------------------------------------------------------------
 
