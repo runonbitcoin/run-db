@@ -91,7 +91,7 @@ describe('Server', () => {
   // --------------------------------------------------------------------------
 
   describe('get jig', () => {
-    it('exists', async () => {
+    it('returns state if exists', async () => {
       const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
       const server = new Server(indexer, null, null)
       await indexer.start()
@@ -102,6 +102,24 @@ describe('Server', () => {
       const state = (await axios.get(`http://localhost:${server.port}/jig/${location}`)).data
       expect(typeof state).to.equal('object')
       expect(state.kind).to.equal('jig')
+      server.stop()
+      await indexer.stop()
+    })
+
+    // ------------------------------------------------------------------------
+
+    it('returns 404 if missing', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      const location = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1'
+      await expect(axios.get(`http://localhost:${server.port}/jig/${location}`)).to.be.rejected
+      try {
+        await axios.get(`http://localhost:${server.port}/jig/${location}`)
+      } catch (e) {
+        expect(e.response.status).to.equal(404)
+      }
       server.stop()
       await indexer.stop()
     })
