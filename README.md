@@ -9,7 +9,7 @@ Crawls the blockchain and indexes RUN state.
 Use RUN-DB to:
 - Operate a State Server to improve RUN performance by pre-loading jigs
 - Query balances, volume, history, and other information across many users and contracts
-- Blacklist individual transactions and their descendants easily
+- Blacklist individual transactions and their descendants
 - Create your own local database of transactions your app uses
 
 ## Requirements
@@ -43,11 +43,11 @@ curl -X POST localhost:8000/trust/<txid>
 
 ## Use with a Browser or Mobile Client
 
-The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your RUN-DB endpoints via a domain rather than use `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
+The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your RUN-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
 
 ## Configuration
 
-Create a .env file or set the following environment variables to configure the DB.
+Create a .env file or set the following environment variables before running to configure the DB.
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
@@ -86,11 +86,11 @@ Create a .env file or set the following environment variables to configure the D
 
 ## Performing Custom Queries
 
-RUN-DB uses SQLITE as its underlying database. SQLITE allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLITE database to access these tables while RUN-DB is running, but be prepared to retry during SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+RUN-DB uses SQLite as its underlying database. SQLite allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLite database to access these tables while RUN-DB is running, but be prepared to retry during SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
 
 ### Example Queries
 
-For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLITE extension.
+For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLite extension.
 
 #### Re-execute all transactions
 
@@ -135,7 +135,7 @@ Stores spend information about transaction outputs.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
-| location | TEXT | <txid>_o<output-index> string describing an output
+| location | TEXT | \<txid\>_o\<output-index\> string describing an output
 | spend_txid| TXID | Hex txid that spent this output, or `NULL` if unspent
 
 #### deps
@@ -158,7 +158,7 @@ Stores berry states for third-party protocol data.
 
 #### trust
 
-Stores which transaction have been trusted and whose code will be executed.
+Stores the transactions have been trusted and whose code will be executed.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
@@ -167,7 +167,7 @@ Stores which transaction have been trusted and whose code will be executed.
 
 #### ban
 
-Stores which transaction have been blacklisted.
+Stores the transactions have been blacklisted.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
