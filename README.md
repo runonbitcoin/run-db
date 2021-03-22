@@ -34,6 +34,25 @@ Create a .env file or set the following environment variables to configure the D
 | **TIMEOUT** | Network timeout in milliseconds | 10000
 | **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
 
+## Using on a Server with RUN
+
+Setup your server's `Run` instance as follows:
+
+```javascript
+const client = true
+const cache = new Run.plugins.RunDB('http://localhost:8000')
+const trust = ['cache']
+const run = new Run({ client, cache, trust })
+```
+
+Client mode makes RUN-DB the source of truth for your server. RUN will not load jigs that are not in your database, and your inventory will only be populated by jig UTXOs known to your database.
+
+Setting trust to `'cache'` makes RUN use your database for its trustlist too. This means you only have to setup trust in one place using:
+
+```
+curl -X POST localhost:8000/trust/<txid>
+```
+
 ## Endpoints
 
 * `GET /jig/:location` - Gets the state for a jig at a particular location
