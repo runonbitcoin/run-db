@@ -16,25 +16,7 @@ Node 10+
 2. Download a snapshot: `wget run.network/run-db-snapshots/latest/run.db` (*optional*)
 3. Run `npm run start`
 
-## Configuration
-
-Create a .env file or set the following environment variables to configure the DB.
-
-| Name | Description | Default |
-| ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, or none | mattercloud
-| **MATTERCLOUD_KEY** | Mattercloud API key | undefined
-| **PLANARIA_TOKEN** | Planaria API key | undefined
-| **NETWORK** | Bitcoin network (main or test) | main
-| **DB** | Database file | run.db
-| **PORT** | Port used for the REST server | randomly generated
-| **WORKERS** | Number of threads used to index | 4
-| **FETCH_LIMIT** | Number of parallel downloads | 20
-| **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
-| **TIMEOUT** | Network timeout in milliseconds | 10000
-| **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
-
-## Using on a Server with RUN
+## Use with your Server
 
 Setup your server's `Run` instance as follows:
 
@@ -52,6 +34,28 @@ Setting trust to `'cache'` makes RUN use your database for its trustlist too. Th
 ```
 curl -X POST localhost:8000/trust/<txid>
 ```
+
+## Use with a Browser or Mobile Client
+
+The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your RUN-DB endpoints via a domain rather than use `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
+
+## Configuration
+
+Create a .env file or set the following environment variables to configure the DB.
+
+| Name | Description | Default |
+| ---- | ----------- | ------- |
+| **API**| mattercloud, planaria, or none | mattercloud
+| **MATTERCLOUD_KEY** | Mattercloud API key | undefined
+| **PLANARIA_TOKEN** | Planaria API key | undefined
+| **NETWORK** | Bitcoin network (main or test) | main
+| **DB** | Database file | run.db
+| **PORT** | Port used for the REST server | randomly generated
+| **WORKERS** | Number of threads used to index | 4
+| **FETCH_LIMIT** | Number of parallel downloads | 20
+| **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
+| **TIMEOUT** | Network timeout in milliseconds | 10000
+| **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
 
 ## Endpoints
 
