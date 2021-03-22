@@ -15,8 +15,7 @@ const Run = require('run-sdk')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const sha256 = crypto.createHash('sha256')
-const calculateScripthash = x => sha256.copy().update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
+const calculateScripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
 
 // ------------------------------------------------------------------------------------------------
 // Server
