@@ -6,13 +6,15 @@
 
 Crawls the blockchain and indexes RUN state.
 
-## Getting started
-
-Run `npm run start`
-
 ## Requirements
 
 Node 10+
+
+## Getting started
+
+1. Install `npm run install`
+2. Download a snapshot: `wget run.network/run-db-snapshots/latest/run.db` (*optional*)
+3. Run `npm run start`
 
 ## Configuration
 
