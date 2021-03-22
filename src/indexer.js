@@ -294,8 +294,15 @@ class Indexer {
 
       bsvtx = new bsv.Transaction(hex)
 
-      bsvtx.inputs.forEach(input => inputs.push(`${input.prevTxId.toString('hex')}_o${input.outputIndex}`))
-      bsvtx.outputs.forEach((output, n) => outputs.push(`${txid}_o${n}`))
+      bsvtx.inputs.forEach(input => {
+        const location = `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
+        inputs.push(location)
+      })
+
+      bsvtx.outputs.forEach((output, n) => {
+        if (output.script.isDataOut() || output.script.isSafeDataOut()) return
+        outputs.push(`${txid}_o${n}`)
+      })
 
       metadata = Run.util.metadata(hex)
     } catch (e) {
