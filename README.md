@@ -83,3 +83,103 @@ Create a .env file or set the following environment variables to configure the D
 * `DELETE /trust/:txid` - Removes trust for a transaction, and unindexes it and its descendents
 * `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
 * `DELETE /tx/:txid` - Removes a transaction, its descendents, and any connected state
+
+## Database Schema
+
+RUN-DB uses SQLITE as its underlying database. SQLITE allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLITE database to access these tables while RUN-DB is running, but be prepared to handle SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+
+### Tables
+
+There are currently 8 tables updated by RUN-DB.
+
+#### tx
+
+Stores all transactions known by RUN-DB and their indexing state.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| txid | TEXT | Hex string for the transaction hash |
+| height | INTEGER | Block height for this transaction, or `-1` for mempool, or `NULL` for unknown |
+| time | INTEGER | Transaction or bock time in seconds since the unix epoch |
+| hex | TEXT | Raw transaction data in hex, or `NULL` if not downloaded |
+| has_code | INTEGER | `1` if this transaction deployed or upgraded code and requires trust, `0` otherwise |
+| executable | INTEGER | `1` if this transaction is a valid RUN transaction, `0` otherwise |
+| executed | INTEGER | `1` if this transaction was executed, even if it failed, `0` otherwise |
+| indexed | INTEGER | `1` if this transaction's jig states were calculated successfully, `0` otherwise |
+
+#### spends
+
+Stores spend information about transaction outputs.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| location | TEXT | <txid>_o<output-index> string describing an output
+| spend_txid| TXID | Hex txid that spent this output, or `NULL` if unspent
+
+#### deps
+
+Stores the transaction needed to load a RUN transaction.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| up | TEXT | A transaction ID in hex |
+| down | TEXT | Hex txid for a transaction that depends on `up` |
+
+#### jig
+
+Stores jig and code states at output locations or destroyed locations.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| location | TEXT | Jig or code location |
+| state | TEXT | JSON string describing the object state |
+| class | TEXT | Contract origin if this state is a jig |
+| scripthash | TEXT | Hex string of the reversed sha256 of the owner script |
+| lock | TEXT | Lock class origin if this state has a custom lock |
+
+#### berry
+
+Stores berry states for third-party protocol data.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| location | TEXT | Berry location without the &hash query param |
+| state | TEXT | JSON string describing the object state |
+
+#### trust
+
+Stores which transaction have been trusted and whose code will be executed.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| txid | TEXT | Hex string txid |
+| value | INTEGER | `1` if trusted, `0` if untrusted |
+
+#### ban
+
+Stores which transaction have been blacklisted.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| txid | TEXT | Hex string txid |
+| value | INTEGER | `1` if blacklisted, `0` otherwise |
+
+#### crawl
+
+Stores the block crawl state of the database.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| role | TEXT | Always `tip` |
+| height | INTEGER | Block height currently indexed |
+| hash | TEXT | Block hash currently indexed in hex |
+
+### Example Queries
+
+For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLITE extension.
+
+#### Re-execute all transactions
+
+```
+UPDATE tx SET executed = 0; DELETE FROM jig; DELETE FROM berry;
+```
