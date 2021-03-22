@@ -104,7 +104,7 @@ FROM (
     AND jig.class = 'ce8629aa37a1777d6aa64d0d33cd739fd4e231dc85cfe2f9368473ab09078b78_o1')
 ```
 
-#### Calculate SHUA token balances for address owners
+#### Calculate SHUA token balances by owner
 
 ```
 SELECT owner, SUM(amount) as amount
