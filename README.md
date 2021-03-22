@@ -84,13 +84,35 @@ Create a .env file or set the following environment variables to configure the D
 * `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
 * `DELETE /tx/:txid` - Removes a transaction, its descendents, and any connected state
 
-## Database Schema
+## Performing Custom Queries
 
-RUN-DB uses SQLITE as its underlying database. SQLITE allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLITE database to access these tables while RUN-DB is running, but be prepared to handle SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+RUN-DB uses SQLITE as its underlying database. SQLITE allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLITE database to access these tables while RUN-DB is running, but be prepared to retry during SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
 
-### Tables
+### Example Queries
+
+For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLITE extension.
+
+#### Re-execute all transactions
+
+```
+UPDATE tx SET executed = 0; DELETE FROM jig; DELETE FROM berry;
+```
+
+### Database Schema
 
 There are currently 8 tables updated by RUN-DB.
+
+#### jig
+
+Stores jig and code states at output locations or destroyed locations.
+
+| Column | Type | Description |
+| ------ | ---- | ----------- |
+| location | TEXT | Jig or code location |
+| state | TEXT | JSON string describing the object state |
+| class | TEXT | Contract origin if this state is a jig |
+| scripthash | TEXT | Hex string of the reversed sha256 of the owner script |
+| lock | TEXT | Lock class origin if this state has a custom lock |
 
 #### tx
 
@@ -124,18 +146,6 @@ Stores the transaction needed to load a RUN transaction.
 | ------ | ---- | ----------- |
 | up | TEXT | A transaction ID in hex |
 | down | TEXT | Hex txid for a transaction that depends on `up` |
-
-#### jig
-
-Stores jig and code states at output locations or destroyed locations.
-
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| location | TEXT | Jig or code location |
-| state | TEXT | JSON string describing the object state |
-| class | TEXT | Contract origin if this state is a jig |
-| scripthash | TEXT | Hex string of the reversed sha256 of the owner script |
-| lock | TEXT | Lock class origin if this state has a custom lock |
 
 #### berry
 
@@ -173,13 +183,3 @@ Stores the block crawl state of the database.
 | role | TEXT | Always `tip` |
 | height | INTEGER | Block height currently indexed |
 | hash | TEXT | Block hash currently indexed in hex |
-
-### Example Queries
-
-For some of these queries, you will need the [JSON1](https://www.sqlite.org/json1.html) SQLITE extension.
-
-#### Re-execute all transactions
-
-```
-UPDATE tx SET executed = 0; DELETE FROM jig; DELETE FROM berry;
-```
