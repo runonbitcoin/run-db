@@ -23,6 +23,8 @@ class Indexer {
     this.logger.error = this.logger.error || (() => {})
     this.logger.debug = this.logger.debug || (() => {})
 
+    this.onDownload = null
+    this.onFailToDownload = null
     this.onIndex = null
     this.onFailToIndex = null
     this.onBlock = null
@@ -159,10 +161,12 @@ class Indexer {
     if (height) this.database.setTransactionHeight(txid, height)
     if (time) this.database.setTransactionTime(txid, time)
     this._parseAndStoreTransaction(txid, hex)
+    if (this.onDownload) this.onDownload(txid)
   }
 
   _onFailedToDownloadTransaction (txid, e) {
     this.logger.error('Failed to download', txid, e.toString())
+    if (this.onFailToDownload) this.onFailToDownload(txid)
   }
 
   _onRetryingDownload (txid, secondsToRetry) {

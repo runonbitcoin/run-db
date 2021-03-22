@@ -16,8 +16,9 @@ const txns = require('./txns.json')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = txid => { return { hex: require('./txns.json')[txid] } }
+const fetch = async txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
+const downloaded = (indexer, txid) => new Promise((resolve, reject) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const listening = (server) => new Promise((resolve, reject) => { server.onListening = () => resolve() })
 
@@ -96,6 +97,7 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       const location = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1'
@@ -113,6 +115,7 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       const location = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1'
       await expect(axios.get(`http://localhost:${server.port}/jig/${location}`)).to.be.rejected
       try {
@@ -135,6 +138,7 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       indexer.add('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
       await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
       const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
@@ -152,10 +156,72 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
       await expect(axios.get(`http://localhost:${server.port}/berry/${location}`)).to.be.rejected
       try {
         await axios.get(`http://localhost:${server.port}/berry/${location}`)
+      } catch (e) {
+        expect(e.response.status).to.equal(404)
+      }
+      server.stop()
+      await indexer.stop()
+    })
+  })
+
+  // --------------------------------------------------------------------------
+  // get tx
+  // --------------------------------------------------------------------------
+
+  describe('get tx', () => {
+    it('returns rawtx if downloaded', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      await listening(server)
+      const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
+      indexer.add(txid)
+      await downloaded(indexer, txid)
+      const rawtx = (await axios.get(`http://localhost:${server.port}/tx/${txid}`)).data
+      expect(typeof rawtx).to.equal('string')
+      expect(rawtx.length).to.equal(2074)
+      server.stop()
+      await indexer.stop()
+    })
+
+    // ------------------------------------------------------------------------
+
+    it('returns 404 if missing', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      await listening(server)
+      const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
+      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejected
+      try {
+        await axios.get(`http://localhost:${server.port}/tx/${txid}`)
+      } catch (e) {
+        expect(e.response.status).to.equal(404)
+      }
+      server.stop()
+      await indexer.stop()
+    })
+
+    // ------------------------------------------------------------------------
+
+    it('returns 404 if not downloaded', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      await listening(server)
+      const txid = '1111111111111111111111111111111111111111111111111111111111111111'
+      indexer.add(txid)
+      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejected
+      try {
+        await axios.get(`http://localhost:${server.port}/tx/${txid}`)
       } catch (e) {
         expect(e.response.status).to.equal(404)
       }
@@ -174,6 +240,7 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       const unspent = (await axios.get(`http://localhost:${server.port}/unspent`)).data
@@ -192,6 +259,7 @@ describe('Server', () => {
       const server = new Server(indexer, null, null)
       await indexer.start()
       server.start()
+      await listening(server)
       indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
       const address = '1Kc8XRNryDycwvfEQiFF2TZwD1CVhgwGy2'
