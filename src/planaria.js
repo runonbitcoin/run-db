@@ -45,6 +45,8 @@ class Planaria {
   }
 
   async connect (height, network) {
+    if (network !== 'main') throw new Error(`Network not supported with Planaria: ${network}`)
+
     this.runConnectFetcher.connect(height, network)
 
     this.network = network
