@@ -77,6 +77,13 @@ class Database {
     ).run()
 
     this.db.prepare(
+      `CREATE TABLE IF NOT EXISTS spends (
+        location TEXT NOT NULL PRIMARY KEY,
+        spend_txid TEXT
+      ) WITHOUT ROWID`
+    ).run()
+
+    this.db.prepare(
       `CREATE TABLE IF NOT EXISTS deps (
         up TEXT NOT NULL,
         down TEXT NOT NULL,
@@ -90,8 +97,7 @@ class Database {
         state TEXT NOT NULL,
         class TEXT,
         scripthash TEXT,
-        lock TEXT,
-        spend TEXT
+        lock TEXT
       ) WITHOUT ROWID`
     ).run()
 
@@ -128,7 +134,7 @@ class Database {
     ).run()
 
     this.db.prepare(
-      'CREATE INDEX IF NOT EXISTS jig_spend_index ON jig (spend)'
+      'CREATE INDEX IF NOT EXISTS jig_index ON jig (class)'
     ).run()
 
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
@@ -168,6 +174,12 @@ class Database {
       FROM tx WHERE (executable = 1 AND executed = 0) OR hex IS NULL
     `)
 
+    this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
+    this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
+    this.getSpendStmt = this.db.prepare('SELECT spend_txid FROM spends WHERE location = ?')
+    this.unspendOutputsStmt = this.db.prepare('UPDATE spends SET spend_txid = null WHERE spend_txid = ?')
+    this.deleteSpendsStmt = this.db.prepare('DELETE FROM spends WHERE location LIKE ? || \'%\'')
+
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
     this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
     this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
@@ -183,24 +195,26 @@ class Database {
       WHERE tx.executable = 1 AND tx.executed = 0
     `)
 
-    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash, spend) VALUES (?, ?, null, null, null, null)')
-    this.setJigSpendStmt = this.db.prepare('UPDATE jig SET spend = ? WHERE location = ?')
+    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
     this.setJigClassStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
     this.setJigLockStmt = this.db.prepare('UPDATE jig SET lock = ? WHERE location = ?')
     this.setJigScripthashStmt = this.db.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
     this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
-    this.getJigSpendStmt = this.db.prepare('SELECT spend FROM jig WHERE location = ?')
-    this.getAllUnspentStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL')
-    this.getAllUnspentByClassStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ?')
-    this.getAllUnspentByLockStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND lock = ?')
-    this.getAllUnspentByScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND scripthash = ?')
-    this.getAllUnspentByClassLockStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND lock = ?')
-    this.getAllUnspentByClassScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND scripthash = ?')
-    this.getAllUnspentByLockScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND lock = ? AND scripthash = ?')
-    this.getAllUnspentByClassLockScripthashStmt = this.db.prepare('SELECT location FROM jig WHERE spend IS NULL AND class = ? AND lock = ? AND scripthash = ?')
-    this.getNumUnspentStmt = this.db.prepare('SELECT COUNT(*) as unspent FROM jig WHERE spend IS NULL')
     this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
-    this.deleteJigSpendsStmt = this.db.prepare('UPDATE jig SET spend = null WHERE spend = ?')
+
+    const getAllUnspentSql = `
+      SELECT spends.location AS location FROM spends
+      JOIN jig ON spends.location = jig.location
+      WHERE spends.spend_txid IS NULL`
+    this.getAllUnspentStmt = this.db.prepare(getAllUnspentSql)
+    this.getAllUnspentByClassStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ?`)
+    this.getAllUnspentByLockStmt = this.db.prepare(`${getAllUnspentSql} AND jig.lock = ?`)
+    this.getAllUnspentByScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.scripthash = ?`)
+    this.getAllUnspentByClassLockStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND lock = ?`)
+    this.getAllUnspentByClassScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND scripthash = ?`)
+    this.getAllUnspentByLockScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.lock = ? AND scripthash = ?`)
+    this.getAllUnspentByClassLockScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND jig.lock = ? AND scripthash = ?`)
+    this.getNumUnspentStmt = this.db.prepare('SELECT COUNT(*) as unspent FROM spends JOIN jig ON spends.location = jig.location WHERE spends.spend_txid IS NULL')
 
     this.setBerryStateStmt = this.db.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
     this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
@@ -261,10 +275,13 @@ class Database {
     this.setTransactionTimeStmt.run(time, txid)
   }
 
-  storeParsedNonExecutableTransaction (txid, hex) {
+  storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
       this.setTransactionExecutableStmt.run(0, txid)
+
+      inputs.forEach(location => this.setSpendStmt.run(location, txid))
+      outputs.forEach(location => this.setUnspentStmt.run(location))
 
       const tx = this.unexecuted.get(txid)
 
@@ -283,11 +300,14 @@ class Database {
     })
   }
 
-  storeParsedExecutableTransaction (txid, hex, hasCode, deps) {
+  storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
     this.transaction(() => {
       this.setTransactionHexStmt.run(hex, txid)
       this.setTransactionExecutableStmt.run(1, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
+
+      inputs.forEach(location => this.setSpendStmt.run(location, txid))
+      outputs.forEach(location => this.setUnspentStmt.run(location))
 
       const tx = this.unexecuted.get(txid)
 
@@ -316,7 +336,7 @@ class Database {
   }
 
   storeExecutedTransaction (txid, result) {
-    const { cache, spends, classes, locks, scripthashes } = result
+    const { cache, classes, locks, scripthashes } = result
 
     const tx = this.unexecuted.get(txid)
     if (!tx) return
@@ -338,10 +358,6 @@ class Database {
           continue
         }
       }
-
-      spends.forEach(location => {
-        this.setJigSpendStmt.run(txid, location)
-      })
 
       for (const [location, cls] of classes) {
         this.setJigClassStmt.run(cls, location)
@@ -405,8 +421,9 @@ class Database {
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
       this.deleteJigStatesStmt.run(txid)
-      this.deleteJigSpendsStmt.run(txid)
       this.deleteBerryStatesStmt.run(txid)
+      this.deleteSpendsStmt.run(txid)
+      this.unspendOutputsStmt.run(txid)
       this.deleteDepsStmt.run(txid)
 
       const tx = this.unexecuted.get(txid)
@@ -469,6 +486,15 @@ class Database {
   getNumQueuedForExecution () { return this.numQueuedForExecution }
 
   // --------------------------------------------------------------------------
+  // spends
+  // --------------------------------------------------------------------------
+
+  getSpend (location) {
+    const row = this.getSpendStmt.raw(true).get(location)
+    return row && row[0]
+  }
+
+  // --------------------------------------------------------------------------
   // deps
   // --------------------------------------------------------------------------
 
@@ -508,10 +534,9 @@ class Database {
     return row && row[0]
   }
 
-  getJigSpend (location) {
-    const row = this.getJigSpendStmt.raw(true).get(location)
-    return row && row[0]
-  }
+  // --------------------------------------------------------------------------
+  // unspent
+  // --------------------------------------------------------------------------
 
   getAllUnspent () {
     return this.getAllUnspentStmt.raw(true).all().map(row => row[0])

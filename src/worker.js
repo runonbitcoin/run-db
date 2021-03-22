@@ -5,7 +5,6 @@
  */
 
 const { parentPort, workerData } = require('worker_threads')
-const bsv = require('bsv')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const Bus = require('./bus')
@@ -80,9 +79,6 @@ async function execute (txid, hex, trustlist) {
   await tx.cache()
 
   const cache = run.cache.state
-  const bsvtx = new bsv.Transaction(hex)
-  const inputs = bsvtx.inputs.slice(0, Run.util.metadata(hex).in)
-  const spends = inputs.map(input => `${input.prevTxId.toString('hex')}_o${input.outputIndex}`)
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
   const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
   const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)
@@ -93,7 +89,7 @@ async function execute (txid, hex, trustlist) {
   const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
   const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
 
-  return { cache, spends, classes, locks, scripthashes }
+  return { cache, classes, locks, scripthashes }
 }
 
 // ------------------------------------------------------------------------------------------------

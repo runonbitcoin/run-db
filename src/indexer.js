@@ -95,7 +95,7 @@ class Indexer {
   }
 
   spends (location) {
-    return this.database.getJigSpend(location)
+    return this.database.getSpend(location)
   }
 
   berry (location) {
@@ -286,14 +286,21 @@ class Indexer {
 
     let metadata = null
     let bsvtx = null
+    const inputs = []
+    const outputs = []
 
     try {
       if (!hex) throw new Error('No hex')
-      metadata = Run.util.metadata(hex)
+
       bsvtx = new bsv.Transaction(hex)
+
+      bsvtx.inputs.forEach(input => inputs.push(`${input.prevTxId.toString('hex')}_o${input.outputIndex}`))
+      bsvtx.outputs.forEach((output, n) => outputs.push(`${txid}_o${n}`))
+
+      metadata = Run.util.metadata(hex)
     } catch (e) {
       this.logger.error(`${txid} => ${e.message}`)
-      this.database.storeParsedNonExecutableTransaction(txid, hex)
+      this.database.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
       return
     }
 
@@ -318,7 +325,7 @@ class Indexer {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    this.database.storeParsedExecutableTransaction(txid, hex, hasCode, deps)
+    this.database.storeParsedExecutableTransaction(txid, hex, hasCode, deps, inputs, outputs)
 
     for (const deptxid of deps) {
       if (!this.database.isTransactionDownloaded(deptxid)) {
