@@ -86,7 +86,7 @@ Create a .env file or set the following environment variables before running to 
 
 ## Performing Custom Queries
 
-RUN-DB uses SQLite as its underlying database. SQLite allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLite database to access these tables while RUN-DB is running, but be prepared to retry during SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+RUN-DB uses SQLite as its underlying database. SQLite allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLite database to access these tables while RUN-DB is running, but be prepared to retry if you see SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
 
 ### Example Queries
 
@@ -184,7 +184,7 @@ Stores berry states for third-party protocol data.
 
 #### trust
 
-Stores the transactions have been trusted and whose code will be executed.
+Stores the transactions which have been trusted and whose code will be executed.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
@@ -193,7 +193,7 @@ Stores the transactions have been trusted and whose code will be executed.
 
 #### ban
 
-Stores the transactions have been blacklisted.
+Stores the transactions which have been blacklisted.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
@@ -202,7 +202,7 @@ Stores the transactions have been blacklisted.
 
 #### crawl
 
-Stores the block crawl state of the database.
+Stores the blockchain crawl height for data in the database.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
