@@ -62,6 +62,7 @@ Create a .env file or set the following environment variables before running to 
 | **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
 | **TIMEOUT** | Network timeout in milliseconds | 10000
 | **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
+| **DEFAULT_TRUSTLIST** | Comma-separated values of trusted txids | predefined trustlist
 
 ## Endpoints
 

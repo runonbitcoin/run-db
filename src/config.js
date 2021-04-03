@@ -28,7 +28,7 @@ require('axios').default.defaults.timeout = TIMEOUT
 // Default trustlist
 // ------------------------------------------------------------------------------------------------
 
-const DEFAULT_TRUSTLIST = [
+const DEFAULT_TRUSTLIST = process.env.DEFAULT_TRUSTLIST.split(",").filter(t => t) || [
   /**
    * RUN ▸ Extras
    */
