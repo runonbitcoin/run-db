@@ -6,7 +6,7 @@
 
 require('dotenv').config()
 
-// ----------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
@@ -24,11 +24,13 @@ const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24
 
 require('axios').default.defaults.timeout = TIMEOUT
 
-// ----------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Default trustlist
 // ------------------------------------------------------------------------------------------------
 
-const DEFAULT_TRUSTLIST = process.env.DEFAULT_TRUSTLIST.split(",").filter(t => t) || [
+const ENV_VAR_DEFAULT_TRUSTLIST = process.env.DEFAULT_TRUSTLIST && process.env.DEFAULT_TRUSTLIST.split(',').filter(t => t)
+
+const DEFAULT_TRUSTLIST = ENV_VAR_DEFAULT_TRUSTLIST || [
   /**
    * RUN ▸ Extras
    */
