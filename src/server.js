@@ -35,8 +35,8 @@ class Server {
 
     if (this.logger) app.use(morgan('tiny'))
 
-    app.use(bodyParser.text())
-    app.use(bodyParser.json())
+    app.use(bodyParser.text({ limit: '10mb' }))
+    app.use(bodyParser.json({ limit: '10mb' }))
 
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
