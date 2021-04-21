@@ -7,6 +7,7 @@
 const { parentPort, workerData } = require('worker_threads')
 const crypto = require('crypto')
 const Run = require('run-sdk')
+const bsv = require('bsv')
 const Bus = require('./bus')
 
 // ------------------------------------------------------------------------------------------------
@@ -85,7 +86,9 @@ async function execute (txid, hex, trustlist) {
   const customLocks = creationsWithLocks.map(creation => [creation.location, creation.owner])
   const locks = customLocks.map(([location, lock]) => [location, lock.constructor.origin])
   const creationsWithoutLocks = tx.outputs.filter(creation => typeof creation.owner === 'string')
-  const commonLocks = creationsWithoutLocks.map(creation => [creation.location, new Run.util.CommonLock(creation.owner)])
+  const addressify = owner => owner.length >= 64 ? new bsv.PublicKey(owner).toAddress().toString() : owner
+  const addresses = creationsWithoutLocks.map(creation => [creation.location, addressify(creation.owner)])
+  const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
   const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
   const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
 

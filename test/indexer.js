@@ -8,6 +8,8 @@ const { describe, it } = require('mocha')
 const { expect } = require('chai')
 const bsv = require('bsv')
 const Indexer = require('../src/indexer')
+const Run = require('run-sdk')
+const { Jig } = Run
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -29,6 +31,25 @@ describe('Indexer', () => {
     indexer.add('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await indexer.stop()
+  })
+
+  // --------------------------------------------------------------------------
+
+  it('index jig sent to pubkey', async () => {
+    new Run({ network: 'mock' }) // eslint-disable-line
+    class A extends Jig { init (owner) { this.owner = owner } }
+    const tx = new Run.Transaction()
+    const pubkey = new bsv.PrivateKey('testnet').toPublicKey().toString()
+    tx.update(() => new A(pubkey))
+    const rawtx = await tx.export()
+    const api = { fetch: txid => { return { hex: rawtx } } }
+    const indexer = new Indexer(':memory:', api, 'test', 1, 1, null, 0, Infinity)
+    const txid = new bsv.Transaction(rawtx).hash
+    await indexer.start()
+    indexer.add(txid)
+    indexer.trust(txid)
+    await indexed(indexer, txid)
     await indexer.stop()
   })
 
