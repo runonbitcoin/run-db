@@ -87,7 +87,7 @@ Create a .env file or set the following environment variables before running to 
 
 ## Performing Custom Queries
 
-RUN-DB uses SQLite as its underlying database. SQLite allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. You can open a read-only connection to the SQLite database to access these tables while RUN-DB is running, but be prepared to retry if you see SQLITE_BUSY errors. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+RUN-DB uses SQLite as its underlying database in [WAL](https://sqlite.org/wal.html) mode. SQLite and WAL allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
 
 ### Example Queries
 
