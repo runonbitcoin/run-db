@@ -1,6 +1,6 @@
 {
   "name": "run-db",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A local database that indexes jig states from RUN transactions",
   "keywords": [
     "run",
