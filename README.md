@@ -21,7 +21,7 @@ Node 10+
 1. Install `npm run install`
 2. Download a db snapshot: `wget run.network/run-db-snapshots/latest/run.db` (*optional*)
 3. Run `npm run start`
-4. Install a trustlist: `curl -s https://api.run.network/v1/main/trust | curl -X POST -d @- http://localhost:8000/trust` (*optional*)
+4. Install a trustlist: `curl -s https://api.run.network/v1/main/trust | curl -H "Content-Type: application/json" -X POST -d @- http://localhost:8000/trust` (*optional*)
 
 ## Use with your Server
 
