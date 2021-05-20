@@ -6,6 +6,7 @@
 
 const Sqlite3Database = require('better-sqlite3')
 const { DEFAULT_TRUSTLIST } = require('./config')
+const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -393,11 +394,31 @@ class Database {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
 
+      for (const downtx of tx.downstream) downtx.upstream.delete(tx)
       this.unexecuted.delete(txid)
       if (tx.queuedForExecution) this.numQueuedForExecution--
+      tx.queuedForExecution = false
 
-      for (const downtx of tx.downstream) {
-        this.setTransactionExecutionFailed(downtx.txid)
+      // Only mark downstream transactions as unexecutable this was was executable.
+      // We double check this in case the admin is manually changing the database.
+
+      let executable = false
+      try {
+        const rawtx = this.getTransactionHex(txid)
+        Run.util.metadata(rawtx)
+        executable = true
+      } catch (e) { }
+
+      if (executable) {
+        for (const downtx of tx.downstream) {
+          this.setTransactionExecutionFailed(downtx.txid)
+        }
+      } else {
+        for (const downtx of tx.downstream) {
+          if (downtx.queuedForExecution && !downtx.upstream.size) {
+            if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
+          }
+        }
       }
     })
   }
@@ -724,6 +745,7 @@ class Database {
 
   _loadUnexecuted () {
     const unexecuted = this.getUnexecutedStmt.raw(true).all()
+
     for (const [txid, downloaded, hasCode] of unexecuted) {
       const tx = new UnexecutedTx(txid, !!downloaded, !!hasCode)
       this.unexecuted.set(txid, tx)
