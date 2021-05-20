@@ -18,6 +18,13 @@ const network = workerData.network
 
 Bus.listen(parentPort, { execute })
 
+// On Node 15+, when the Blockchain fetch method throws for missing dependencies, it causes
+// and unhandled promise rejection error. However, it can't reproduce outside of RUN-DB.
+// This needs investigation. Perhaps it's related to the worker thread. Perhaps something else.
+process.on('unhandledRejection', (e) => {
+  console.warn('Unhandled promise rejection', e)
+})
+
 // ------------------------------------------------------------------------------------------------
 // Cache
 // ------------------------------------------------------------------------------------------------
