@@ -16,7 +16,7 @@ const messageCallbacks = {}
 // ------------------------------------------------------------------------------------------------
 
 async function sendRequest (port, func, ...args) {
-  return new Promise((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
     messageCallbacks[messageId] = { resolve, reject }
     port.postMessage({ id: messageId, func, args })
     messageId++
@@ -44,11 +44,18 @@ function listen (port, handlers) {
       if (typeof handler !== 'function') {
         throw new Error('No handler for ' + msg.func)
       }
+
       const ret = await handler(...msg.args)
+
       port.postMessage({ response: true, id: msg.id, ret })
     } catch (e) {
       port.postMessage({ response: true, id: msg.id, err: e.message || e.toString() })
     }
+  })
+
+  port.on('error', e => {
+    console.error('Worker thread error:', e)
+    process.exit(1)
   })
 }
 
