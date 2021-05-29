@@ -51,7 +51,7 @@ class Planaria {
 
     this.network = network
     this.lastCrawlHeight = height
-    this.logger.info('Crawing for new blocks via BitBus')
+    this.logger.info('Crawling for new blocks via BitBus')
     await this._recrawl()
   }
 
