@@ -438,7 +438,10 @@ class Database {
     return row && row[0]
   }
 
-  deleteTransaction (txid) {
+  deleteTransaction (txid, deleted = new Set()) {
+    if (deleted.has(txid)) return
+    deleted.add(txid)
+
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
       this.deleteJigStatesStmt.run(txid)
@@ -454,7 +457,7 @@ class Database {
       if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
 
       const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
-      downtxids.forEach(downtxid => this.deleteTransaction(downtxid))
+      downtxids.forEach(downtxid => this.deleteTransaction(downtxid, deleted))
     })
   }
 

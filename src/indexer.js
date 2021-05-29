@@ -260,7 +260,8 @@ class Indexer {
     const expirationTime = Math.round(Date.now() / 1000) - this.mempoolExpiration
 
     const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
-    this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid)))
+    const deleted = new Set()
+    this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid, deleted)))
   }
 
   _addTransactions (txids, txhexs, height, time) {
