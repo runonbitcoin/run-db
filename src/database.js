@@ -540,6 +540,9 @@ class Database {
   addMissingDeps (txid, deptxids) {
     const tx = this.unexecuted.get(txid)
 
+    // Check if the transaction was removed during execution
+    if (!tx) return
+
     this.transaction(() => {
       for (const deptxid of deptxids) {
         this.addDep(tx, deptxid)
