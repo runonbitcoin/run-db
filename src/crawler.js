@@ -110,7 +110,7 @@ class Crawler {
   }
 
   _rewindAfterReorg () {
-    const newHeight = this.height -= this.rewindCount
+    const newHeight = this.height - this.rewindCount
     if (this.onRewindBlocks) this.onRewindBlocks(newHeight)
     this.height = newHeight
     this.hash = null
