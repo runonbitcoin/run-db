@@ -35,8 +35,9 @@ class UnexecutedTx {
 // ------------------------------------------------------------------------------------------------
 
 class Database {
-  constructor (path) {
+  constructor (path, logger) {
     this.path = path
+    this.logger = logger
     this.db = null
     this.trustlist = new Set()
     this.banlist = new Set()
@@ -63,80 +64,9 @@ class Database {
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('synchronous = NORMAL')
 
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS tx (
-        txid TEXT NOT NULL,
-        height INTEGER,
-        time INTEGER,
-        hex TEXT,
-        has_code INTEGER,
-        executable INTEGER,
-        executed INTEGER,
-        indexed INTEGER,
-        UNIQUE(txid)
-      )`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS spends (
-        location TEXT NOT NULL PRIMARY KEY,
-        spend_txid TEXT
-      ) WITHOUT ROWID`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS deps (
-        up TEXT NOT NULL,
-        down TEXT NOT NULL,
-        UNIQUE(up, down)
-      )`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS jig (
-        location TEXT NOT NULL PRIMARY KEY,
-        state TEXT NOT NULL,
-        class TEXT,
-        scripthash TEXT,
-        lock TEXT
-      ) WITHOUT ROWID`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS berry (
-        location TEXT NOT NULL PRIMARY KEY,
-        state TEXT NOT NULL
-      ) WITHOUT ROWID`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS trust (
-        txid TEXT NOT NULL PRIMARY KEY,
-        value INTEGER
-      ) WITHOUT ROWID`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS ban (
-        txid TEXT NOT NULL PRIMARY KEY
-      ) WITHOUT ROWID`
-    ).run()
-
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS crawl (
-        role TEXT UNIQUE,
-        height INTEGER,
-        hash TEXT
-      )`
-    ).run()
-
-    this.db.prepare(
-      'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
-    ).run()
-
-    this.db.prepare(
-      'CREATE INDEX IF NOT EXISTS jig_index ON jig (class)'
-    ).run()
+    // Initialise and perform upgrades
+    this.initializeV1()
+    this.initializeV2()
 
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
     const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
@@ -148,8 +78,8 @@ class Database {
       }
     })
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, hex, height, time, has_code, executable, executed, indexed) VALUES (?, null, null, ?, 0, 0, 0, 0)')
-    this.setTransactionHexStmt = this.db.prepare('UPDATE tx SET hex = ? WHERE txid = ?')
+    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, ?, null, null, 0, 0, 0, 0)')
+    this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
     this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
@@ -157,22 +87,22 @@ class Database {
     this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
     this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.getTransactionHexStmt = this.db.prepare('SELECT hex FROM tx WHERE txid = ?')
+    this.getTransactionHexStmt = this.db.prepare('SELECT LOWER(HEX(bytes)) AS hex FROM tx WHERE txid = ?')
     this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
     this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
     this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
-    this.getTransactionDownloadedStmt = this.db.prepare('SELECT hex IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
+    this.getTransactionDownloadedStmt = this.db.prepare('SELECT bytes IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
-    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE hex IS NULL')
-    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE hex IS NOT NULL')
+    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE bytes IS NULL')
+    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE bytes IS NOT NULL')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.getUnexecutedStmt = this.db.prepare(`
-      SELECT txid, hex IS NOT NULL AS downloaded, has_code
-      FROM tx WHERE (executable = 1 AND executed = 0) OR hex IS NULL
+      SELECT txid, bytes IS NOT NULL AS downloaded, has_code
+      FROM tx WHERE (executable = 1 AND executed = 0) OR bytes IS NULL
     `)
 
     this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
@@ -237,6 +167,146 @@ class Database {
     this._loadUnexecuted()
   }
 
+  initializeV1 () {
+    if (this.db.pragma('user_version')[0].user_version !== 0) return
+
+    this.logger.info('Setting up database v1')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 1')
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS tx (
+          txid TEXT NOT NULL,
+          height INTEGER,
+          time INTEGER,
+          hex TEXT,
+          has_code INTEGER,
+          executable INTEGER,
+          executed INTEGER,
+          indexed INTEGER,
+          UNIQUE(txid)
+        )`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS spends (
+          location TEXT NOT NULL PRIMARY KEY,
+          spend_txid TEXT
+        ) WITHOUT ROWID`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS deps (
+          up TEXT NOT NULL,
+          down TEXT NOT NULL,
+          UNIQUE(up, down)
+        )`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS jig (
+          location TEXT NOT NULL PRIMARY KEY,
+          state TEXT NOT NULL,
+          class TEXT,
+          scripthash TEXT,
+          lock TEXT
+        ) WITHOUT ROWID`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS berry (
+          location TEXT NOT NULL PRIMARY KEY,
+          state TEXT NOT NULL
+        ) WITHOUT ROWID`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS trust (
+          txid TEXT NOT NULL PRIMARY KEY,
+          value INTEGER
+        ) WITHOUT ROWID`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS ban (
+          txid TEXT NOT NULL PRIMARY KEY
+        ) WITHOUT ROWID`
+      ).run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS crawl (
+          role TEXT UNIQUE,
+          height INTEGER,
+          hash TEXT
+        )`
+      ).run()
+
+      this.db.prepare(
+        'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
+      ).run()
+
+      this.db.prepare(
+        'CREATE INDEX IF NOT EXISTS jig_index ON jig (class)'
+      ).run()
+    })
+  }
+
+  initializeV2 () {
+    if (this.db.pragma('user_version')[0].user_version !== 1) return
+
+    this.logger.info('Setting up database v2')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 2')
+
+      this.db.prepare(
+        `CREATE TABLE tx_v2 (
+          txid TEXT NOT NULL,
+          height INTEGER,
+          time INTEGER,
+          bytes BLOB,
+          has_code INTEGER,
+          executable INTEGER,
+          executed INTEGER,
+          indexed INTEGER
+        )`
+      ).run()
+
+      const txids = this.db.prepare('SELECT txid FROM tx').all().map(row => row.txid)
+      const gettx = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
+      const insert = this.db.prepare('INSERT INTO tx_v2 (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+
+      this.logger.info('Migrating data')
+      for (const txid of txids) {
+        const row = gettx.get(txid)
+        const bytes = Buffer.from(row.hex, 'hex')
+        insert.run(row.txid, row.height, row.time, bytes, row.has_code, row.executable, row.executed, row.indexed)
+      }
+
+      this.db.prepare(
+        'DROP INDEX tx_txid_index'
+      ).run()
+
+      this.db.prepare(
+        'DROP TABLE tx'
+      ).run()
+
+      this.db.prepare(
+        'ALTER TABLE tx_v2 RENAME TO tx'
+      ).run()
+
+      this.db.prepare(
+        'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
+      ).run()
+
+      this.logger.info('Saving results')
+    })
+
+    this.logger.info('Optimizing database (this may take a while)')
+    this.db.prepare('VACUUM').run()
+  }
+
   close () {
     if (this.db) {
       this.db.close()
@@ -278,7 +348,8 @@ class Database {
 
   storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
     this.transaction(() => {
-      this.setTransactionHexStmt.run(hex, txid)
+      const bytes = Buffer.from(hex, 'hex')
+      this.setTransactionBytesStmt.run(bytes, txid)
       this.setTransactionExecutableStmt.run(0, txid)
 
       inputs.forEach(location => this.setSpendStmt.run(location, txid))
@@ -303,7 +374,8 @@ class Database {
 
   storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
     this.transaction(() => {
-      this.setTransactionHexStmt.run(hex, txid)
+      const bytes = Buffer.from(hex, 'hex')
+      this.setTransactionBytesStmt.run(bytes, txid)
       this.setTransactionExecutableStmt.run(1, txid)
       this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
 

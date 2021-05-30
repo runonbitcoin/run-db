@@ -37,7 +37,7 @@ class Indexer {
 
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
-    this.database = new Database(db)
+    this.database = new Database(db, this.logger)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
     this.executor = new Executor(network, numParallelExecutes, this.database)
     this.crawler = new Crawler(api)
