@@ -32,7 +32,7 @@ class Planaria {
     this.token = token
     this.logger = logger
     this.abortController = new AbortController()
-    this.recrawlInterveral = 10000
+    this.recrawlInterveral = 30000
     this.maxReorgDepth = 10
     this.runConnectFetcher = new RunConnectFetcher()
 
@@ -165,7 +165,7 @@ class Planaria {
   }
 
   async _crawl () {
-    this.logger.info('Crawling planaria')
+    this.logger.info('Recrawling planaria')
 
     const query = {
       q: {
@@ -194,34 +194,61 @@ class Planaria {
     return new Promise((resolve, reject) => {
       fetch('https://txo.bitbus.network/block', options)
         .then(res => {
-          let i = 0
+          // Accumulate a block's transaction into a pending list until we reach the next block
+          // or the end of the stream. That way, we don't start pulling from the block when it's
+          // only been partially added and accidentally miss transactions.
+          let pending = []
 
-          res.body.on('end', () => resolve())
-            .pipe(es.split())
-            .pipe(es.mapSync(json => {
-              if (json.length) {
-                const data = JSON.parse(json)
+          const addTx = json => {
+            if (!json.length) return
 
-                if (i < this.txns.length) {
-                  if (data.blk.i < this.txns[i].height) {
-                    return
-                  }
+            const data = JSON.parse(json)
 
-                  if (data.blk.i === this.txns[i].height && data.blk.h === this.txns[i].hash) {
-                    return
-                  }
+            // If there are pending transactions, check if we are on a new block
+            if (pending.length && pending[0].height < data.blk.i) {
+              this.txns = this.txns.concat(pending)
+              this.lastCrawlHeight = pending[0].height
+              pending = []
+            }
 
-                  if (data.blk.i === this.txns[i].height && data.blk.h !== this.txns[i].hash) {
-                    this.pendingReorg = true
-                    this.txns = this.txns.slice(0, i)
-                  }
-                }
+            // Check that the transactions we are adding do not reorg
+            if (this.txns.length) {
+              const lastTx = this.txns[this.txns.length - 1]
 
-                this.txns.push({ height: data.blk.i, hash: data.blk.h, time: data.blk.t, txid: data.tx.h })
-                this.lastCrawlHeight = data.blk.i
-                i++
+              // We only add txns that are add to the height
+              if (data.blk.i < lastTx.height) {
+                return
               }
-            }))
+
+              // Don't add transactions if we already have them
+              if (data.blk.i === lastTx.height && data.blk.h === lastTx.hash) {
+                return
+              }
+
+              // Check for reorgs
+              if (data.blk.i === lastTx.height && data.blk.h !== lastTx.hash) {
+                this.pendingReorg = true
+                this.txns = this.txns.slice(0, this.txns.findIndex(tx => tx.height === data.blk.h))
+              }
+            }
+
+            pending.push({ height: data.blk.i, hash: data.blk.h, time: data.blk.t, txid: data.tx.h })
+          }
+
+          const finish = () => {
+            if (pending.length) {
+              this.txns = this.txns.concat(pending)
+              this.lastCrawlHeight = pending[0].height
+              pending = []
+            }
+
+            resolve()
+          }
+
+          res.body
+            .pipe(es.split())
+            .pipe(es.mapSync(addTx))
+            .on('end', finish)
         })
         .catch(e => e.name === 'AbortError' ? resolve() : reject(e))
     })
