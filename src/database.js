@@ -280,7 +280,7 @@ class Database {
       this.logger.info('Migrating data')
       for (const txid of txids) {
         const row = gettx.get(txid)
-        const bytes = Buffer.from(row.hex, 'hex')
+        const bytes = row.hex ? Buffer.from(row.hex, 'hex') : null
         insert.run(row.txid, row.height, row.time, bytes, row.has_code, row.executable, row.executed, row.indexed)
       }
 
