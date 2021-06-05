@@ -120,6 +120,14 @@ GROUP BY owner
 ORDER BY amount DESC
 ```
 
+#### Get transaction hex
+
+```
+SELECT HEX(bytes) AS hex
+FROM tx
+WERE txid = 'ce8629aa37a1777d6aa64d0d33cd739fd4e231dc85cfe2f9368473ab09078b78'
+```
+
 #### Re-execute all transactions
 
 ```
@@ -151,7 +159,7 @@ Stores all transactions known by RUN-DB and their indexing state.
 | txid | TEXT | Hex string for the transaction hash |
 | height | INTEGER | Block height for this transaction, or `-1` for mempool, or `NULL` for unknown |
 | time | INTEGER | Transaction or bock time in seconds since the unix epoch |
-| hex | TEXT | Raw transaction data in hex, or `NULL` if not downloaded |
+| bytes | BLOB | Raw transaction data, or `NULL` if not downloaded |
 | has_code | INTEGER | `1` if this transaction deployed or upgraded code and requires trust, `0` otherwise |
 | executable | INTEGER | `1` if this transaction is a valid RUN transaction, `0` otherwise |
 | executed | INTEGER | `1` if this transaction was executed, even if it failed, `0` otherwise |
