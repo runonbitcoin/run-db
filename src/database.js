@@ -574,8 +574,8 @@ class Database {
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
   isTransactionDownloaded (txid) {
-    const downloadedtx = this.getTransactionDownloadedStmt.raw(true).get(txid);
-    return !!(downloadedtx && downloadedtx[0]);
+    const downloadedtx = this.getTransactionDownloadedStmt.raw(true).get(txid)
+    return !!(downloadedtx && downloadedtx[0])
   }
   getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
   getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
