@@ -5,8 +5,26 @@
  */
 
 const Sqlite3Database = require('better-sqlite3')
-const { DEFAULT_TRUSTLIST } = require('./config')
+const { DEFAULT_TRUSTLIST, WEBHOOK_URL } = require('./config')
 const Run = require('run-sdk')
+const axios = require('axios').default
+const combineURLs = require('axios/lib/helpers/combineURLs')
+
+function submitToHook(location, data) {
+  if(!WEBHOOK_URL || data.props.origin === '_oN') return
+
+  const origin = data.props.origin.startsWith('_') ? location : data.props.origin
+  const url = combineURLs(WEBHOOK_URL, origin)
+
+  axios.post(url, {
+    ...data,
+    props: {
+      ...data.props,
+      origin,
+      location,
+    },
+  })
+}
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -422,6 +440,7 @@ class Database {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           this.setJigStateStmt.run(location, JSON.stringify(cache[key]))
+          submitToHook(location, cache[key])
           continue
         }
 
