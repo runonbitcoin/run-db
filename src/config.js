@@ -29,7 +29,7 @@ require('axios').default.defaults.timeout = TIMEOUT
 // ------------------------------------------------------------------------------------------------
 
 function isValidTxId(txId) {
-  const isValid = (/^[0-9A-Fa-f]{64}$/g).test(txId);
+  const isValid = (/^[0-9A-Fa-f]{64}$/g).test(txId)
 
   if(!isValid) throw new Error('Invalid DEFAULT_TRUSTLIST value: "' + txId + '"')
 }
