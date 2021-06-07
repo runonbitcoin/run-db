@@ -32,6 +32,8 @@ function isValidTxId(txId) {
   const isValid = (/^[0-9A-Fa-f]{64}$/g).test(txId)
 
   if(!isValid) throw new Error('Invalid DEFAULT_TRUSTLIST value: "' + txId + '"')
+
+  return true;
 }
 
 const ENV_VAR_DEFAULT_TRUSTLIST = process.env.DEFAULT_TRUSTLIST && process.env.DEFAULT_TRUSTLIST.split(',').filter(isValidTxId)
