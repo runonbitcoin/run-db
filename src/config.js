@@ -21,8 +21,18 @@ const FETCH_LIMIT = process.env.FETCH_LIMIT || 20
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
 const TIMEOUT = process.env.TIMEOUT || 10000
 const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24
+const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
 
 require('axios').default.defaults.timeout = TIMEOUT
+
+if(WEBHOOK_URL) {
+  try {
+    // validate url string
+    new URL(WEBHOOK_URL)
+  } catch {
+    throw new Error('Invalid WEBHOOK_URL value: ' + WEBHOOK_URL)
+  }
+}
 
 // ------------------------------------------------------------------------------------------------
 // Default trustlist
@@ -106,5 +116,6 @@ module.exports = {
   FETCH_LIMIT,
   START_HEIGHT,
   MEMPOOL_EXPIRATION,
-  DEFAULT_TRUSTLIST
+  DEFAULT_TRUSTLIST,
+  WEBHOOK_URL
 }

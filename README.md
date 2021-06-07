@@ -64,6 +64,7 @@ Create a .env file or set the following environment variables before running to 
 | **TIMEOUT** | Network timeout in milliseconds | 10000
 | **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
 | **DEFAULT_TRUSTLIST** | Comma-separated values of trusted txids | predefined trustlist
+| **WEBHOOK_URL** | Service to POST jig data. The origin will be appended to the path.
 
 ## Endpoints
 
