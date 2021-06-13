@@ -9,6 +9,7 @@ const morgan = require('morgan')
 const bodyParser = require('body-parser')
 const bsv = require('bsv')
 const crypto = require('crypto')
+const cors = require('cors')
 const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
@@ -37,6 +38,8 @@ class Server {
 
     app.use(bodyParser.text({ limit: '10mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))
+
+    app.use(cors({ origin: '*' }))
 
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))

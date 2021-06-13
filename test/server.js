@@ -269,6 +269,25 @@ describe('Server', () => {
       await indexer.stop()
     })
   })
+
+  // --------------------------------------------------------------------------
+  // misc
+  // --------------------------------------------------------------------------
+
+  describe('misc', () => {
+    it('cors', async () => {
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+      const server = new Server(indexer, null, null)
+      await indexer.start()
+      server.start()
+      await listening(server)
+      const opts = { headers: { Origin: 'https://www.google.com' } }
+      const resp = (await axios.get(`http://localhost:${server.port}/status`, opts))
+      expect(resp.headers['access-control-allow-origin']).to.equal('*')
+      server.stop()
+      await indexer.stop()
+    })
+  })
 })
 
 // ------------------------------------------------------------------------------------------------
