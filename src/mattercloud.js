@@ -56,7 +56,7 @@ class MatterCloud {
     let hash = null
 
     try {
-      const response = await axios.get(`https://media.bitcoinfiles.org/height/${height}${this.suffix}`)
+      const response = await axios.get(`https://bfs.mattercloud.io/height/${height}${this.suffix}`)
       hash = response.data.blockhash
     } catch (e) {
       if (e.response && e.response.status === 404) return undefined
@@ -64,7 +64,7 @@ class MatterCloud {
     }
 
     try {
-      const response = await axios.get(`https://media.bitcoinfiles.org/block/${hash}/tx/filter/${RUN_0_6_FILTER}${this.suffix}`)
+      const response = await axios.get(`https://bfs.mattercloud.io/block/${hash}/tx/filter/${RUN_0_6_FILTER}${this.suffix}`)
 
       const prevHash = response.data.header.prevHash
       if (currHash && prevHash !== currHash) return { reorg: true }
@@ -83,7 +83,7 @@ class MatterCloud {
     this.logger.info('Listening for mempool via MatterCloud SSE')
 
     return new Promise((resolve, reject) => {
-      this.mempoolEvents = new ReconnectingEventSource(`https://stream.bitcoinfiles.org/mempool?filter=${RUN_0_6_FILTER}`)
+      this.mempoolEvents = new ReconnectingEventSource(`https://stream.mattercloud.io/mempool?filter=${RUN_0_6_FILTER}`)
 
       this.mempoolEvents.onerror = (e) => reject(e)
 
