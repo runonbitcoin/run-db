@@ -73,12 +73,14 @@ class Planaria {
 
   async getNextBlock (currHeight, currHash) {
     // If we don't have that hash we're looking for next, reorg for safety
-    if (currHash && !this.txns.some(txn => txn.hash === currHash)) {
+    if (currHash && this.txns.length && !this.txns.some(txn => txn.hash === currHash)) {
+      this.logger.info('Reorging due to missing internal block data')
       return { reorg: true }
     }
 
     // Notify if we've detected a reorg
     if (this.pendingReorg) {
+      this.logger.info('Detected reorg from planaria transaction data')
       this.pendingReorg = false
       return { reorg: true }
     }
@@ -205,7 +207,7 @@ class Planaria {
             const data = JSON.parse(json)
 
             // If there are pending transactions, check if we are on a new block
-            if (pending.length && pending[0].height < data.blk.i) {
+            if (pending.length && data.blk.i > pending[0].height) {
               this.txns = this.txns.concat(pending)
               this.lastCrawlHeight = pending[0].height
               pending = []
