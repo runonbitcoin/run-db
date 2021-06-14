@@ -59,9 +59,14 @@ class Database {
 
     this.db = new Sqlite3Database(this.path)
 
-    this.db.pragma('cache_size = 128000')
-    this.db.pragma('page_size = 32768')
+    // 100MB cache
+    this.db.pragma('cache_size = 6400')
+    this.db.pragma('page_size = 16384')
+
+    // WAL mode allows simultaneous readers
     this.db.pragma('journal_mode = WAL')
+
+    // Synchronizes WAL at checkpoints
     this.db.pragma('synchronous = NORMAL')
 
     // Initialise and perform upgrades
