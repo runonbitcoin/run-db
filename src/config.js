@@ -20,7 +20,7 @@ const WORKERS = process.env.WORKERS || 4
 const FETCH_LIMIT = process.env.FETCH_LIMIT || 20
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
 const TIMEOUT = process.env.TIMEOUT || 10000
-const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24
+const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24 * 100
 
 require('axios').default.defaults.timeout = TIMEOUT
 
