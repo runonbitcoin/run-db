@@ -45,11 +45,21 @@ class BitcoinNodeConnection {
       return { reorg: true }
     }
 
-    // It doesn't return the txhexs.
+    const runTxs = block.txs.filter(tx => {
+      return tx.outputs.some(output => {
+        const [opFalse, opReturn, runMarker, runVersion] = output.script.chunks
+        return opFalse.opcodenum === 0 &&
+          opReturn.opcodenum === 106 &&
+          runMarker.buf && runMarker.buf.toString() === 'run' &&
+          runVersion.buf && runVersion.buf.toString('hex') === '05'
+      })
+    })
+
     return {
       height: block.height,
       hash: block.hash,
-      txids: block.tx
+      txids: runTxs.map(tx => tx.hash),
+      txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
   }
 

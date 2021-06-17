@@ -13,7 +13,7 @@ class TestBitcoinRpc {
         height: 1000,
         hash: 'athousend',
         time: new Date().getTime(),
-        tx: []
+        txs: []
       }
     ]
     this.nextBlockHeight = 1001
@@ -55,7 +55,7 @@ class TestBitcoinRpc {
       hash: blockHash,
       time: blockTime,
       previousblockhash: previousBlock.hash,
-      tx: []
+      txs: []
     }
     this.nextBlockHeight = this.nextBlockHeight + 1
     while (this.unconfirmedTxs.length > 0) {
@@ -67,7 +67,7 @@ class TestBitcoinRpc {
         blocktime: block.time
       }
       this.knownTxs.set(txid, tx)
-      block.tx.push(tx.txid)
+      block.txs.push(new bsv.Transaction(tx.hex))
     }
     this.blocks.push(block)
   }
@@ -86,6 +86,20 @@ const buildRandomTx = () => {
       satoshis: 2000
     })
     .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
+
+  return tx
+}
+
+const buildRandomRunTx = () => {
+  const tx = bsv.Transaction()
+    .from({
+      txId: Buffer.alloc(32).fill(1).toString('hex'),
+      outputIndex: 0,
+      script: bsv.Script.fromASM('0 0'),
+      satoshis: 20005
+    })
+    .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
+    .addSafeData([Buffer.from('run'), Buffer.from('05', 'hex')])
 
   return tx
 }
@@ -178,17 +192,18 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('returns a block with correct attributes', async () => {
-      const randomTx = buildRandomTx()
+      const randomTx = buildRandomRunTx()
       bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
       const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
       const lastBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 1]
 
       const nextBlock = await instance.getNextBlock(previousBlock.height, previousBlock.hash)
-      expect(Object.keys(nextBlock).length).to.eql(3)
+      expect(Object.keys(nextBlock).length).to.eql(4)
       expect(nextBlock.height).to.equal(lastBlock.height)
       expect(nextBlock.hash).to.equal(lastBlock.hash)
-      expect(nextBlock.txids).to.equal(lastBlock.tx)
+      expect(nextBlock.txids).to.eql([randomTx.hash])
+      expect(nextBlock.txhexs).to.eql([randomTx.toBuffer().toString('hex')])
     })
 
     it('returns reorg when the hash of the previous block doesnt match', async () => {
@@ -210,6 +225,25 @@ describe('BitcoinNodeConnection', () => {
 
       const nextBlock = await instance.getNextBlock(previousBlock.height, null)
       expect(nextBlock.hash).to.eql(lastBlock.hash)
+    })
+
+    it('only includes txids of run txs', async () => {
+      const randomTx = buildRandomTx()
+      const randomRunTx = buildRandomRunTx()
+      bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+      bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock()
+      const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+
+      const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+      expect(nextBlock.txids).to.eql([randomRunTx.hash])
+    })
+  })
+
+  describe('buildRandomRunTx', () => {
+    it('returns a tx with correct OP_RETURN output', () => {
+      const tx = buildRandomRunTx()
+      expect(tx.outputs[1].script.toASM()).to.eql(`0 OP_RETURN ${Buffer.from('run').toString('hex')} 05`)
     })
   })
 })
