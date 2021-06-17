@@ -74,7 +74,26 @@ class TestBitcoinRpc {
 }
 
 class TestZmq {
+  constructor () {
+    this.handler = null
+    this.pendingTxs = []
+  }
 
+  subscribeRawTx (handler) {
+    this.handler = handler
+  }
+
+  // test
+
+  publishTx (tx) {
+    this.pendingTxs.push(tx)
+  }
+
+  async processPendingTxs () {
+    for (const tx of this.pendingTxs) {
+      await this.handler(tx.toBuffer().toString('hex'))
+    }
+  }
 }
 
 const buildRandomTx = () => {
@@ -237,6 +256,63 @@ describe('BitcoinNodeConnection', () => {
 
       const nextBlock = await instance.getNextBlock(previousBlock.height, null)
       expect(nextBlock.txids).to.eql([randomRunTx.hash])
+    })
+
+    it('trows error if block height is longer than the latest block', () => {
+      const lastBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 1]
+      expect(instance.getNextBlock(lastBlock.height + 1, null)).to.eventually.throw()
+    })
+
+    it('trows error if block height is negative than the latest block', () => {
+      expect(instance.getNextBlock(-1, null)).to.eventually.throw()
+    })
+  })
+
+  describe('#listenForMempool', () => {
+    it('calls the handler if the tx is run related', async () => {
+      let called = false
+      const handler = async () => {
+        called = true
+      }
+
+      await instance.listenForMempool(handler)
+
+      const randomTx = buildRandomRunTx()
+
+      bitcoinZmq.publishTx(randomTx)
+      await bitcoinZmq.processPendingTxs()
+
+      expect(called).to.equal(true)
+    })
+
+    it('does not calls the handler if the tx is not run related', async () => {
+      let called = false
+      const handler = async () => {
+        called = true
+      }
+
+      await instance.listenForMempool(handler)
+
+      const randomTx = buildRandomTx()
+
+      bitcoinZmq.publishTx(randomTx)
+      await bitcoinZmq.processPendingTxs()
+
+      expect(called).to.equal(false)
+    })
+
+    it('the handler receives the right parameters', async () => {
+      const randomTx = buildRandomRunTx()
+
+      const handler = async (txid, txHex) => {
+        expect(txid).to.eql(randomTx.hash)
+        expect(txHex).to.eql(randomTx.toBuffer().toString('hex'))
+      }
+
+      await instance.listenForMempool(handler)
+
+      bitcoinZmq.publishTx(randomTx)
+      await bitcoinZmq.processPendingTxs()
     })
   })
 

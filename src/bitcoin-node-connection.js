@@ -7,6 +7,7 @@
 // ------------------------------------------------------------------------------------------------
 // Bitcoin Node
 // ------------------------------------------------------------------------------------------------
+const bsv = require('bsv')
 
 class BitcoinNodeConnection {
   constructor (zmq, rpc) {
@@ -49,7 +50,13 @@ class BitcoinNodeConnection {
   }
 
   async listenForMempool (mempoolTxCallback) {
-    throw new Error('should be implemented')
+    this.zmq.subscribeRawTx((txhex) => {
+      const tx = bsv.Transaction(txhex)
+
+      if (this._isRunTx(tx)) {
+        mempoolTxCallback(tx.hash, tx.toBuffer().toString('hex'))
+      }
+    })
   }
 
   _isRunTx (tx) {
