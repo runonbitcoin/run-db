@@ -45,26 +45,31 @@ class BitcoinNodeConnection {
       return { reorg: true }
     }
 
-    const runTxs = block.txs.filter(tx => {
-      return tx.outputs.some(output => {
-        const [opFalse, opReturn, runMarker, runVersion] = output.script.chunks
-        return opFalse.opcodenum === 0 &&
-          opReturn.opcodenum === 106 &&
-          runMarker.buf && runMarker.buf.toString() === 'run' &&
-          runVersion.buf && runVersion.buf.toString('hex') === '05'
-      })
-    })
+    return this._buildBlockResponse(block)
+  }
 
+  async listenForMempool (mempoolTxCallback) {
+    throw new Error('should be implemented')
+  }
+
+  _isRunTx (tx) {
+    return tx.outputs.some(output => {
+      const [opFalse, opReturn, runMarker, runVersion] = output.script.chunks
+      return opFalse.opcodenum === 0 &&
+        opReturn.opcodenum === 106 &&
+        runMarker.buf && runMarker.buf.toString() === 'run' &&
+        runVersion.buf && runVersion.buf.toString('hex') === '05'
+    })
+  }
+
+  _buildBlockResponse (block) {
+    const runTxs = block.txs.filter(this._isRunTx)
     return {
       height: block.height,
       hash: block.hash,
       txids: runTxs.map(tx => tx.hash),
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
-  }
-
-  async listenForMempool (mempoolTxCallback) {
-    throw new Error('should be implemented')
   }
 }
 
