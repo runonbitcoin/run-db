@@ -15,12 +15,12 @@ class BitcoinNodeConnection {
     this.rpc = rpc
   }
 
-  async connect (height, network) {
-    console.log('connecting')
+  async connect (_height, _network) {
+    await this.zmq.connect()
   }
 
   async disconnect () {
-    console.log('disconnecting')
+    await this.zmq.disconnect()
   }
 
   async fetch (txid) {
@@ -79,7 +79,5 @@ class BitcoinNodeConnection {
     }
   }
 }
-
-// ------------------------------------------------------------------------------------------------
 
 module.exports = BitcoinNodeConnection
