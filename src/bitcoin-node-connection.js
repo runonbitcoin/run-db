@@ -32,8 +32,25 @@ class BitcoinNodeConnection {
     }
   }
 
-  async getNextBlock (currHeight, currHash) {
-    return null
+  async getNextBlock (currentHeight, currentHash) {
+    const blockCount = await this.rpc.getBlockCount()
+
+    if (blockCount === currentHeight) {
+      return null
+    }
+
+    const block = await this.rpc.getBlockByHeight(blockCount)
+
+    if (currentHash && block.previousblockhash !== currentHash) {
+      return { reorg: true }
+    }
+
+    // It doesn't return the txhexs.
+    return {
+      height: block.height,
+      hash: block.hash,
+      txids: block.tx
+    }
   }
 
   async listenForMempool (mempoolTxCallback) {
