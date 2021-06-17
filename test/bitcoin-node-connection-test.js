@@ -7,8 +7,16 @@ const bsv = require('bsv')
 class TestBitcoinRpc {
   constructor () {
     this.knownTxs = new Map()
-    this.currentHeight = 1000
-    this.currentBlockTime = new Date().getTime()
+    this.unconfirmedTxs = []
+    this.blocks = [
+      {
+        height: 1000,
+        hash: 'athousend',
+        time: new Date().getTime(),
+        txs: []
+      }
+    ]
+    this.nextBlockHeight = 1001
   }
 
   async getRawTransaction (txid) {
@@ -18,17 +26,37 @@ class TestBitcoinRpc {
   // Test
 
   registerConfirmedTx (txid, rawTx) {
-    this.knownTxs.set(txid, {
-      hex: rawTx,
-      blockheight: this.currentHeight,
-      blocktime: this.currentBlockTime
-    })
+    this.registerUnconfirmedTx(txid, rawTx)
+    this.closeBlock(this.nextBlockHeight.toString())
   }
 
   registerUnconfirmedTx (txid, rawTx) {
     this.knownTxs.set(txid, {
       hex: rawTx
     })
+    this.unconfirmedTxs.push({ txid, hex: rawTx })
+  }
+
+  closeBlock (blockHash, blockTime = new Date().getTime()) {
+    const block = {
+      height: this.nextBlockHeight,
+      hash: blockHash,
+      time: blockTime,
+      txs: []
+    }
+    this.nextBlockHeight = this.nextBlockHeight + 1
+    while (this.unconfirmedTxs.length > 0) {
+      const { txid, hex } = this.unconfirmedTxs.pop()
+      const tx = {
+        txid,
+        hex,
+        blockheight: block.height,
+        blocktime: block.time
+      }
+      this.knownTxs.set(txid, tx)
+      block.txs.push(tx)
+    }
+    this.blocks.push(block)
   }
 }
 
@@ -57,16 +85,17 @@ describe('BitcoinNodeConnection', () => {
     expect(instance).not.to.equal(null)
   })
 
-  describe('#fetch', () => {
-    let bitcoinZmq = null
-    let bitcoinRpc = null
-    let instance = null
-    beforeEach(() => {
-      bitcoinZmq = new TestZmq()
-      bitcoinRpc = new TestBitcoinRpc()
-      instance = new BitcoinNodeConnection(bitcoinZmq, bitcoinRpc)
-    })
+  let bitcoinZmq = null
+  let bitcoinRpc = null
+  let instance = null
 
+  beforeEach(() => {
+    bitcoinZmq = new TestZmq()
+    bitcoinRpc = new TestBitcoinRpc()
+    instance = new BitcoinNodeConnection(bitcoinZmq, bitcoinRpc)
+  })
+
+  describe('#fetch', () => {
     it('returns the rawTx when the rawTx exists', async () => {
       const randomTx = buildRandomTx()
       bitcoinRpc.registerConfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
@@ -75,21 +104,13 @@ describe('BitcoinNodeConnection', () => {
       expect(resultTxHex.hex).to.eql(randomTx.toBuffer().toString('hex'))
     })
 
-    it('returns the blocktime and the blockheight when the tx was confirmed', async () => {
+    it('returns the blocktime when the tx was confirmed', async () => {
       const randomTx = buildRandomTx()
       bitcoinRpc.registerConfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
 
       const resultTxHex = await instance.fetch(randomTx.hash)
-      expect(resultTxHex.time).to.eql(bitcoinRpc.currentBlockTime)
-      expect(resultTxHex.height).to.eql(bitcoinRpc.currentHeight)
-    })
-
-    it('returns the blocktime and the blockheight when the tx was confirmed', async () => {
-      const randomTx = buildRandomTx()
-      bitcoinRpc.registerConfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
-
-      const resultTxHex = await instance.fetch(randomTx.hash)
-      expect(resultTxHex.time).to.eql(bitcoinRpc.currentBlockTime)
+      const lastBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 1]
+      expect(resultTxHex.time).to.eql(lastBlock.time)
     })
 
     it('returns the blockheight when the tx was confirmed', async () => {
@@ -97,7 +118,8 @@ describe('BitcoinNodeConnection', () => {
       bitcoinRpc.registerConfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
 
       const resultTxHex = await instance.fetch(randomTx.hash)
-      expect(resultTxHex.height).to.eql(bitcoinRpc.currentHeight)
+      const lastBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 1]
+      expect(resultTxHex.height).to.eql(lastBlock.height)
     })
 
     it('returns -1 as blockheight when the tx was not confirmed', async () => {
@@ -121,6 +143,18 @@ describe('BitcoinNodeConnection', () => {
       // bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
 
       expect(instance.fetch(randomTx.hash)).to.eventually.throw()
+    })
+  })
+
+  describe('#getNextBlock', () => {
+    it('returns null if the height and the hash sent is the current one', async () => {
+      const nextBlock = await instance.getNextBlock(bitcoinRpc.currentHeight, bitcoinRpc.currentBlockHash)
+      expect(nextBlock).to.equal(null)
+    })
+
+    it('returns block 1001 if 1000 was sent as parameter with the right hash', async () => {
+      const nextBlock = await instance.getNextBlock(bitcoinRpc.currentHeight, bitcoinRpc.currentBlockHash)
+      expect(nextBlock).to.equal(null)
     })
   })
 })

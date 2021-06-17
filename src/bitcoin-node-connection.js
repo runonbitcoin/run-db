@@ -33,7 +33,7 @@ class BitcoinNodeConnection {
   }
 
   async getNextBlock (currHeight, currHash) {
-    throw new Error('should be implemented')
+    return null
   }
 
   async listenForMempool (mempoolTxCallback) {
