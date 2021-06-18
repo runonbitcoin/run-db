@@ -50,7 +50,7 @@ class BitcoinRpc {
       id: new Date().getTime(),
       method: method,
       params: params
-    })).catch(() => process.exit(1))
+    }))
 
     const { error, result } = response.data
 

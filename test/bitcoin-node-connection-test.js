@@ -225,6 +225,21 @@ describe('BitcoinNodeConnection', () => {
       expect(nextBlock.txhexs).to.eql([randomTx.toBuffer().toString('hex')])
     })
 
+    it('correct block when tons of blocks exists', async () => {
+      const randomTx = buildRandomRunTx()
+      bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock()
+      bitcoinRpc.closeBlock()
+      bitcoinRpc.closeBlock()
+      bitcoinRpc.closeBlock()
+      const firstBlock = bitcoinRpc.blocks[0]
+      const secondBlock = bitcoinRpc.blocks[1]
+
+      const nextBlock = await instance.getNextBlock(firstBlock.height, null)
+      expect(Object.keys(nextBlock).length).to.eql(4)
+      expect(nextBlock.height).to.equal(secondBlock.height)
+    })
+
     it('returns reorg when the hash of the previous block doesnt match', async () => {
       const randomTx = buildRandomTx()
       bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))

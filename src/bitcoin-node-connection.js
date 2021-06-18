@@ -34,10 +34,6 @@ class BitcoinNodeConnection {
   }
 
   async getNextBlock (currentHeight, currentHash) {
-    if (Number(currentHeight) < 50) {
-      process.exit(1)
-    }
-
     const blockCount = await this.rpc.getBlockCount()
 
     if (blockCount === currentHeight) {
