@@ -281,6 +281,42 @@ describe('BitcoinNodeConnection', () => {
     it('trows error if block height is negative than the latest block', () => {
       expect(instance.getNextBlock(-1, null)).to.eventually.throw()
     })
+
+    it('does not process txs with invalid outputs for bsv1.x', async () => {
+      const tx = bsv.Transaction()
+        .from({
+          txId: Buffer.alloc(32).fill(1).toString('hex'),
+          outputIndex: 0,
+          script: bsv.Script.fromASM('0 0'),
+          satoshis: 20005
+        })
+        .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
+        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: Buffer.from('6a304502204b13f000b2f046a17fe77976ad4bc6c6055194745b434757eef9faf8bc5de9a8022100b1c2fdce9df149cc8de3dda5ea680dab46888d28abca9b8abac7a8d6d37e4e6a', 'hex') }))
+
+      bitcoinRpc.registerUnconfirmedTx(tx.hash, tx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock()
+      const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+      const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+      expect(nextBlock.txids).to.eql([])
+    })
+
+    it('does not consider outptus with less than 4 chunks', async () => {
+      const tx = bsv.Transaction()
+        .from({
+          txId: Buffer.alloc(32).fill(1).toString('hex'),
+          outputIndex: 0,
+          script: bsv.Script.fromASM('0 0'),
+          satoshis: 20005
+        })
+        .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
+        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: Buffer.from('51', 'hex') })) // >> OP_TRUE
+
+      bitcoinRpc.registerUnconfirmedTx(tx.hash, tx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock()
+      const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+      const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+      expect(nextBlock.txids).to.eql([])
+    })
   })
 
   describe('#listenForMempool', () => {
