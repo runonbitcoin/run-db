@@ -16,6 +16,10 @@ Use RUN-DB to:
 
 Node 10+
 
+## Limitations
+
+Testnet support is limited. There are no public APIs to crawl transactions, so transactions must be added manually.
+
 ## Getting started
 
 1. Install `npm run install`
