@@ -21,6 +21,8 @@ const FETCH_LIMIT = process.env.FETCH_LIMIT || 20
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
 const TIMEOUT = process.env.TIMEOUT || 10000
 const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24 * 100
+const ZMQ_URL = process.env.ZMQ_URL || null
+const RPC_URL = process.env.RPC_URL || null
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -107,5 +109,7 @@ module.exports = {
   FETCH_LIMIT,
   START_HEIGHT,
   MEMPOOL_EXPIRATION,
-  DEFAULT_TRUSTLIST
+  DEFAULT_TRUSTLIST,
+  ZMQ_URL,
+  RPC_URL
 }

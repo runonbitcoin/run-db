@@ -34,18 +34,21 @@ class BitcoinNodeConnection {
   }
 
   async getNextBlock (currentHeight, currentHash) {
+    if (Number(currentHeight) < 50) {
+      process.exit(1)
+    }
+
     const blockCount = await this.rpc.getBlockCount()
 
     if (blockCount === currentHeight) {
       return null
     }
 
-    const block = await this.rpc.getBlockByHeight(blockCount)
+    const block = await this.rpc.getBlockByHeight(Number(currentHeight) + 1)
 
     if (currentHash && block.previousblockhash !== currentHash) {
       return { reorg: true }
     }
-
     return this._buildBlockResponse(block)
   }
 
@@ -71,12 +74,13 @@ class BitcoinNodeConnection {
 
   _buildBlockResponse (block) {
     const runTxs = block.txs.filter(this._isRunTx)
-    return {
+    const a = {
       height: block.height,
       hash: block.hash,
       txids: runTxs.map(tx => tx.hash),
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
+    return a
   }
 }
 

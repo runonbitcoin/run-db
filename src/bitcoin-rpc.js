@@ -8,8 +8,8 @@ class BitcoinRpc {
    * @param {string} url full connection url, with credentials, port, etc.
    */
   constructor (baseUrl) {
+    this.baseUrl = baseUrl
     this.axios = axios.create({
-      baseUrl,
       validateStatus: (status) => {
         return status >= 200 && status < 300
       }
@@ -32,25 +32,25 @@ class BitcoinRpc {
    * @returns object with needed data. txs are bsv transactions
    */
   async getBlockByHeight (targetHeight) {
-    const rawblock = await this._rpcCall('getblockbyheight', [targetHeight, false])
-
-    const bsvBlock = bsv.Block.fromRawBlock(Buffer.from(rawblock, 'hex'))
+    const hexBlock = await this._rpcCall('getblockbyheight', [targetHeight, false])
+    const bsvBlock = new bsv.Block(Buffer.from(hexBlock, 'hex'))
 
     return {
       height: targetHeight,
-      hash: bsvBlock.header.prevHash,
+      hash: bsvBlock.id.toString('hex'),
+      previousblockhash: bsvBlock.header.prevHash.reverse().toString('hex'),
       time: bsvBlock.header.time,
       txs: bsvBlock.transactions
     }
   }
 
   async _rpcCall (method, params) {
-    const response = await this.axios.post('/', JSON.stringify({
+    const response = await this.axios.post(this.baseUrl, JSON.stringify({
       jsonrpc: '1.0',
       id: new Date().getTime(),
       method: method,
       params: params
-    }))
+    })).catch(() => process.exit(1))
 
     const { error, result } = response.data
 
