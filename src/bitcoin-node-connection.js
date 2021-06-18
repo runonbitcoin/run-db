@@ -8,6 +8,16 @@
 // Bitcoin Node
 // ------------------------------------------------------------------------------------------------
 const bsv = require('bsv')
+const { metadata } = require('run-sdk').util
+
+const isRunTx = (tx) => {
+  try {
+    metadata(tx.toBuffer().toString('hex'))
+    return true
+  } catch (e) {
+    return false
+  }
+}
 
 class BitcoinNodeConnection {
   constructor (zmq, rpc) {
@@ -59,26 +69,28 @@ class BitcoinNodeConnection {
   }
 
   _isRunTx (tx) {
-    return tx.outputs.some(output => {
-      let script
-      try {
-        script = !output.script
-          ? bsv.Script.fromBuffer(output._scriptBuffer)
-          : output.script
-      } catch (e) {
-        return false
-      }
+    // TODO: Replace with run helper method
+    // return tx.outputs.some(output => {
+    //   let script
+    //   try {
+    //     script = !output.script
+    //       ? bsv.Script.fromBuffer(output._scriptBuffer)
+    //       : output.script
+    //   } catch (e) {
+    //     return false
+    //   }
 
-      if (script.chunks.length < 4) {
-        return false
-      }
+    //   if (script.chunks.length < 4) {
+    //     return false
+    //   }
 
-      const [opFalse, opReturn, runMarker, runVersion] = script.chunks
-      return opFalse && opFalse.opcodenum === 0 &&
-        opReturn && opReturn.opcodenum === 106 &&
-        runMarker.buf && runMarker.buf.toString() === 'run' &&
-        runVersion.buf && runVersion.buf.toString('hex') === '05'
-    })
+    //   const [opFalse, opReturn, runMarker, runVersion] = script.chunks
+    //   return opFalse && opFalse.opcodenum === 0 &&
+    //     opReturn && opReturn.opcodenum === 106 &&
+    //     runMarker.buf && runMarker.buf.toString() === 'run' &&
+    //     runVersion.buf && runVersion.buf.toString('hex') === '05'
+    // })
+    return isRunTx(tx)
   }
 
   _buildBlockResponse (block) {

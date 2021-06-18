@@ -3,6 +3,7 @@ const { expect } = require('chai')
 require('chai').use(require('chai-as-promised'))
 const BitcoinNodeConnection = require('../src/bitcoin-node-connection')
 const bsv = require('bsv')
+const Run = require('run-sdk')
 
 class TestBitcoinRpc {
   constructor () {
@@ -109,19 +110,33 @@ const buildRandomTx = () => {
   return tx
 }
 
-const buildRandomRunTx = () => {
-  const tx = bsv.Transaction()
-    .from({
-      txId: Buffer.alloc(32).fill(1).toString('hex'),
-      outputIndex: 0,
-      script: bsv.Script.fromASM('0 0'),
-      satoshis: 20005
-    })
-    .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
-    .addSafeData([Buffer.from('run'), Buffer.from('05', 'hex')])
+const buildRandomRunTx = async (run) => {
+  class Foo extends Run.Jig {
+    init (attr) {
+      this.attr = attr
+    }
+  }
 
-  return tx
+  const tx = new Run.Transaction()
+
+  const FooDeployed = tx.update(() => run.deploy(Foo))
+  tx.update(() => new FooDeployed(Math.random()))
+
+  return new bsv.Transaction(await tx.export())
 }
+
+// const tx = bsv.Transaction()
+//   .from({
+//     txId: Buffer.alloc(32).fill(1).toString('hex'),
+//     outputIndex: 0,
+//     script: bsv.Script.fromASM('0 0'),
+//     satoshis: 20005
+//   })
+//   .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
+//   .addSafeData([Buffer.from('run'), Buffer.from('05', 'hex')])
+
+//   return tx
+// }
 
 describe('BitcoinNodeConnection', () => {
   it('initializes', () => {
@@ -134,11 +149,18 @@ describe('BitcoinNodeConnection', () => {
   let bitcoinZmq = null
   let bitcoinRpc = null
   let instance = null
+  let run = null
 
   beforeEach(() => {
     bitcoinZmq = new TestZmq()
     bitcoinRpc = new TestBitcoinRpc()
     instance = new BitcoinNodeConnection(bitcoinZmq, bitcoinRpc)
+
+    run = new Run({
+      purse: {
+        pay: (rawtx) => rawtx
+      }
+    })
   })
 
   describe('#fetch', () => {
@@ -211,7 +233,7 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('returns a block with correct attributes', async () => {
-      const randomTx = buildRandomRunTx()
+      const randomTx = await buildRandomRunTx(run)
       bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
       const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
@@ -226,7 +248,7 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('correct block when tons of blocks exists', async () => {
-      const randomTx = buildRandomRunTx()
+      const randomTx = await buildRandomRunTx(run)
       bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
       bitcoinRpc.closeBlock()
@@ -263,7 +285,7 @@ describe('BitcoinNodeConnection', () => {
 
     it('only includes txids of run txs', async () => {
       const randomTx = buildRandomTx()
-      const randomRunTx = buildRandomRunTx()
+      const randomRunTx = await buildRandomRunTx(run)
       bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
       bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
@@ -328,7 +350,7 @@ describe('BitcoinNodeConnection', () => {
 
       await instance.listenForMempool(handler)
 
-      const randomTx = buildRandomRunTx()
+      const randomTx = await buildRandomRunTx(run)
 
       bitcoinZmq.publishTx(randomTx)
       await bitcoinZmq.processPendingTxs()
@@ -353,7 +375,7 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('the handler receives the right parameters', async () => {
-      const randomTx = buildRandomRunTx()
+      const randomTx = await buildRandomRunTx(run)
 
       const handler = async (txid, txHex) => {
         expect(txid).to.eql(randomTx.hash)
@@ -364,13 +386,6 @@ describe('BitcoinNodeConnection', () => {
 
       bitcoinZmq.publishTx(randomTx)
       await bitcoinZmq.processPendingTxs()
-    })
-  })
-
-  describe('buildRandomRunTx', () => {
-    it('returns a tx with correct OP_RETURN output', () => {
-      const tx = buildRandomRunTx()
-      expect(tx.outputs[1].script.toASM()).to.eql(`0 OP_RETURN ${Buffer.from('run').toString('hex')} 05`)
     })
   })
 })
