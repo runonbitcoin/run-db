@@ -69,27 +69,6 @@ class BitcoinNodeConnection {
   }
 
   _isRunTx (tx) {
-    // TODO: Replace with run helper method
-    // return tx.outputs.some(output => {
-    //   let script
-    //   try {
-    //     script = !output.script
-    //       ? bsv.Script.fromBuffer(output._scriptBuffer)
-    //       : output.script
-    //   } catch (e) {
-    //     return false
-    //   }
-
-    //   if (script.chunks.length < 4) {
-    //     return false
-    //   }
-
-    //   const [opFalse, opReturn, runMarker, runVersion] = script.chunks
-    //   return opFalse && opFalse.opcodenum === 0 &&
-    //     opReturn && opReturn.opcodenum === 106 &&
-    //     runMarker.buf && runMarker.buf.toString() === 'run' &&
-    //     runVersion.buf && runVersion.buf.toString('hex') === '05'
-    // })
     return isRunTx(tx)
   }
 
