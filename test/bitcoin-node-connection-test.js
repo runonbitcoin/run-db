@@ -12,9 +12,10 @@ class TestBitcoinRpc {
     this.blocks = [
       {
         height: 1000,
-        hash: 'athousend',
+        hash: Buffer.alloc(32).fill(1).toString('hex'),
         time: new Date().getTime(),
-        txs: []
+        txs: [],
+        hex: buildBlock([], Buffer.alloc(32).fill(1))
       }
     ]
     this.nextBlockHeight = 1001
@@ -29,7 +30,8 @@ class TestBitcoinRpc {
   }
 
   async getBlockByHeight (targetHeight) {
-    return this.blocks.find(block => block.height === targetHeight)
+    const block = this.blocks.find(block => block.height === targetHeight)
+    return block.hex
   }
 
   // Test
@@ -46,14 +48,11 @@ class TestBitcoinRpc {
     this.unconfirmedTxs.push({ txid, hex: rawTx })
   }
 
-  closeBlock (blockHash, blockTime = new Date().getTime()) {
-    if (!blockHash) {
-      blockHash = Math.random().toString(36).substring(7)
-    }
+  closeBlock (_blockHash, blockTime = new Date().getTime()) {
     const previousBlock = this.blocks[this.blocks.length - 1]
-    const block = {
+    const blockData = {
       height: this.nextBlockHeight,
-      hash: blockHash,
+      hash: null,
       time: blockTime,
       previousblockhash: previousBlock.hash,
       txs: []
@@ -64,13 +63,18 @@ class TestBitcoinRpc {
       const tx = {
         txid,
         hex,
-        blockheight: block.height,
-        blocktime: block.time
+        blockheight: blockData.height,
+        blocktime: blockData.time
       }
       this.knownTxs.set(txid, tx)
-      block.txs.push(new bsv.Transaction(tx.hex))
+      blockData.txs.push(new bsv.Transaction(tx.hex))
     }
-    this.blocks.push(block)
+    const bsvBlock = buildBlock(blockData.txs, blockData.previousblockhash)
+    this.blocks.push({
+      ...blockData,
+      hex: bsvBlock.toBuffer().toString('hex'),
+      hash: bsvBlock.hash
+    })
   }
 }
 
@@ -123,6 +127,19 @@ const buildRandomRunTx = async (run) => {
   tx.update(() => new FooDeployed(Math.random()))
 
   return new bsv.Transaction(await tx.export())
+}
+
+const buildBlock = (transactions, prevHash = Buffer.alloc(32).fill('1'), hash) => {
+  const block = bsv.Block.fromObject({
+    transactions,
+    header: {
+      hash,
+      prevHash: prevHash,
+      merkleRoot: Buffer.alloc(32).fill('2')
+    }
+  })
+
+  return block
 }
 
 describe('BitcoinNodeConnection', () => {
@@ -373,6 +390,19 @@ describe('BitcoinNodeConnection', () => {
 
       bitcoinZmq.publishTx(randomTx)
       await bitcoinZmq.processPendingTxs()
+    })
+  })
+
+  describe('buildBlock', () => {
+    it('returns a parseable block', () => {
+      const hexBlock = buildBlock([buildRandomTx()]).toBuffer().toString('hex')
+      expect(() => new bsv.Block(Buffer.from(hexBlock, 'hex'))).not.to.throw()
+    })
+
+    it('returns a block with correct previous hash', () => {
+      const prevHash = Buffer.alloc(32).fill('6').toString('hex')
+      const block = buildBlock([buildRandomTx()], prevHash)
+      expect(block.header.prevHash.reverse().toString('hex')).to.eql(prevHash)
     })
   })
 })

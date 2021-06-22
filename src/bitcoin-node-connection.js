@@ -42,14 +42,16 @@ class BitcoinNodeConnection {
       return null
     }
 
+    const targetBlockHeight = Number(currentHeight) + 1
     const block = this._parseBlock(
-      await this.rpc.getBlockByHeight(Number(currentHeight) + 1)
+      await this.rpc.getBlockByHeight(targetBlockHeight),
+      targetBlockHeight
     )
 
     if (currentHash && block.previousblockhash !== currentHash) {
       return { reorg: true }
     }
-    return this._buildBlockResponse(block)
+    return this._buildBlockResponse(block, targetBlockHeight)
   }
 
   async processNextBlock (currentHeight, currentHash, txHandler, reorgHandler) {
@@ -91,10 +93,10 @@ class BitcoinNodeConnection {
     }
   }
 
-  _buildBlockResponse (block) {
+  _buildBlockResponse (block, height) {
     const runTxs = block.txs.filter(this._isRunTx)
     const a = {
-      height: block.height,
+      height: height,
       hash: block.hash,
       txids: runTxs.map(tx => tx.hash),
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
