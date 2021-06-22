@@ -125,19 +125,6 @@ const buildRandomRunTx = async (run) => {
   return new bsv.Transaction(await tx.export())
 }
 
-// const tx = bsv.Transaction()
-//   .from({
-//     txId: Buffer.alloc(32).fill(1).toString('hex'),
-//     outputIndex: 0,
-//     script: bsv.Script.fromASM('0 0'),
-//     satoshis: 20005
-//   })
-//   .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
-//   .addSafeData([Buffer.from('run'), Buffer.from('05', 'hex')])
-
-//   return tx
-// }
-
 describe('BitcoinNodeConnection', () => {
   it('initializes', () => {
     const bitcoinZmq = new TestZmq()
