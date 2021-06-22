@@ -20,7 +20,7 @@ class TestBitcoinRpc {
     this.nextBlockHeight = 1001
   }
 
-  async getRawTransaction (txid) {
+  async getRawTransaction (txid, _verbose = true) {
     return this.knownTxs.get(txid)
   }
 

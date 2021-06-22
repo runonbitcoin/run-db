@@ -10,15 +10,6 @@
 const bsv = require('bsv')
 const { metadata } = require('run-sdk').util
 
-const isRunTx = (tx) => {
-  try {
-    metadata(tx.toBuffer().toString('hex'))
-    return true
-  } catch (e) {
-    return false
-  }
-}
-
 class BitcoinNodeConnection {
   constructor (zmq, rpc) {
     this.zmq = zmq
@@ -69,7 +60,12 @@ class BitcoinNodeConnection {
   }
 
   _isRunTx (tx) {
-    return isRunTx(tx)
+    try {
+      metadata(tx.toBuffer().toString('hex'))
+      return true
+    } catch (e) {
+      return false
+    }
   }
 
   _buildBlockResponse (block) {

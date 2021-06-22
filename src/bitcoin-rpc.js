@@ -19,8 +19,8 @@ class BitcoinRpc {
   /**
    * @param {String} txid
    */
-  async getRawTransaction (txid) {
-    return this._rpcCall('getrawtransaction', [txid])
+  async getRawTransaction (txid, verbose = true) {
+    return this._rpcCall('getrawtransaction', [txid, verbose])
   }
 
   async getBlockCount () {
