@@ -42,12 +42,34 @@ class BitcoinNodeConnection {
       return null
     }
 
-    const block = await this.rpc.getBlockByHeight(Number(currentHeight) + 1)
+    const block = this._parseBlock(
+      await this.rpc.getBlockByHeight(Number(currentHeight) + 1)
+    )
 
     if (currentHash && block.previousblockhash !== currentHash) {
       return { reorg: true }
     }
     return this._buildBlockResponse(block)
+  }
+
+  async processNextBlock (currentHeight, currentHash, txHandler, reorgHandler) {
+    const blockCount = await this.rpc.getBlockCount()
+
+    if (blockCount === currentHeight) {
+      return null
+    }
+
+    const targetHeight = Number(currentHeight) + 1
+    const block = await this.rpc.getBlockByHeight(targetHeight, true)
+
+    if (currentHash && block.previousblockhash !== currentHash) {
+      return reorgHandler()
+    }
+
+    for (const txId of block.tx) {
+      const hex = await this.rpc.getRawTransaction(txId, false)
+      await txHandler(txId, hex, block.height, block.time)
+    }
   }
 
   async listenForMempool (mempoolTxCallback) {
@@ -78,6 +100,18 @@ class BitcoinNodeConnection {
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
     return a
+  }
+
+  _parseBlock (rpcResponse, requestedHeight) {
+    const bsvBlock = new bsv.Block(Buffer.from(rpcResponse, 'hex'))
+
+    return {
+      height: requestedHeight,
+      hash: bsvBlock.id.toString('hex'),
+      previousblockhash: bsvBlock.header.prevHash.reverse().toString('hex'),
+      time: bsvBlock.header.time,
+      txs: bsvBlock.transactions
+    }
   }
 }
 

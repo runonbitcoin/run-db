@@ -31,17 +31,8 @@ class BitcoinRpc {
    * @param {Number} targetHeight block height. must be positive int.
    * @returns object with needed data. txs are bsv transactions
    */
-  async getBlockByHeight (targetHeight) {
-    const hexBlock = await this._rpcCall('getblockbyheight', [targetHeight, false])
-    const bsvBlock = new bsv.Block(Buffer.from(hexBlock, 'hex'))
-
-    return {
-      height: targetHeight,
-      hash: bsvBlock.id.toString('hex'),
-      previousblockhash: bsvBlock.header.prevHash.reverse().toString('hex'),
-      time: bsvBlock.header.time,
-      txs: bsvBlock.transactions
-    }
+  async getBlockByHeight (targetHeight, verbose = false) {
+    return this._rpcCall('getblockbyheight', [targetHeight, verbose])
   }
 
   async _rpcCall (method, params) {

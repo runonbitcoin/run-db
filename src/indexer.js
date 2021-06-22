@@ -248,7 +248,7 @@ class Indexer {
   }
 
   _onMempoolTransaction (txid, hex) {
-    this._addTransactions([txid], [hex], Database.HEIGHT_MEMPOOL, null)
+    this._onNewTx(txid, hex, Database.HEIGHT_MEMPOOL, null)
   }
 
   _onExpireMempoolTransactions () {
@@ -262,23 +262,25 @@ class Indexer {
   _addTransactions (txids, txhexs, height, time) {
     this.database.transaction(() => {
       txids.forEach((txid, i) => {
-        this.database.addNewTransaction(txid)
-        if (height) this.database.setTransactionHeight(txid, height)
-        if (time) this.database.setTransactionTime(txid, time)
-      })
-
-      txids.forEach((txid, i) => {
-        const downloaded = this.database.isTransactionDownloaded(txid)
-        if (downloaded) return
-
-        const hex = txhexs && txhexs[i]
-        if (hex) {
-          this._parseAndStoreTransaction(txid, hex)
-        } else {
-          this.downloader.add(txid)
-        }
+        const txhex = txhexs && txhexs[i]
+        this._onNewTx(txid, txhex, height, time)
       })
     })
+  }
+
+  _onNewTx (txid, txhex, height, time) {
+    this.database.addNewTransaction(txid)
+    if (height) this.database.setTransactionHeight(txid, height)
+    if (time) this.database.setTransactionTime(txid, time)
+
+    const downloaded = this.database.isTransactionDownloaded(txid)
+    if (downloaded) return
+
+    if (txhex) {
+      this._parseAndStoreTransaction(txid, txhex)
+    } else {
+      this.downloader.add(txid)
+    }
   }
 
   _parseAndStoreTransaction (txid, hex) {
