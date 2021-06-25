@@ -1,6 +1,6 @@
 {
   "name": "run-db",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A local database that indexes jig states from RUN transactions",
   "keywords": [
     "run",
@@ -32,7 +32,7 @@
   "dependencies": {
     "abort-controller": "^3.0.0",
     "axios": "^0.21.1",
-    "better-sqlite3": "^7.1.2",
+    "better-sqlite3": "^7.4.1",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
@@ -43,6 +43,9 @@
     "node-fetch": "^2.6.1",
     "reconnecting-eventsource": "^1.1.0",
     "run-sdk": "^0.6.18"
+  },
+  "optionalDependencies": {
+    "zeromq": "^5.2.8"
   },
   "devDependencies": {
     "chai": "^4.3.4",

@@ -16,10 +16,6 @@ Use RUN-DB to:
 
 Node 10+
 
-## Limitations
-
-Testnet support is limited. There are no public APIs to crawl transactions, so transactions must be added manually.
-
 ## Getting started
 
 1. Install `npm run install`
@@ -56,9 +52,11 @@ Create a .env file or set the following environment variables before running to 
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, or none | mattercloud
+| **API**| mattercloud, planaria, bitcoin-node or none | mattercloud
 | **MATTERCLOUD_KEY** | Mattercloud API key | undefined
 | **PLANARIA_TOKEN** | Planaria API key | undefined
+| **ZMQ_URL** | Only for bitcoin-node. ZMQ tcp url | null
+| **RPC_URL** | Only for bitcoin-node. bitcoin RPC http url | null
 | **NETWORK** | Bitcoin network (main or test) | main
 | **DB** | Database file | run.db
 | **PORT** | Port used for the REST server | randomly generated
@@ -68,6 +66,24 @@ Create a .env file or set the following environment variables before running to 
 | **TIMEOUT** | Network timeout in milliseconds | 10000
 | **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 8640000
 | **DEFAULT_TRUSTLIST** | Comma-separated values of trusted txids | predefined trustlist
+
+### Connecting with a bitcoin node
+
+During development is useful to connect to a local node. In order
+to do this you need to provide RUN-db with access to a bitcoin node
+trough RPC and ZMQ.
+
+```
+export API="bitcoin-node"
+export ZMQ_URL="tcp://your-node-uri:port"
+export RPC_URL="http://user:password@your-node-uri:port"
+```
+
+The only zmq message is needed is `rawtx`. ZMQ is only used to get
+the new transactions in the mempool.
+
+Direct connection with the node is tested in regtest and testnet, but
+it's not recommeded for production environments in mainnet at the moment.
 
 ## Endpoints
 
