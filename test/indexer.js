@@ -31,6 +31,11 @@ describe('Indexer', () => {
     indexer.add('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     indexer.add('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
+    expect(indexer.database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
+    expect(indexer.database.getTransactionHeight(txid)).to.equal(null)
+    expect(indexer.database.getTransactionTime(txid)).to.be.greaterThan(new Date() / 1000 - 3)
+    expect(indexer.database.getTransactionTime(txid)).to.be.lessThan(new Date() / 1000 + 3)
     await indexer.stop()
   })
 
