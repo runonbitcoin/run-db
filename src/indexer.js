@@ -147,11 +147,7 @@ class Indexer {
     return {
       height: this.crawler.height,
       hash: this.crawler.hash,
-      indexed: this.database.getIndexedCount(),
-      downloaded: this.database.getDownloadedCount(),
-      downloading: this.downloader.remaining(),
-      executing: this.database.getNumQueuedForExecution(),
-      unspent: this.database.getNumUnspent()
+      downloading: this.downloader.remaining()
     }
   }
 
