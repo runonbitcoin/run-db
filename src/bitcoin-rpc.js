@@ -1,5 +1,4 @@
 const axios = require('axios')
-const bsv = require('bsv')
 
 class BitcoinRpc {
   /**
