@@ -21,8 +21,12 @@ class TestBitcoinRpc {
     this.nextBlockHeight = 1001
   }
 
-  async getRawTransaction (txid, _verbose = true) {
-    return this.knownTxs.get(txid)
+  async getRawTransaction (txid, verbose = true) {
+    if (verbose) {
+      return this.knownTxs.get(txid)
+    } else {
+      return this.knownTxs.get(txid).hex
+    }
   }
 
   async getBlockCount () {
@@ -35,8 +39,9 @@ class TestBitcoinRpc {
       return block.hex
     } else {
       return {
-        size: block.hex.length,
-        previousblockhash: block.previousblockhash
+        size: block.size || block.hex.length,
+        previousblockhash: block.previousblockhash,
+        tx: block.txs.map(tx => tx.hash)
       }
     }
   }
@@ -55,7 +60,8 @@ class TestBitcoinRpc {
     this.unconfirmedTxs.push({ txid, hex: rawTx })
   }
 
-  closeBlock (_blockHash, blockTime = new Date().getTime()) {
+  closeBlock (size = null) {
+    const blockTime = new Date().getTime()
     const previousBlock = this.blocks[this.blocks.length - 1]
     const blockData = {
       height: this.nextBlockHeight,
@@ -64,6 +70,11 @@ class TestBitcoinRpc {
       previousblockhash: previousBlock.hash,
       txs: []
     }
+
+    if (size !== null) {
+      blockData.size = size
+    }
+
     this.nextBlockHeight = this.nextBlockHeight + 1
     while (this.unconfirmedTxs.length > 0) {
       const { txid, hex } = this.unconfirmedTxs.pop()
@@ -349,6 +360,18 @@ describe('BitcoinNodeConnection', () => {
       const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
       const nextBlock = await instance.getNextBlock(previousBlock.height, null)
       expect(nextBlock.txids).to.eql([])
+    })
+
+    it('works for giant blocks', async () => {
+      const randomTx = buildRandomTx()
+      const randomRunTx = await buildRandomRunTx(run)
+      bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+      bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock(0x1fffffe8 + 1)
+      const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+
+      const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+      expect(nextBlock.txids).to.eql([randomRunTx.hash])
     })
   })
 
