@@ -60,26 +60,6 @@ class BitcoinNodeConnection {
     return this._buildBlockResponse(block, targetBlockHeight)
   }
 
-  async processNextBlock (currentHeight, currentHash, txHandler, reorgHandler) {
-    const blockCount = await this.rpc.getBlockCount()
-
-    if (blockCount === currentHeight) {
-      return null
-    }
-
-    const targetHeight = Number(currentHeight) + 1
-    const block = await this.rpc.getBlockByHeight(targetHeight, true)
-
-    if (currentHash && block.previousblockhash !== currentHash) {
-      return reorgHandler()
-    }
-
-    for (const txId of block.tx) {
-      const hex = await this.rpc.getRawTransaction(txId, false)
-      await txHandler(txId, hex, block.height, block.time)
-    }
-  }
-
   async listenForMempool (mempoolTxCallback) {
     this.zmq.subscribeRawTx((txhex) => {
       const tx = bsv.Transaction(txhex)
