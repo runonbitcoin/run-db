@@ -29,9 +29,16 @@ class TestBitcoinRpc {
     return this.blocks[this.blocks.length - 1].height
   }
 
-  async getBlockByHeight (targetHeight) {
+  async getBlockByHeight (targetHeight, verbose) {
     const block = this.blocks.find(block => block.height === targetHeight)
-    return block.hex
+    if (!verbose) {
+      return block.hex
+    } else {
+      return {
+        size: block.hex.length,
+        previousblockhash: block.previousblockhash
+      }
+    }
   }
 
   // Test
