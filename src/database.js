@@ -16,21 +16,6 @@ const HEIGHT_MEMPOOL = -1
 const HEIGHT_UNKNOWN = null
 
 // ------------------------------------------------------------------------------------------------
-// UnexecutedTx
-// ------------------------------------------------------------------------------------------------
-
-class UnexecutedTx {
-  constructor (txid, downloaded, hasCode) {
-    this.txid = txid
-    this.downloaded = downloaded
-    this.hasCode = hasCode
-    this.queuedForExecution = false
-    this.upstream = new Set() // unexecuted txns we depend on
-    this.downstream = new Set() // unexecuted txns that depend on us
-  }
-}
-
-// ------------------------------------------------------------------------------------------------
 // Database
 // ------------------------------------------------------------------------------------------------
 
@@ -41,8 +26,6 @@ class Database {
     this.db = null
     this.trustlist = new Set()
     this.banlist = new Set()
-    this.unexecuted = new Map() // executable but not executed, or not yet downloaded
-    this.numQueuedForExecution = 0
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -72,6 +55,7 @@ class Database {
     // Initialise and perform upgrades
     this.initializeV1()
     this.initializeV2()
+    this.initializeV3()
 
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
     const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
@@ -97,6 +81,7 @@ class Database {
     this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
     this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
+    this.getTransactionFailedStmt = this.db.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
     this.getTransactionDownloadedStmt = this.db.prepare('SELECT bytes IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
@@ -105,9 +90,24 @@ class Database {
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE bytes IS NULL')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE bytes IS NOT NULL')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    this.getUnexecutedStmt = this.db.prepare(`
-      SELECT txid, bytes IS NOT NULL AS downloaded, has_code
-      FROM tx WHERE (executable = 1 AND executed = 0) OR bytes IS NULL
+    this.isReadyToExecuteStmt = this.db.prepare(`
+      SELECT (
+        bytes IS NOT NULL
+        AND executable = 1
+        AND executed = 0
+        AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
+        AND txid NOT IN ban
+        AND (
+          SELECT COUNT(*)
+          FROM tx AS tx2
+          JOIN deps
+          ON deps.up = tx2.txid
+          WHERE deps.down = tx.txid
+          AND (tx2.bytes IS NULL OR (tx2.executable = 1 AND tx2.executed = 0))
+        ) = 0
+      ) AS ready 
+      FROM tx
+      WHERE txid = ?
     `)
 
     this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
@@ -119,16 +119,11 @@ class Database {
     this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
     this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
     this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
-    this.getUpstreamUnexecutedStmt = this.db.prepare(`
+    this.getUpstreamUnexecutedCodeStmt = this.db.prepare(`
       SELECT txdeps.txid as txid
       FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
       JOIN tx ON tx.txid = txdeps.txid
-      WHERE tx.executable = 1 AND tx.executed = 0
-    `)
-    this.getUnexecutedDepsStmt = this.db.prepare(`
-      SELECT deps.up as up, deps.down as down FROM deps
-      JOIN tx ON tx.txid = deps.down
-      WHERE tx.executable = 1 AND tx.executed = 0
+      WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
     `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
@@ -308,8 +303,24 @@ class Database {
       this.logger.info('Saving results')
     })
 
-    this.logger.info('Optimizing database (this may take a while)')
+    this.logger.info('Optimizing database')
     this.db.prepare('VACUUM').run()
+  }
+
+  initializeV3 () {
+    if (this.db.pragma('user_version')[0].user_version !== 2) return
+
+    this.logger.info('Setting up database v3')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 3')
+
+      this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
+      this.db.prepare('CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)').run()
+      this.db.prepare('CREATE INDEX IF NOT EXISTS trust_txid_index ON trust (txid)').run()
+
+      this.logger.info('Saving results')
+    })
   }
 
   close () {
@@ -336,11 +347,6 @@ class Database {
     this.addNewTransactionStmt.run(txid, time)
 
     if (this.onAddTransaction) this.onAddTransaction(txid)
-
-    if (!this.unexecuted.has(txid)) {
-      const tx = new UnexecutedTx(txid, false, null)
-      this.unexecuted.set(txid, tx)
-    }
   }
 
   setTransactionHeight (txid, height) {
@@ -359,22 +365,11 @@ class Database {
 
       inputs.forEach(location => this.setSpendStmt.run(location, txid))
       outputs.forEach(location => this.setUnspentStmt.run(location))
-
-      const tx = this.unexecuted.get(txid)
-
-      tx.downloaded = true
-
-      this.unexecuted.delete(txid)
-
-      for (const downtx of tx.downstream) {
-        downtx.upstream.delete(tx)
-      }
-
-      // Non-executable might be berry data. We execute once we receive them.
-      for (const downtx of tx.downstream) {
-        this._checkExecutability(downtx)
-      }
     })
+
+    // Non-executable might be berry data. We execute once we receive them.
+    const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
+    downstream.forEach(downtxid => this._checkExecutability(downtxid))
   }
 
   storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
@@ -387,37 +382,22 @@ class Database {
       inputs.forEach(location => this.setSpendStmt.run(location, txid))
       outputs.forEach(location => this.setUnspentStmt.run(location))
 
-      const tx = this.unexecuted.get(txid)
-
-      tx.hasCode = hasCode
-      tx.downloaded = true
-
       for (const deptxid of deps) {
         this.addNewTransaction(deptxid)
         this.addDepStmt.run(deptxid, txid)
 
-        const deptx = this.unexecuted.get(deptxid)
-        if (deptx) {
-          deptx.downstream.add(tx)
-          tx.upstream.add(deptx)
-          continue
-        }
-
-        if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
+        if (this.getTransactionFailedStmt.get(deptxid).failed) {
           this.setTransactionExecutionFailed(txid)
           return
         }
       }
-
-      this._checkExecutability(tx)
     })
+
+    this._checkExecutability(txid)
   }
 
   storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
-
-    const tx = this.unexecuted.get(txid)
-    if (!tx) return
 
     this.transaction(() => {
       this.setTransactionExecutedStmt.run(1, txid)
@@ -448,56 +428,33 @@ class Database {
       for (const [location, scripthash] of scripthashes) {
         this.setJigScripthashStmt.run(scripthash, location)
       }
-
-      for (const downtx of tx.downstream) downtx.upstream.delete(tx)
-      this.unexecuted.delete(txid)
-      if (tx.queuedForExecution) this.numQueuedForExecution--
-      tx.queuedForExecution = false
-
-      for (const downtx of tx.downstream) {
-        if (downtx.queuedForExecution && !downtx.upstream.size) {
-          if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
-        }
-      }
     })
+
+    const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
+    downstream.forEach(downtxid => this._checkExecutability(downtxid))
   }
 
   setTransactionExecutionFailed (txid) {
-    const tx = this.unexecuted.get(txid)
-    if (!tx) return
-
     this.transaction(() => {
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
-
-      for (const downtx of tx.downstream) downtx.upstream.delete(tx)
-      this.unexecuted.delete(txid)
-      if (tx.queuedForExecution) this.numQueuedForExecution--
-      tx.queuedForExecution = false
-
-      // Only mark downstream transactions as unexecutable this was was executable.
-      // We double check this in case the admin is manually changing the database.
-
-      let executable = false
-      try {
-        const rawtx = this.getTransactionHex(txid)
-        Run.util.metadata(rawtx)
-        executable = true
-      } catch (e) { }
-
-      if (executable) {
-        for (const downtx of tx.downstream) {
-          this.setTransactionExecutionFailed(downtx.txid)
-        }
-      } else {
-        for (const downtx of tx.downstream) {
-          if (downtx.queuedForExecution && !downtx.upstream.size) {
-            if (this.onReadyToExecute) this.onReadyToExecute(downtx.txid)
-          }
-        }
-      }
     })
+
+    // We try executing downstream transactions if this was marked executable but it wasn't.
+    // This allows an admin to manually change executable status in the database.
+
+    let executable = false
+    try {
+      const rawtx = this.getTransactionHex(txid)
+      Run.util.metadata(rawtx)
+      executable = true
+    } catch (e) { }
+
+    if (!executable) {
+      const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
+      downstream.forEach(downtxid => this._checkExecutability(downtxid))
+    }
   }
 
   getTransactionHex (txid) {
@@ -527,10 +484,6 @@ class Database {
       this.unspendOutputsStmt.run(txid)
       this.deleteDepsStmt.run(txid)
 
-      const tx = this.unexecuted.get(txid)
-      if (tx && tx.queuedForExecution) this.numQueuedForExecution--
-      this.unexecuted.delete(txid)
-
       if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
 
       const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
@@ -543,31 +496,12 @@ class Database {
   }
 
   unindexTransaction (txid) {
-    const tx = this.unexecuted.get(txid)
-
-    if (tx) {
-      this._checkExecutability(tx, false)
-      return
-    }
-
     this.transaction(() => {
       if (this.getTransactionIndexedStmt.raw(true).get(txid)[0]) {
         this.setTransactionExecutedStmt.run(0, txid)
         this.setTransactionIndexedStmt.run(0, txid)
         this.deleteJigStatesStmt.run(txid)
         this.deleteBerryStatesStmt.run(txid)
-
-        const downloaded = !!this.getTransactionDownloadedStmt.raw(true).get(txid)[0]
-        const hasCode = downloaded ? !!this.getTransactionHasCodeStmt.raw(true).get(txid)[0] : null
-        const tx = new UnexecutedTx(txid, downloaded, hasCode)
-        const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(txid).map(row => row[0])
-        for (const uptxid of upstreamUnexecuted) {
-          const uptx = this.unexecuted.get(uptxid)
-          if (!uptx) continue
-          tx.upstream.add(uptx)
-          uptx.downstream.add(tx)
-        }
-        this.unexecuted.set(txid, tx)
 
         const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
         downtxids.forEach(downtxid => this.unindexTransaction(downtxid))
@@ -584,7 +518,6 @@ class Database {
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
   getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
   getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
-  getNumQueuedForExecution () { return this.numQueuedForExecution }
 
   // --------------------------------------------------------------------------
   // spends
@@ -599,34 +532,20 @@ class Database {
   // deps
   // --------------------------------------------------------------------------
 
-  addDep (tx, deptxid) {
+  addDep (txid, deptxid) {
     this.addNewTransaction(deptxid)
-    this.addDepStmt.run(deptxid, tx.txid)
 
-    const deptx = this.unexecuted.get(deptxid)
-    if (deptx) {
-      deptx.downstream.add(tx)
-      tx.upstream.add(deptx)
-    } else {
-      if (!this.getTransactionIndexedStmt.get(deptxid).indexed) {
-        this.setTransactionExecutionFailed(tx.txid)
-      }
+    this.addDepStmt.run(deptxid, txid)
+
+    if (this.getTransactionFailedStmt.get(deptxid).failed) {
+      this.setTransactionExecutionFailed(deptxid)
     }
   }
 
   addMissingDeps (txid, deptxids) {
-    const tx = this.unexecuted.get(txid)
+    this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxids)))
 
-    // Check if the transaction was removed during execution
-    if (!tx) return
-
-    this.transaction(() => {
-      for (const deptxid of deptxids) {
-        this.addDep(tx, deptxid)
-      }
-
-      this._checkExecutability(tx)
-    })
+    this._checkExecutability(txid)
   }
 
   // --------------------------------------------------------------------------
@@ -700,17 +619,16 @@ class Database {
 
     const trusted = [txid]
 
-    const tx = this.unexecuted.get(txid)
-    if (tx) {
-      const queue = [...tx.upstream]
-      const visited = new Set()
-      while (queue.length) {
-        const tx = queue.shift()
-        if (visited.has(tx)) continue
-        visited.add(tx)
-        if (tx.hasCode && !this.trustlist.has(tx.txid)) trusted.push(tx.txid)
-        Array.from(tx.upstream).forEach(uptx => queue.push(uptx))
-      }
+    // Recursively trust code parents
+    const queue = this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).map(x => x[0])
+    const visited = new Set()
+    while (queue.length) {
+      const uptxid = queue.shift()
+      if (visited.has(uptxid)) continue
+      if (this.trustlist.has(uptxid)) continue
+      visited.add(uptxid)
+      trusted.push(txid)
+      this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
     }
 
     this.transaction(() => {
@@ -718,10 +636,7 @@ class Database {
       trusted.forEach(txid => this.trustlist.add(txid))
     })
 
-    trusted.forEach(txid => {
-      const tx = this.unexecuted.get(txid)
-      if (tx) this._checkExecutability(tx)
-    })
+    trusted.forEach(txid => this._checkExecutability(txid))
 
     if (this.onTrustTransaction) trusted.forEach(txid => this.onTrustTransaction(txid))
   }
@@ -738,31 +653,6 @@ class Database {
 
   getTrustlist () {
     return Array.from(this.trustlist)
-  }
-
-  getAllUntrusted () {
-    return Array.from(this.unexecuted.values())
-      .filter(tx => tx.hasCode && !this.trustlist.has(tx.txid))
-      .map(tx => tx.txid)
-  }
-
-  getTransactionUntrusted (txid) {
-    const untrusted = new Set()
-    const visited = new Set([txid])
-    const queue = [txid]
-    while (queue.length) {
-      const next = queue.shift()
-      const tx = this.unexecuted.get(next)
-      if (!tx) continue
-      if (tx.hasCode && !this.trustlist.has(next)) untrusted.add(next)
-      const upstreamUnexecuted = this.getUpstreamUnexecutedStmt.raw(true).all(next).map(row => row[0])
-      upstreamUnexecuted.forEach(uptxid => {
-        if (visited.has(uptxid)) return
-        visited.add(uptxid)
-        queue.push(uptxid)
-      })
-    }
-    return Array.from(untrusted)
   }
 
   // --------------------------------------------------------------------------
@@ -787,8 +677,7 @@ class Database {
     if (!this.banlist.has(txid)) return
     this.unbanStmt.run(txid)
     this.banlist.delete(txid)
-    const tx = this.unexecuted.get(txid)
-    if (tx) this._checkExecutability(tx)
+    this._checkExecutability(txid)
     if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
   }
 
@@ -827,56 +716,15 @@ class Database {
   }
 
   _loadUnexecuted () {
-    const unexecuted = this.getUnexecutedStmt.raw(true).all()
-
-    for (const [txid, downloaded, hasCode] of unexecuted) {
-      const tx = new UnexecutedTx(txid, !!downloaded, !!hasCode)
-      this.unexecuted.set(txid, tx)
-    }
-
-    for (const [up, down] of this.getUnexecutedDepsStmt.raw(true).all()) {
-      const uptx = this.unexecuted.get(up)
-      if (!uptx) continue
-      const downtx = this.unexecuted.get(down)
-      downtx.upstream.add(uptx)
-      uptx.downstream.add(downtx)
-    }
-
-    for (const tx of this.unexecuted.values()) {
-      this._checkExecutability(tx)
-    }
+    const { Worker } = require('worker_threads')
+    const path = require.resolve('./background-loader.js')
+    const worker = new Worker(path, { workerData: { dbPath: this.path } })
+    worker.on('message', txid => this._checkExecutability(txid))
   }
 
-  _checkExecutability (tx, forceQueuedForExecution) {
-    let queuedForExecution
-
-    if (typeof forceQueuedForExecution !== 'undefined') {
-      queuedForExecution = forceQueuedForExecution
-    } else {
-      queuedForExecution =
-        tx.downloaded &&
-        (!tx.hasCode || this.trustlist.has(tx.txid)) &&
-        !this.banlist.has(tx.txid) &&
-        !Array.from(tx.upstream).some(uptx => !uptx.queuedForExecution)
-    }
-
-    if (queuedForExecution === tx.queuedForExecution) return
-
-    if (queuedForExecution) {
-      this.numQueuedForExecution++
-    } else {
-      this.numQueuedForExecution--
-    }
-
-    tx.queuedForExecution = queuedForExecution
-
-    if (!tx.upstream.size && this.onReadyToExecute && queuedForExecution) {
-      this.onReadyToExecute(tx.txid)
-    }
-
-    for (const downtx of tx.downstream) {
-      this._checkExecutability(downtx)
-    }
+  _checkExecutability (txid) {
+    const row = this.isReadyToExecuteStmt.get(txid)
+    if (row && row.ready && this.onReadyToExecute) this.onReadyToExecute(txid)
   }
 }
 
