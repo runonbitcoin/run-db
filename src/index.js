@@ -37,7 +37,8 @@ switch (API) {
     }
     api = new BitcoinNodeConnection(new BitcoinZmq(ZMQ_URL), new BitcoinRpc(RPC_URL))
     break
-  case 'none': api = new RunConnectFetcher(); break
+  case 'run': api = new RunConnectFetcher(); break
+  case 'none': api = {}; break
   default: throw new Error(`Unknown API: ${API}`)
 }
 

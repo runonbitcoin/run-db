@@ -134,15 +134,6 @@ class Indexer {
     this.database.unban(txid)
   }
 
-  untrusted (txid) {
-    if (txid) {
-      txid = this._parseTxid(txid)
-      return this.database.getTransactionUntrusted(txid)
-    } else {
-      return this.database.getAllUntrusted()
-    }
-  }
-
   status () {
     return {
       height: this.crawler.height,
@@ -171,7 +162,7 @@ class Indexer {
 
   _onIndexed (txid, result) {
     if (!this.database.hasTransaction(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid} (${this.database.getNumQueuedForExecution() - 1} remaining)`)
+    this.logger.info(`Executed ${txid}`)
     this.database.storeExecutedTransaction(txid, result)
     if (this.onIndex) this.onIndex(txid)
   }

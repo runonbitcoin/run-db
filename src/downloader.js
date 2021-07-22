@@ -32,6 +32,7 @@ class Downloader {
 
   add (txid) {
     if (this.has(txid)) return
+    if (!this.fetchFunction) return
 
     this._enqueueFetch(txid)
   }

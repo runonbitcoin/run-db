@@ -54,7 +54,7 @@ Create a .env file or set the following environment variables before running to 
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, bitcoin-node or none | mattercloud
+| **API**| mattercloud, planaria, bitcoin-node, run, or none | mattercloud
 | **MATTERCLOUD_KEY** | Mattercloud API key | undefined
 | **PLANARIA_TOKEN** | Planaria API key | undefined
 | **ZMQ_URL** | Only for bitcoin-node. ZMQ tcp url | null
@@ -97,7 +97,6 @@ it's not recommeded for production environments in mainnet at the moment.
 * `GET /unspent` - Gets the locations of all unspent jigs that are trusted. You may optionally pass in the following query params: `class` to filter by contract origin, `address` to filter by owner address, `pubkey` to filter by owner pubkey, `scripthash` to filter by hash of the owner script, `lock` to filter by lock class origin.
 * `GET /trust/:txid?` - Gets whether a particular txid is trusted, or the entire trust list
 * `GET /ban/:txid?` - Gets whether a particular txid is banned, or the entire ban list
-* `GET /untrusted/:txid?` - Prints all txids that are not yet trusted, either globally or for a particular tx
 * `GET /status` - Prints status information
 
 * `POST /trust/:txid?` - Trusts a transaction to execute its code, as well as any untrusted ancestors. To trust multiple transactions at once, you may add an array of txids in the body as application/json.
