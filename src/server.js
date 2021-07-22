@@ -49,7 +49,6 @@ class Server {
     app.get('/unspent', this.getUnspent.bind(this))
     app.get('/trust/:txid?', this.getTrust.bind(this))
     app.get('/ban/:txid?', this.getBan.bind(this))
-    app.get('/untrusted/:txid?', this.getUntrusted.bind(this))
     app.get('/status', this.getStatus.bind(this))
 
     app.post('/trust/:txid?', this.postTrust.bind(this))
@@ -180,13 +179,6 @@ class Server {
       } else {
         res.json(Array.from(this.indexer.database.getBanlist()))
       }
-    } catch (e) { next(e) }
-  }
-
-  async getUntrusted (req, res, next) {
-    try {
-      const untrusted = this.indexer.untrusted(req.params.txid)
-      res.json(untrusted)
     } catch (e) { next(e) }
   }
 
