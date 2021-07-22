@@ -54,7 +54,7 @@ Create a .env file or set the following environment variables before running to 
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, bitcoin-node or none | mattercloud
+| **API**| mattercloud, planaria, bitcoin-node, run, or none | mattercloud
 | **MATTERCLOUD_KEY** | Mattercloud API key | undefined
 | **PLANARIA_TOKEN** | Planaria API key | undefined
 | **ZMQ_URL** | Only for bitcoin-node. ZMQ tcp url | null
