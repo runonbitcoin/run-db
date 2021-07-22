@@ -452,8 +452,10 @@ class Database {
       }
     })
 
-    const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
-    downstream.forEach(downtxid => this._checkExecutability(downtxid))
+    if (this.onReadyToExecute) {
+      const downstreamReadyToExecute = this.getDownstreamReadyToExecute.raw(true).all(txid).map(x => x[0])
+      downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
+    }
   }
 
   setTransactionExecutionFailed (txid) {
