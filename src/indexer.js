@@ -74,7 +74,7 @@ class Indexer {
     if (this.api.connect) await this.api.connect(height, this.network)
 
     if (DEBUG) console.log('Getting transactions to download')
-    this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
+    // this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
 
     this.crawler.start(height, hash)
   }
