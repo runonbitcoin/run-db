@@ -4,6 +4,8 @@
  * Generic blockchain crawler that adds and removes transactions to the db
  */
 
+const { DEBUG } = require('./config')
+
 // ------------------------------------------------------------------------------------------------
 // Crawler
 // ------------------------------------------------------------------------------------------------
@@ -29,6 +31,8 @@ class Crawler {
   }
 
   start (height, hash) {
+    if (DEBUG) console.log('Starting crawler')
+
     if (this.started) return
 
     this.started = true

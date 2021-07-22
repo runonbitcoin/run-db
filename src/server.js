@@ -11,6 +11,7 @@ const bsv = require('bsv')
 const crypto = require('crypto')
 const cors = require('cors')
 const Run = require('run-sdk')
+const { DEBUG } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -32,6 +33,8 @@ class Server {
   }
 
   start () {
+    if (DEBUG) console.log('Starting server')
+
     const app = express()
 
     if (this.logger) app.use(morgan('tiny'))

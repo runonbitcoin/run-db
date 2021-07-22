@@ -5,7 +5,7 @@
  */
 
 const Sqlite3Database = require('better-sqlite3')
-const { DEFAULT_TRUSTLIST } = require('./config')
+const { DEFAULT_TRUSTLIST, DEBUG } = require('./config')
 const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
@@ -38,6 +38,8 @@ class Database {
   }
 
   open () {
+    if (DEBUG) console.log('Opening database')
+
     if (this.db) throw new Error('Database already open')
 
     this.db = new Sqlite3Database(this.path)
@@ -732,14 +734,17 @@ class Database {
   // --------------------------------------------------------------------------
 
   _loadTrustlist () {
+    if (DEBUG) console.log('Loading trustlist')
     this.getTrustlistStmt.raw(true).all().forEach(row => this.trustlist.add(row[0]))
   }
 
   _loadBanlist () {
+    if (DEBUG) console.log('Loading banlist')
     this.getBanlistStmt.raw(true).all().forEach(row => this.banlist.add(row[0]))
   }
 
   _loadUnexecuted () {
+    if (DEBUG) console.log('Creating background worker to load unexecuted')
     const { Worker } = require('worker_threads')
     const path = require.resolve('./background-loader.js')
     const worker = new Worker(path, { workerData: { dbPath: this.path } })

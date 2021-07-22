@@ -10,6 +10,7 @@ const Database = require('./database')
 const Downloader = require('./downloader')
 const Executor = require('./executor')
 const Crawler = require('./crawler')
+const { DEBUG } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
@@ -17,6 +18,8 @@ const Crawler = require('./crawler')
 
 class Indexer {
   constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration) {
+    if (DEBUG) console.log('Starting indexer')
+
     this.logger = logger || {}
     this.logger.info = this.logger.info || (() => {})
     this.logger.warn = this.logger.warn || (() => {})
@@ -69,7 +72,10 @@ class Indexer {
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
+
+    if (DEBUG) console.log('Getting transactions to download')
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
+
     this.crawler.start(height, hash)
   }
 

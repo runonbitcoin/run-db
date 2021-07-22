@@ -23,6 +23,7 @@ const TIMEOUT = process.env.TIMEOUT || 10000
 const MEMPOOL_EXPIRATION = process.env.MEMPOOL_EXPIRATION || 60 * 60 * 24
 const ZMQ_URL = process.env.ZMQ_URL || null
 const RPC_URL = process.env.RPC_URL || null
+const DEBUG = process.env.DEBUG || false
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -111,5 +112,6 @@ module.exports = {
   MEMPOOL_EXPIRATION,
   DEFAULT_TRUSTLIST,
   ZMQ_URL,
-  RPC_URL
+  RPC_URL,
+  DEBUG
 }
