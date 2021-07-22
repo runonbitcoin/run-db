@@ -109,6 +109,26 @@ class Database {
       FROM tx
       WHERE txid = ?
     `)
+    this.getDownstreamReadyToExecute = this.db.prepare(`
+      SELECT down
+      FROM deps
+      JOIN tx
+      ON tx.txid = deps.down
+      WHERE up = ?
+      AND bytes IS NOT NULL
+      AND executable = 1
+      AND executed = 0
+      AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
+      AND txid NOT IN ban
+      AND (
+        SELECT COUNT(*)
+        FROM tx AS tx2
+        JOIN deps
+        ON deps.up = tx2.txid
+        WHERE deps.down = tx.txid
+        AND (tx2.bytes IS NULL OR (tx2.executable = 1 AND tx2.executed = 0))
+      ) = 0
+    `)
 
     this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
     this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
@@ -368,8 +388,10 @@ class Database {
     })
 
     // Non-executable might be berry data. We execute once we receive them.
-    const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
-    downstream.forEach(downtxid => this._checkExecutability(downtxid))
+    if (this.onReadyToExecute) {
+      const downstreamReadyToExecute = this.getDownstreamReadyToExecute.raw(true).all(txid).map(x => x[0])
+      downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
+    }
   }
 
   storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
@@ -719,7 +741,10 @@ class Database {
     const { Worker } = require('worker_threads')
     const path = require.resolve('./background-loader.js')
     const worker = new Worker(path, { workerData: { dbPath: this.path } })
-    worker.on('message', txid => this._checkExecutability(txid))
+    worker.on('message', txid => {
+      console.log('Loaded', txid, 'for execution')
+      this._checkExecutability(txid)
+    })
   }
 
   _checkExecutability (txid) {
