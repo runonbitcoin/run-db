@@ -76,7 +76,7 @@ class Indexer {
     if (DEBUG) console.log('Getting transactions to download')
     // this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
 
-    this.crawler.start(height, hash)
+    // this.crawler.start(height, hash)
   }
 
   async stop () {
