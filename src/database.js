@@ -338,6 +338,7 @@ class Database {
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS trust_txid_index ON trust (txid)').run()
+      this.db.prepare('CREATE INDEX IF NOT EXISTS ban_txid_index ON ban (txid)').run()
 
       this.logger.info('Saving results')
     })
