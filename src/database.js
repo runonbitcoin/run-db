@@ -56,6 +56,7 @@ class Database {
     this.initializeV1()
     this.initializeV2()
     this.initializeV3()
+    this.initializeV4()
 
     const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
     const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
@@ -82,17 +83,17 @@ class Database {
     this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
     this.getTransactionFailedStmt = this.db.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
-    this.getTransactionDownloadedStmt = this.db.prepare('SELECT bytes IS NOT NULL AS downloaded FROM tx WHERE txid = ?')
+    this.getTransactionDownloadedStmt = this.db.prepare('SELECT downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
     this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
     this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
     this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
-    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE bytes IS NULL')
-    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE bytes IS NOT NULL')
+    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
+    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
     this.isReadyToExecuteStmt = this.db.prepare(`
       SELECT (
-        bytes IS NOT NULL
+        downloaded = 1
         AND executable = 1
         AND executed = 0
         AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
@@ -103,7 +104,7 @@ class Database {
           JOIN deps
           ON deps.up = tx2.txid
           WHERE deps.down = tx.txid
-          AND (tx2.bytes IS NULL OR (tx2.executable = 1 AND tx2.executed = 0))
+          AND (tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
         ) = 0
       ) AS ready 
       FROM tx
@@ -115,7 +116,7 @@ class Database {
       JOIN tx
       ON tx.txid = deps.down
       WHERE up = ?
-      AND bytes IS NOT NULL
+      AND downloaded = 1
       AND executable = 1
       AND executed = 0
       AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
@@ -126,7 +127,7 @@ class Database {
         JOIN deps
         ON deps.up = tx2.txid
         WHERE deps.down = tx.txid
-        AND (tx2.bytes IS NULL OR (tx2.executable = 1 AND tx2.executed = 0))
+        AND (tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
       ) = 0
     `)
 
@@ -338,6 +339,22 @@ class Database {
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS trust_txid_index ON trust (txid)').run()
+
+      this.logger.info('Saving results')
+    })
+  }
+
+  initializeV4 () {
+    if (this.db.pragma('user_version')[0].user_version !== 3) return
+
+    this.logger.info('Setting up database v4')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 4')
+
+      this.db.prepare('ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (bytes IS NOT NULL) VIRTUAL').run()
+
+      this.db.prepare('CREATE INDEX IF NOT EXISTS tx_downloaded_index ON tx (downloaded)').run()
 
       this.logger.info('Saving results')
     })
