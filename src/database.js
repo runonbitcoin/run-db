@@ -5,7 +5,6 @@
  */
 
 const Sqlite3Database = require('better-sqlite3')
-const { DEFAULT_TRUSTLIST } = require('./config')
 const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
@@ -24,7 +23,6 @@ class Database {
     this.path = path
     this.logger = logger
     this.db = null
-    this.trustlist = new Set()
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -57,15 +55,7 @@ class Database {
     this.initializeV3()
     this.initializeV4()
 
-    const setupCrawlStmt = this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)')
-    const trustIfMissingStmt = this.db.prepare('INSERT OR IGNORE INTO trust (txid, value) VALUES (?, 1)')
-
-    this.transaction(() => {
-      setupCrawlStmt.run()
-      for (const txid of DEFAULT_TRUSTLIST) {
-        trustIfMissingStmt.run(txid)
-      }
-    })
+    this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)').run()
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
     this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
@@ -173,6 +163,7 @@ class Database {
 
     this.setTrustedStmt = this.db.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
     this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust WHERE value = 1')
+    this.isTrustedStmt = this.db.prepare('SELECT COUNT(*) FROM trust WHERE txid = ? AND value = 1')
 
     this.banStmt = this.db.prepare('INSERT OR REPLACE INTO ban (txid) VALUES (?)')
     this.unbanStmt = this.db.prepare('DELETE FROM ban WHERE txid = ?')
@@ -183,7 +174,6 @@ class Database {
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
-    this._loadTrustlist()
     this._loadUnexecuted()
   }
 
@@ -652,11 +642,12 @@ class Database {
   // --------------------------------------------------------------------------
 
   isTrusted (txid) {
-    return this.trustlist.has(txid)
+    const row = this.isTrustedStmt.raw(true).get(txid)
+    return !!row && !!row[0]
   }
 
   trust (txid) {
-    if (this.trustlist.has(txid)) return
+    if (this.isTrusted(txid)) return
 
     const trusted = [txid]
 
@@ -666,16 +657,13 @@ class Database {
     while (queue.length) {
       const uptxid = queue.shift()
       if (visited.has(uptxid)) continue
-      if (this.trustlist.has(uptxid)) continue
+      if (this.isTrusted(uptxid)) continue
       visited.add(uptxid)
       trusted.push(txid)
       this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
     }
 
-    this.transaction(() => {
-      trusted.forEach(txid => this.setTrustedStmt.run(txid, 1))
-      trusted.forEach(txid => this.trustlist.add(txid))
-    })
+    this.transaction(() => trusted.forEach(txid => this.setTrustedStmt.run(txid, 1)))
 
     trusted.forEach(txid => this._checkExecutability(txid))
 
@@ -683,17 +671,16 @@ class Database {
   }
 
   untrust (txid) {
-    if (!this.trustlist.has(txid)) return
+    if (!this.isTrusted(txid)) return
     this.transaction(() => {
       this.unindexTransaction(txid)
       this.setTrustedStmt.run(txid, 0)
     })
-    this.trustlist.delete(txid)
     if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
   }
 
   getTrustlist () {
-    return Array.from(this.trustlist)
+    return this.getTrustlistStmt.raw(true).all().map(x => x[0])
   }
 
   // --------------------------------------------------------------------------
@@ -701,7 +688,8 @@ class Database {
   // --------------------------------------------------------------------------
 
   isBanned (txid) {
-    return this.isBannedStmt.raw(true).get(txid).map(x => x[0])
+    const row = this.isBannedStmt.raw(true).get(txid)
+    return !!row && !!row[0]
   }
 
   ban (txid) {
@@ -743,10 +731,6 @@ class Database {
   // --------------------------------------------------------------------------
   // internal
   // --------------------------------------------------------------------------
-
-  _loadTrustlist () {
-    this.getTrustlistStmt.raw(true).all().forEach(row => this.trustlist.add(row[0]))
-  }
 
   _loadUnexecuted () {
     const { Worker } = require('worker_threads')
