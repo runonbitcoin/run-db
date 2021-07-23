@@ -17,7 +17,7 @@ const { DEBUG } = require('./config')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration) {
+  constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
     if (DEBUG) console.log('Starting indexer')
 
     this.logger = logger || {}
@@ -37,6 +37,7 @@ class Indexer {
     this.network = network
     this.startHeight = startHeight
     this.mempoolExpiration = mempoolExpiration
+    this.defaultTrustlist = defaultTrustlist
 
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
@@ -69,14 +70,15 @@ class Indexer {
   async start () {
     this.executor.start()
     this.database.open()
+    this.defaultTrustlist.forEach(txid => this.database.trust(txid))
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
 
     if (DEBUG) console.log('Getting transactions to download')
-    // this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
+    this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
 
-    // this.crawler.start(height, hash)
+    this.crawler.start(height, hash)
   }
 
   async stop () {

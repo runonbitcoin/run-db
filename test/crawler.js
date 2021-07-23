@@ -8,6 +8,7 @@ const { describe, it } = require('mocha')
 const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
+const { DEFAULT_TRUSTLIST } = require('../src/config')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -29,8 +30,9 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid] }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
     await indexer.start()
+    await indexer.trust(txid)
     await indexed(indexer, txid)
     expect(indexer.status().height).to.equal(1)
     expect(indexer.status().hash).to.equal('abc')
@@ -45,8 +47,9 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid], txhexs: [txns[txid]] }
     }
     const api = { getNextBlock }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
     await indexer.start()
+    await indexer.trust(txid)
     await indexed(indexer, txid)
     expect(indexer.status().height).to.equal(1)
     expect(indexer.status().hash).to.equal('abc')
@@ -68,10 +71,13 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids, txhexs: txids.map(txid => txns[txid]) }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
     await indexer.add(txids[1])
+    await indexer.trust(txids[0])
+    await indexer.trust(txids[1])
+    await indexer.trust(txids[2])
     await indexed(indexer, txids[1])
     indexedMiddleTransaction = true
     await indexed(indexer, txids[0])
@@ -96,9 +102,10 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
+    await indexer.trust(txid)
     await indexed(indexer, txid)
     didIndex = true
     await reorged(indexer)
@@ -125,8 +132,9 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity)
+    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
     await indexer.start()
+    await indexer.trust(txid)
     await reorged(indexer)
     expect(await indexer.tx(txid)).not.to.equal(undefined)
     expect(await indexer.jig(txid + '_o1')).to.equal(undefined)

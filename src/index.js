@@ -8,7 +8,7 @@ const Indexer = require('./indexer')
 const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -43,7 +43,7 @@ switch (API) {
 }
 
 const indexer = new Indexer(DB, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
-  START_HEIGHT, MEMPOOL_EXPIRATION)
+  START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
 
 const server = new Server(indexer, logger, PORT)
 
