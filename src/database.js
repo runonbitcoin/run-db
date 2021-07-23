@@ -57,6 +57,7 @@ class Database {
     this.initializeV2()
     this.initializeV3()
     this.initializeV4()
+    this.initializeV5()
 
     this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)').run()
 
@@ -331,7 +332,6 @@ class Database {
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)').run()
       this.db.prepare('CREATE INDEX IF NOT EXISTS trust_txid_index ON trust (txid)').run()
-      this.db.prepare('CREATE INDEX IF NOT EXISTS ban_txid_index ON ban (txid)').run()
 
       this.logger.info('Saving results')
     })
@@ -348,6 +348,21 @@ class Database {
       this.db.prepare('ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (bytes IS NOT NULL) VIRTUAL').run()
 
       this.db.prepare('CREATE INDEX IF NOT EXISTS tx_downloaded_index ON tx (downloaded)').run()
+
+      this.logger.info('Saving results')
+    })
+  }
+
+  initializeV5 () {
+    if (this.db.pragma('user_version')[0].user_version !== 4) return
+
+    this.logger.info('Setting up database v5')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 5')
+
+      this.db.prepare('CREATE INDEX IF NOT EXISTS ban_txid_index ON ban (txid)').run()
+      this.db.prepare('CREATE INDEX IF NOT EXISTS tx_height_index ON tx (height)').run()
 
       this.logger.info('Saving results')
     })
