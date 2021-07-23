@@ -5,10 +5,11 @@
  */
 
 const { parentPort, workerData } = require('worker_threads')
+const { DEBUG } = require('./config')
 const Sqlite3Database = require('better-sqlite3')
 
 if (workerData.dbPath !== ':memory:') {
-  console.log('Loading transactions to execute')
+  if (DEBUG) console.log('Loading transactions to execute')
 
   const db = new Sqlite3Database(workerData.dbPath)
 
