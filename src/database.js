@@ -25,7 +25,6 @@ class Database {
     this.logger = logger
     this.db = null
     this.trustlist = new Set()
-    this.banlist = new Set()
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -177,6 +176,7 @@ class Database {
 
     this.banStmt = this.db.prepare('INSERT OR REPLACE INTO ban (txid) VALUES (?)')
     this.unbanStmt = this.db.prepare('DELETE FROM ban WHERE txid = ?')
+    this.isBannedStmt = this.db.prepare('SELECT COUNT(*) FROM ban WHERE txid = ?')
     this.getBanlistStmt = this.db.prepare('SELECT txid FROM ban')
 
     this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
@@ -184,7 +184,6 @@ class Database {
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
 
     this._loadTrustlist()
-    this._loadBanlist()
     this._loadUnexecuted()
   }
 
@@ -701,29 +700,25 @@ class Database {
   // --------------------------------------------------------------------------
 
   isBanned (txid) {
-    return this.banlist.has(txid)
+    return this.isBannedStmt.raw(true).get(txid).map(x => x[0])
   }
 
   ban (txid) {
-    if (this.banlist.has(txid)) return
     this.transaction(() => {
       this.unindexTransaction(txid)
       this.banStmt.run(txid)
     })
-    this.banlist.add(txid)
     if (this.onBanTransaction) this.onBanTransaction(txid)
   }
 
   unban (txid) {
-    if (!this.banlist.has(txid)) return
     this.unbanStmt.run(txid)
-    this.banlist.delete(txid)
     this._checkExecutability(txid)
     if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
   }
 
   getBanlist () {
-    return Array.from(this.banlist)
+    return this.getBanlistStmt.raw(true).all().map(x => x[0])
   }
 
   // --------------------------------------------------------------------------
@@ -750,10 +745,6 @@ class Database {
 
   _loadTrustlist () {
     this.getTrustlistStmt.raw(true).all().forEach(row => this.trustlist.add(row[0]))
-  }
-
-  _loadBanlist () {
-    this.getBanlistStmt.raw(true).all().forEach(row => this.banlist.add(row[0]))
   }
 
   _loadUnexecuted () {
