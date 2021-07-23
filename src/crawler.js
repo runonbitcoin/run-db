@@ -54,6 +54,9 @@ class Crawler {
 
   _expireMempoolTransactions () {
     if (!this.started) return
+
+    if (DEBUG) console.log('Expiring mempool transactions')
+
     if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
     this.expireMempoolTransactionsTimerId = setTimeout(
       this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
@@ -76,6 +79,8 @@ class Crawler {
 
   async _pollForNextBlock () {
     if (!this.started) return
+
+    if (DEBUG) console.log('Polling for next block')
 
     // Save the current query so we can check for a race condition after
     const currHeight = this.height
