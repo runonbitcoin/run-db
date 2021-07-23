@@ -19,7 +19,7 @@ if (workerData.dbPath !== ':memory:') {
   const getReadyToExecuteStmt = db.prepare(`
       SELECT txid
       FROM tx 
-      WHERE bytes IS NOT NULL
+      WHERE downloaded = 1
       AND executable = 1
       AND executed = 0
       AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
@@ -29,7 +29,7 @@ if (workerData.dbPath !== ':memory:') {
           FROM deps
           JOIN tx AS tx2
           ON deps.up = tx2.txid
-          WHERE ((tx2.bytes IS NULL) OR (tx2.executable = 1 AND tx2.executed = 0))
+          WHERE (tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
       )
   `)
 
