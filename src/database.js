@@ -84,6 +84,9 @@ class Database {
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
+    // The + in the following 2 queries before downloaded improves performance by NOT using the
+    // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
+    // See: https://www.sqlite.org/optoverview.html
     this.isReadyToExecuteStmt = this.db.prepare(`
       SELECT (
         downloaded = 1
@@ -97,19 +100,19 @@ class Database {
           JOIN deps
           ON deps.up = tx2.txid
           WHERE deps.down = tx.txid
-          AND (tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
         ) = 0
       ) AS ready 
       FROM tx
       WHERE txid = ?
     `)
-    this.getDownstreamReadyToExecute = this.db.prepare(`
+    this.getDownstreamReadyToExecuteStmt = this.db.prepare(`
       SELECT down
       FROM deps
       JOIN tx
       ON tx.txid = deps.down
       WHERE up = ?
-      AND downloaded = 1
+      AND +downloaded = 1
       AND executable = 1
       AND executed = 0
       AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
@@ -120,7 +123,7 @@ class Database {
         JOIN deps
         ON deps.up = tx2.txid
         WHERE deps.down = tx.txid
-        AND (tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+        AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
       ) = 0
     `)
 
@@ -414,7 +417,7 @@ class Database {
 
     // Non-executable might be berry data. We execute once we receive them.
     if (this.onReadyToExecute) {
-      const downstreamReadyToExecute = this.getDownstreamReadyToExecute.raw(true).all(txid).map(x => x[0])
+      const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
       downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
     }
   }
@@ -478,7 +481,7 @@ class Database {
     })
 
     if (this.onReadyToExecute) {
-      const downstreamReadyToExecute = this.getDownstreamReadyToExecute.raw(true).all(txid).map(x => x[0])
+      const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
       downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
     }
   }
@@ -751,7 +754,7 @@ class Database {
   // --------------------------------------------------------------------------
 
   _loadUnexecuted () {
-    if (DEBUG) console.log('Creating background worker to load unexecuted')
+    if (DEBUG) console.log('Creating background worker to load unexecuted transactions')
     const { Worker } = require('worker_threads')
     const path = require.resolve('./background-loader.js')
     const worker = new Worker(path, { workerData: { dbPath: this.path } })
