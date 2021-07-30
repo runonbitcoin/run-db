@@ -45,20 +45,24 @@ class BitcoinRpc {
   }
 
   async _rpcCall (method, params) {
-    const response = await this.axios.post(this.baseUrl, JSON.stringify({
-      jsonrpc: '1.0',
-      id: new Date().getTime(),
-      method: method,
-      params: params
-    }))
+    try {
+      const response = await this.axios.post(this.baseUrl, JSON.stringify({
+        jsonrpc: '1.0',
+        id: new Date().getTime(),
+        method: method,
+        params: params
+      }))
 
-    const { error, result } = response.data
+      const { error, result } = response.data
 
-    if (error !== null) {
-      throw new Error(error)
+      if (error !== null) {
+        throw new Error(error)
+      }
+
+      return result
+    } catch (e) {
+      console.error(e, method, params)
     }
-
-    return result
   }
 }
 
