@@ -20,10 +20,12 @@ class BitcoinRpc {
    * @param {String} txid
    */
   async getRawTransaction (txid, verbose = true) {
+    console.log('getRawTransaction', txid, verbose)
     return this._rpcCall('getrawtransaction', [txid, verbose])
   }
 
   async getBlockCount () {
+    console.log('getBlockCount')
     return this._rpcCall('getblockcount', [])
   }
 
@@ -32,6 +34,7 @@ class BitcoinRpc {
    * @returns object with needed data. txs are bsv transactions
    */
   async getBlockByHeight (targetHeight) {
+    console.log('getBlockByHeigh', targetHeight)
     const hexBlock = await this._rpcCall('getblockbyheight', [targetHeight, false])
     const bsvBlock = new bsv.Block(Buffer.from(hexBlock, 'hex'))
 
