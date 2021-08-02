@@ -12,24 +12,38 @@ class TestBitcoinRpc {
     this.blocks = [
       {
         height: 1000,
-        hash: 'athousend',
+        hash: Buffer.alloc(32).fill(1).toString('hex'),
         time: new Date().getTime(),
-        txs: []
+        txs: [],
+        hex: buildBlock([], Buffer.alloc(32).fill(1))
       }
     ]
     this.nextBlockHeight = 1001
   }
 
-  async getRawTransaction (txid, _verbose = true) {
-    return this.knownTxs.get(txid)
+  async getRawTransaction (txid, verbose = true) {
+    if (verbose) {
+      return this.knownTxs.get(txid)
+    } else {
+      return this.knownTxs.get(txid).hex
+    }
   }
 
   async getBlockCount () {
     return this.blocks[this.blocks.length - 1].height
   }
 
-  async getBlockByHeight (targetHeight) {
-    return this.blocks.find(block => block.height === targetHeight)
+  async getBlockByHeight (targetHeight, verbose) {
+    const block = this.blocks.find(block => block.height === targetHeight)
+    if (!verbose) {
+      return block.hex
+    } else {
+      return {
+        size: block.size || block.hex.length,
+        previousblockhash: block.previousblockhash,
+        tx: block.txs.map(tx => tx.hash)
+      }
+    }
   }
 
   // Test
@@ -46,31 +60,39 @@ class TestBitcoinRpc {
     this.unconfirmedTxs.push({ txid, hex: rawTx })
   }
 
-  closeBlock (blockHash, blockTime = new Date().getTime()) {
-    if (!blockHash) {
-      blockHash = Math.random().toString(36).substring(7)
-    }
+  closeBlock (size = null) {
+    const blockTime = new Date().getTime()
     const previousBlock = this.blocks[this.blocks.length - 1]
-    const block = {
+    const blockData = {
       height: this.nextBlockHeight,
-      hash: blockHash,
+      hash: null,
       time: blockTime,
       previousblockhash: previousBlock.hash,
       txs: []
     }
+
+    if (size !== null) {
+      blockData.size = size
+    }
+
     this.nextBlockHeight = this.nextBlockHeight + 1
     while (this.unconfirmedTxs.length > 0) {
       const { txid, hex } = this.unconfirmedTxs.pop()
       const tx = {
         txid,
         hex,
-        blockheight: block.height,
-        blocktime: block.time
+        blockheight: blockData.height,
+        blocktime: blockData.time
       }
       this.knownTxs.set(txid, tx)
-      block.txs.push(new bsv.Transaction(tx.hex))
+      blockData.txs.push(new bsv.Transaction(tx.hex))
     }
-    this.blocks.push(block)
+    const bsvBlock = buildBlock(blockData.txs, blockData.previousblockhash)
+    this.blocks.push({
+      ...blockData,
+      hex: bsvBlock.toBuffer().toString('hex'),
+      hash: bsvBlock.hash
+    })
   }
 }
 
@@ -123,6 +145,19 @@ const buildRandomRunTx = async (run) => {
   tx.update(() => new FooDeployed(Math.random()))
 
   return new bsv.Transaction(await tx.export())
+}
+
+const buildBlock = (transactions, prevHash = Buffer.alloc(32).fill('1'), hash) => {
+  const block = bsv.Block.fromObject({
+    transactions,
+    header: {
+      hash,
+      prevHash: prevHash,
+      merkleRoot: Buffer.alloc(32).fill('2')
+    }
+  })
+
+  return block
 }
 
 describe('BitcoinNodeConnection', () => {
@@ -326,6 +361,18 @@ describe('BitcoinNodeConnection', () => {
       const nextBlock = await instance.getNextBlock(previousBlock.height, null)
       expect(nextBlock.txids).to.eql([])
     })
+
+    it('works for giant blocks', async () => {
+      const randomTx = buildRandomTx()
+      const randomRunTx = await buildRandomRunTx(run)
+      bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+      bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
+      bitcoinRpc.closeBlock(0x1fffffe8 + 1)
+      const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+
+      const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+      expect(nextBlock.txids).to.eql([randomRunTx.hash])
+    })
   })
 
   describe('#listenForMempool', () => {
@@ -373,6 +420,19 @@ describe('BitcoinNodeConnection', () => {
 
       bitcoinZmq.publishTx(randomTx)
       await bitcoinZmq.processPendingTxs()
+    })
+  })
+
+  describe('buildBlock', () => {
+    it('returns a parseable block', () => {
+      const hexBlock = buildBlock([buildRandomTx()]).toBuffer().toString('hex')
+      expect(() => new bsv.Block(Buffer.from(hexBlock, 'hex'))).not.to.throw()
+    })
+
+    it('returns a block with correct previous hash', () => {
+      const prevHash = Buffer.alloc(32).fill('6').toString('hex')
+      const block = buildBlock([buildRandomTx()], prevHash)
+      expect(block.header.prevHash.reverse().toString('hex')).to.eql(prevHash)
     })
   })
 })

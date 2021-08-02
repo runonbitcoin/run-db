@@ -42,42 +42,80 @@ class BitcoinNodeConnection {
       return null
     }
 
-    const block = await this.rpc.getBlockByHeight(Number(currentHeight) + 1)
+    const targetBlockHeight = Number(currentHeight) + 1
+    const blockData = await this.rpc.getBlockByHeight(targetBlockHeight, true)
 
-    if (currentHash && block.previousblockhash !== currentHash) {
+    if (currentHash && blockData.previousblockhash !== currentHash) {
       return { reorg: true }
     }
-    return this._buildBlockResponse(block)
+
+    if (blockData.size >= 0x1fffffe8) { // Limit of strings
+      return this._responsefromBlockData(blockData)
+    }
+
+    const block = this._parseBlock(
+      await this.rpc.getBlockByHeight(targetBlockHeight, false),
+      targetBlockHeight
+    )
+    return this._buildBlockResponse(block, targetBlockHeight)
   }
 
   async listenForMempool (mempoolTxCallback) {
     this.zmq.subscribeRawTx((txhex) => {
       const tx = bsv.Transaction(txhex)
 
-      if (this._isRunTx(tx)) {
+      if (this._isRunTx(tx.toBuffer().toString('hex'))) {
         mempoolTxCallback(tx.hash, tx.toBuffer().toString('hex'))
       }
     })
   }
 
-  _isRunTx (tx) {
+  _isRunTx (rawTx) {
     try {
-      metadata(tx.toBuffer().toString('hex'))
+      metadata(rawTx)
       return true
     } catch (e) {
       return false
     }
   }
 
-  _buildBlockResponse (block) {
-    const runTxs = block.txs.filter(this._isRunTx)
-    const a = {
-      height: block.height,
+  _buildBlockResponse (block, height) {
+    const runTxs = block.txs.filter(tx => this._isRunTx(tx.toBuffer().toString('hex')))
+    const response = {
+      height: height,
       hash: block.hash,
       txids: runTxs.map(tx => tx.hash),
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
-    return a
+    return response
+  }
+
+  _parseBlock (rpcResponse, requestedHeight) {
+    const bsvBlock = new bsv.Block(Buffer.from(rpcResponse, 'hex'))
+
+    return {
+      height: requestedHeight,
+      hash: bsvBlock.id.toString('hex'),
+      previousblockhash: bsvBlock.header.prevHash.reverse().toString('hex'),
+      time: bsvBlock.header.time,
+      txs: bsvBlock.transactions
+    }
+  }
+
+  async _responsefromBlockData (rpcResponse) {
+    const runTxs = []
+    for (const txid of rpcResponse.tx) {
+      const hexTx = await this.rpc.getRawTransaction(txid, false)
+      if (this._isRunTx(hexTx)) {
+        runTxs.push({ txid, hexTx })
+      }
+    }
+    return {
+      height: rpcResponse.height,
+      hash: rpcResponse.hash,
+      txids: runTxs.map(tx => tx.txid),
+      txhexs: runTxs.map(tx => tx.hexTx)
+    }
   }
 }
 
