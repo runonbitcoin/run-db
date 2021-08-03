@@ -8,7 +8,7 @@ const Indexer = require('./indexer')
 const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -22,7 +22,11 @@ const Database = require('./database')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const logger = console
+const logger = {}
+logger.info = console.info.bind(console)
+logger.warn = console.warn.bind(console)
+logger.error = console.error.bind(console)
+logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
 let api = null
 switch (API) {
