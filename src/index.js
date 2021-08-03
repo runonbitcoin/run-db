@@ -47,7 +47,7 @@ switch (API) {
   default: throw new Error(`Unknown API: ${API}`)
 }
 
-const readonly = SERVE_ONLY
+const readonly = !!SERVE_ONLY
 const database = new Database(DB, logger, readonly)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
