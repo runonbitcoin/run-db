@@ -5,8 +5,8 @@
  */
 
 const Sqlite3Database = require('better-sqlite3')
-const { DEBUG } = require('./config')
 const Run = require('run-sdk')
+const { Worker } = require('worker_threads')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -36,7 +36,7 @@ class Database {
   }
 
   open () {
-    if (DEBUG) console.log('Opening database')
+    this.logger.debug('Opening database')
 
     if (this.db) throw new Error('Database already open')
 
@@ -754,12 +754,13 @@ class Database {
   // --------------------------------------------------------------------------
 
   _loadUnexecuted () {
-    if (DEBUG) console.log('Creating background worker to load unexecuted transactions')
-    const { Worker } = require('worker_threads')
+    this.logger.debug('Loading transactions to execute')
+
     const path = require.resolve('./background-loader.js')
     const worker = new Worker(path, { workerData: { dbPath: this.path } })
+
     worker.on('message', txid => {
-      console.log('Loaded', txid, 'for execution')
+      this.logger.info('Loaded', txid, 'for execution')
       this._checkExecutability(txid)
     })
   }

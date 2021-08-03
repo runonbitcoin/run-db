@@ -4,15 +4,14 @@
  * Generic blockchain crawler that adds and removes transactions to the db
  */
 
-const { DEBUG } = require('./config')
-
 // ------------------------------------------------------------------------------------------------
 // Crawler
 // ------------------------------------------------------------------------------------------------
 
 class Crawler {
-  constructor (api) {
+  constructor (api, logger) {
     this.api = api
+    this.logger = logger
     this.height = null
     this.hash = null
     this.pollForNewBlocksInterval = 10000
@@ -31,7 +30,7 @@ class Crawler {
   }
 
   start (height, hash) {
-    if (DEBUG) console.log('Starting crawler')
+    this.logger.debug('Starting crawler')
 
     if (this.started) return
 
@@ -55,7 +54,7 @@ class Crawler {
   _expireMempoolTransactions () {
     if (!this.started) return
 
-    if (DEBUG) console.log('Expiring mempool transactions')
+    this.logger.debug('Expiring mempool transactions')
 
     if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
 
@@ -81,7 +80,7 @@ class Crawler {
   async _pollForNextBlock () {
     if (!this.started) return
 
-    if (DEBUG) console.log('Polling for next block')
+    this.logger.debug('Polling for next block')
 
     // Save the current query so we can check for a race condition after
     const currHeight = this.height
@@ -97,7 +96,7 @@ class Crawler {
 
     // Case: reorg
     if (block && block.reorg) {
-      if (DEBUG) console.log('Reorg detected')
+      this.logger.debug('Reorg detected')
       this._rewindAfterReorg()
       setTimeout(() => this._pollForNextBlock(), 0)
       return
@@ -105,14 +104,14 @@ class Crawler {
 
     // Case: at the chain tip
     if (!block || block.height <= this.height) {
-      if (DEBUG) console.log('No new blocks')
+      this.logger.debug('No new blocks')
       await this._listenForMempool()
       return
     }
 
     // Case: received a block
     if (block) {
-      if (DEBUG) console.log('Received new block at height', block.height)
+      this.logger.debug('Received new block at height', block.height)
       if (this.onCrawlBlockTransactions) {
         this.onCrawlBlockTransactions(block.height, block.hash, block.time, block.txids, block.txhexs)
       }

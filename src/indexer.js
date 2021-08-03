@@ -10,7 +10,6 @@ const Database = require('./database')
 const Downloader = require('./downloader')
 const Executor = require('./executor')
 const Crawler = require('./crawler')
-const { DEBUG } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
@@ -18,13 +17,13 @@ const { DEBUG } = require('./config')
 
 class Indexer {
   constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
-    if (DEBUG) console.log('Starting indexer')
-
     this.logger = logger || {}
     this.logger.info = this.logger.info || (() => {})
     this.logger.warn = this.logger.warn || (() => {})
     this.logger.error = this.logger.error || (() => {})
     this.logger.debug = this.logger.debug || (() => {})
+
+    this.logger.debug('Starting indexer')
 
     this.onDownload = null
     this.onFailToDownload = null
@@ -44,7 +43,7 @@ class Indexer {
     this.database = new Database(db, this.logger)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
     this.executor = new Executor(network, numParallelExecutes, this.database)
-    this.crawler = new Crawler(api)
+    this.crawler = new Crawler(api, this.logger)
 
     this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
     this.database.onAddTransaction = this._onAddTransaction.bind(this)
@@ -75,7 +74,7 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
 
-    if (DEBUG) console.log('Getting transactions to download')
+    this.logger.debug('Getting transactions to download')
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
 
     this.crawler.start(height, hash)

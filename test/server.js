@@ -22,6 +22,7 @@ const api = { fetch }
 const downloaded = (indexer, txid) => new Promise((resolve, reject) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const listening = (server) => new Promise((resolve, reject) => { server.onListening = () => resolve() })
+const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -34,8 +35,8 @@ describe('Server', () => {
 
   describe('post tx', () => {
     it('add with body', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -51,8 +52,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('throws if add with rawtx mismatch', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -71,8 +72,8 @@ describe('Server', () => {
 
   describe('post trust', () => {
     it('trust multiple', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -94,8 +95,8 @@ describe('Server', () => {
 
   describe('get jig', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -112,8 +113,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -135,8 +136,8 @@ describe('Server', () => {
 
   describe('get berry', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -153,8 +154,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -176,8 +177,8 @@ describe('Server', () => {
 
   describe('get tx', () => {
     it('returns rawtx if downloaded', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -194,8 +195,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -213,8 +214,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if not downloaded', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -237,8 +238,8 @@ describe('Server', () => {
 
   describe('get unspent', () => {
     it('query all unspent', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -256,8 +257,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('query unspent by address', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)
@@ -277,8 +278,8 @@ describe('Server', () => {
 
   describe('misc', () => {
     it('cors', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
-      const server = new Server(indexer, null, null)
+      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
       await listening(server)

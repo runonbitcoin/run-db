@@ -10,8 +10,8 @@ const bodyParser = require('body-parser')
 const bsv = require('bsv')
 const crypto = require('crypto')
 const cors = require('cors')
+const { Writable } = require('stream')
 const Run = require('run-sdk')
-const { DEBUG } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -33,11 +33,20 @@ class Server {
   }
 
   start () {
-    if (DEBUG) console.log('Starting server')
+    this.logger.debug('Starting server')
 
     const app = express()
 
-    if (this.logger) app.use(morgan('tiny'))
+    let buffer = ''
+    const write = (chunk, encoding, callback) => {
+      buffer = buffer + chunk.toString()
+      const lines = buffer.split('\n')
+      for (let i = 0; i < lines.length - 1; i++) {
+        this.logger.info(lines[i])
+      }
+      buffer = lines[lines.length - 1]
+    }
+    app.use(morgan('tiny', { stream: new Writable({ write }) }))
 
     app.use(bodyParser.text({ limit: '10mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))
