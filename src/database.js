@@ -20,10 +20,11 @@ const HEIGHT_UNKNOWN = null
 // ------------------------------------------------------------------------------------------------
 
 class Database {
-  constructor (path, logger) {
+  constructor (path, logger, readonly = false) {
     this.path = path
     this.logger = logger
     this.db = null
+    this.readonly = readonly
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
@@ -40,7 +41,7 @@ class Database {
 
     if (this.db) throw new Error('Database already open')
 
-    this.db = new Sqlite3Database(this.path)
+    this.db = new Sqlite3Database(this.path, { readonly: this.readonly })
 
     // 100MB cache
     this.db.pragma('cache_size = 6400')
@@ -52,14 +53,14 @@ class Database {
     // Synchronizes WAL at checkpoints
     this.db.pragma('synchronous = NORMAL')
 
-    // Initialise and perform upgrades
-    this.initializeV1()
-    this.initializeV2()
-    this.initializeV3()
-    this.initializeV4()
-    this.initializeV5()
-
-    this.db.prepare('INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)').run()
+    if (!this.readonly) {
+      // Initialise and perform upgrades
+      this.initializeV1()
+      this.initializeV2()
+      this.initializeV3()
+      this.initializeV4()
+      this.initializeV5()
+    }
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
     this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
@@ -180,8 +181,6 @@ class Database {
     this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
     this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
     this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
-
-    this._loadUnexecuted()
   }
 
   initializeV1 () {
@@ -265,6 +264,10 @@ class Database {
 
       this.db.prepare(
         'CREATE INDEX IF NOT EXISTS jig_index ON jig (class)'
+      ).run()
+
+      this.db.prepare(
+        'INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)'
       ).run()
     })
   }
@@ -753,7 +756,7 @@ class Database {
   // internal
   // --------------------------------------------------------------------------
 
-  _loadUnexecuted () {
+  loadTransactionsToExecute () {
     this.logger.debug('Loading transactions to execute')
 
     const path = require.resolve('./background-loader.js')

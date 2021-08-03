@@ -40,7 +40,7 @@ class Indexer {
 
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
-    this.database = new Database(db, this.logger)
+    this.database = new Database(db, this.logger, false)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
     this.executor = new Executor(network, numParallelExecutes, this.database)
     this.crawler = new Crawler(api, this.logger)
@@ -70,6 +70,7 @@ class Indexer {
     this.executor.start()
     this.database.open()
     this.defaultTrustlist.forEach(txid => this.database.trust(txid))
+    this.database.loadTransactionsToExecute()
     const height = this.database.getHeight() || this.startHeight
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
