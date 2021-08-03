@@ -15,9 +15,6 @@ const Crawler = require('./crawler')
 
 class Indexer {
   constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
-    this.logger = logger
-    this.logger.debug('Starting indexer')
-
     this.onDownload = null
     this.onFailToDownload = null
     this.onIndex = null
@@ -25,6 +22,7 @@ class Indexer {
     this.onBlock = null
     this.onReorg = null
 
+    this.logger = logger
     this.database = database
     this.api = api
     this.network = network
@@ -61,6 +59,8 @@ class Indexer {
   }
 
   async start () {
+    this.logger.debug('Starting indexer')
+
     this.executor.start()
     this.defaultTrustlist.forEach(txid => this.database.trust(txid))
     this.database.loadTransactionsToExecute()
