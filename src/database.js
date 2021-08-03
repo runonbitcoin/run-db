@@ -687,7 +687,7 @@ class Database {
   }
 
   addMissingDeps (txid, deptxids) {
-    this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxids)))
+    this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxid)))
 
     this._checkExecutability(txid)
   }
