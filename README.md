@@ -68,6 +68,7 @@ Create a .env file or set the following environment variables before running to 
 | **TIMEOUT** | Network timeout in milliseconds | 10000
 | **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
 | **DEFAULT_TRUSTLIST** | Comma-separated values of trusted txids | predefined trustlist
+| **SERVE_ONLY** | Whether to only serve data and not index transactions | false
 
 ### Connecting with a bitcoin node
 

@@ -8,7 +8,7 @@ const Indexer = require('./indexer')
 const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -47,7 +47,8 @@ switch (API) {
   default: throw new Error(`Unknown API: ${API}`)
 }
 
-const database = new Database(DB, logger, false)
+const readonly = SERVE_ONLY
+const database = new Database(DB, logger, readonly)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
@@ -60,7 +61,11 @@ const server = new Server(database, logger, PORT)
 
 async function main () {
   database.open()
-  await indexer.start()
+
+  if (!SERVE_ONLY) {
+    await indexer.start()
+  }
+
   server.start()
 }
 
@@ -70,8 +75,13 @@ async function main () {
 
 async function shutdown () {
   server.stop()
-  await indexer.stop()
+
+  if (!SERVE_ONLY) {
+    await indexer.stop()
+  }
+
   database.close()
+
   process.exit(0)
 }
 
