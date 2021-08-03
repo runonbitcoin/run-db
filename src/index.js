@@ -48,7 +48,7 @@ const database = new Database(DB, logger, false)
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
 
-const server = new Server(indexer, logger, PORT)
+const server = new Server(database, logger, PORT)
 
 // ------------------------------------------------------------------------------------------------
 // main

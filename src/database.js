@@ -7,6 +7,7 @@
 const Sqlite3Database = require('better-sqlite3')
 const Run = require('run-sdk')
 const { Worker } = require('worker_threads')
+const bsv = require('bsv')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -34,6 +35,7 @@ class Database {
     this.onBanTransaction = null
     this.onUnbanTransaction = null
     this.onUntrustTransaction = null
+    this.onRequestDownload = null
   }
 
   open () {
@@ -390,6 +392,93 @@ class Database {
   // tx
   // --------------------------------------------------------------------------
 
+  addBlock (txids, txhexs, height, hash, time) {
+    this.transaction(() => {
+      txids.forEach((txid, i) => {
+        const txhex = txhexs && txhexs[i]
+        this.addTransaction(txid, txhex, height, time)
+      })
+      this.setHeightAndHash(height, hash)
+    })
+  }
+
+  addTransaction (txid, txhex, height, time) {
+    this.transaction(() => {
+      this.addNewTransaction(txid)
+      if (height) this.setTransactionHeight(txid, height)
+      if (time) this.setTransactionTime(txid, time)
+    })
+
+    const downloaded = this.isTransactionDownloaded(txid)
+    if (downloaded) return
+
+    if (txhex) {
+      this.parseAndStoreTransaction(txid, txhex)
+    } else {
+      if (this.onRequestDownload) this.onRequestDownload(txid)
+    }
+  }
+
+  parseAndStoreTransaction (txid, hex) {
+    if (this.isTransactionDownloaded(txid)) return
+
+    let metadata = null
+    let bsvtx = null
+    const inputs = []
+    const outputs = []
+
+    try {
+      if (!hex) throw new Error('No hex')
+
+      bsvtx = new bsv.Transaction(hex)
+
+      bsvtx.inputs.forEach(input => {
+        const location = `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
+        inputs.push(location)
+      })
+
+      bsvtx.outputs.forEach((output, n) => {
+        if (output.script.isDataOut() || output.script.isSafeDataOut()) return
+        outputs.push(`${txid}_o${n}`)
+      })
+
+      metadata = Run.util.metadata(hex)
+    } catch (e) {
+      this.logger.error(`${txid} => ${e.message}`)
+      this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
+      return
+    }
+
+    const deps = new Set()
+
+    for (let i = 0; i < metadata.in; i++) {
+      const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
+      deps.add(prevtxid)
+    }
+
+    for (const ref of metadata.ref) {
+      if (ref.startsWith('native://')) {
+        continue
+      } else if (ref.includes('berry')) {
+        const reftxid = ref.slice(0, 64)
+        deps.add(reftxid)
+      } else {
+        const reftxid = ref.slice(0, 64)
+        deps.add(reftxid)
+      }
+    }
+
+    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+
+    this.storeParsedExecutableTransaction(txid, hex, hasCode, deps, inputs, outputs)
+
+    for (const deptxid of deps) {
+      if (!this.isTransactionDownloaded(deptxid)) {
+        if (this.onRequestDownload) this.onRequestDownload(deptxid)
+      }
+    }
+  }
+
   addNewTransaction (txid) {
     if (this.hasTransaction(txid)) return
 
@@ -531,6 +620,8 @@ class Database {
     if (deleted.has(txid)) return
     deleted.add(txid)
 
+    if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
+
     this.transaction(() => {
       this.deleteTransactionStmt.run(txid)
       this.deleteJigStatesStmt.run(txid)
@@ -538,8 +629,6 @@ class Database {
       this.deleteSpendsStmt.run(txid)
       this.unspendOutputsStmt.run(txid)
       this.deleteDepsStmt.run(txid)
-
-      if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
 
       const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
       downtxids.forEach(downtxid => this.deleteTransaction(downtxid, deleted))

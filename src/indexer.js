@@ -4,8 +4,6 @@
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
 
-const Run = require('run-sdk')
-const bsv = require('bsv')
 const Database = require('./database')
 const Downloader = require('./downloader')
 const Executor = require('./executor')
@@ -17,12 +15,7 @@ const Crawler = require('./crawler')
 
 class Indexer {
   constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
-    this.logger = logger || {}
-    this.logger.info = this.logger.info || (() => {})
-    this.logger.warn = this.logger.warn || (() => {})
-    this.logger.error = this.logger.error || (() => {})
-    this.logger.debug = this.logger.debug || (() => {})
-
+    this.logger = logger
     this.logger.debug('Starting indexer')
 
     this.onDownload = null
@@ -53,6 +46,7 @@ class Indexer {
     this.database.onBanTransaction = this._onBanTransaction.bind(this)
     this.database.onUnbanTransaction = this._onUnbanTransaction.bind(this)
     this.database.onUnindexTransaction = this._onUnindexTransaction.bind(this)
+    this.database.onRequestDownload = this._onRequestDownload.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
     this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
@@ -87,73 +81,12 @@ class Indexer {
     await this.executor.stop()
   }
 
-  add (txid, hex = null, height = null, time = null) {
-    txid = this._parseTxid(txid)
-    this._addTransactions([txid], [hex], height, time)
-  }
-
-  remove (txid) {
-    txid = this._parseTxid(txid)
-    this.downloader.remove(txid)
-    this.database.deleteTransaction(txid)
-  }
-
-  jig (location) {
-    return this.database.getJigState(location)
-  }
-
-  spends (location) {
-    return this.database.getSpend(location)
-  }
-
-  berry (location) {
-    return this.database.getBerryState(location)
-  }
-
-  tx (txid) {
-    txid = this._parseTxid(txid)
-    return this.database.getTransactionHex(txid)
-  }
-
-  time (txid) {
-    txid = this._parseTxid(txid)
-    return this.database.getTransactionTime(txid)
-  }
-
-  trust (txid) {
-    txid = this._parseTxid(txid)
-    this.database.trust(txid)
-  }
-
-  untrust (txid) {
-    txid = this._parseTxid(txid)
-    this.database.untrust(txid)
-  }
-
-  ban (txid) {
-    txid = this._parseTxid(txid)
-    this.database.ban(txid)
-  }
-
-  unban (txid) {
-    txid = this._parseTxid(txid)
-    this.database.unban(txid)
-  }
-
-  status () {
-    return {
-      height: this.crawler.height,
-      hash: this.crawler.hash,
-      downloading: this.downloader.remaining()
-    }
-  }
-
   _onDownloadTransaction (txid, hex, height, time) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
     if (!this.database.hasTransaction(txid)) return
     if (height) this.database.setTransactionHeight(txid, height)
     if (time) this.database.setTransactionTime(txid, time)
-    this._parseAndStoreTransaction(txid, hex)
+    this.database.parseAndStoreTransaction(txid, hex)
     if (this.onDownload) this.onDownload(txid)
   }
 
@@ -189,6 +122,7 @@ class Indexer {
 
   _onDeleteTransaction (txid) {
     this.logger.info('Removed', txid)
+    this.downloader.remove(txid)
   }
 
   _onTrustTransaction (txid) {
@@ -211,6 +145,10 @@ class Indexer {
     this.logger.info('Unindexed', txid)
   }
 
+  _onRequestDownload (txid) {
+    this.downloader.add(txid)
+  }
+
   _onMissingDeps (txid, deptxids) {
     this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
     this.database.addMissingDeps(txid, deptxids)
@@ -223,8 +161,7 @@ class Indexer {
 
   _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
     this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
-    this._addTransactions(txids, txhexs, height, time)
-    this.database.setHeightAndHash(height, hash)
+    this.database.addBlock(txids, txhexs, height, hash, time)
     if (this.onBlock) this.onBlock(height)
   }
 
@@ -246,7 +183,7 @@ class Indexer {
   }
 
   _onMempoolTransaction (txid, hex) {
-    this._onNewTx(txid, hex, Database.HEIGHT_MEMPOOL, null)
+    this.database.addTransaction(txid, hex, Database.HEIGHT_MEMPOOL, null)
   }
 
   _onExpireMempoolTransactions () {
@@ -255,96 +192,6 @@ class Indexer {
     const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
     const deleted = new Set()
     this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid, deleted)))
-  }
-
-  _addTransactions (txids, txhexs, height, time) {
-    this.database.transaction(() => {
-      txids.forEach((txid, i) => {
-        const txhex = txhexs && txhexs[i]
-        this._onNewTx(txid, txhex, height, time)
-      })
-    })
-  }
-
-  _onNewTx (txid, txhex, height, time) {
-    this.database.addNewTransaction(txid)
-    if (height) this.database.setTransactionHeight(txid, height)
-    if (time) this.database.setTransactionTime(txid, time)
-
-    const downloaded = this.database.isTransactionDownloaded(txid)
-    if (downloaded) return
-
-    if (txhex) {
-      this._parseAndStoreTransaction(txid, txhex)
-    } else {
-      this.downloader.add(txid)
-    }
-  }
-
-  _parseAndStoreTransaction (txid, hex) {
-    if (this.database.isTransactionDownloaded(txid)) return
-
-    let metadata = null
-    let bsvtx = null
-    const inputs = []
-    const outputs = []
-
-    try {
-      if (!hex) throw new Error('No hex')
-
-      bsvtx = new bsv.Transaction(hex)
-
-      bsvtx.inputs.forEach(input => {
-        const location = `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
-        inputs.push(location)
-      })
-
-      bsvtx.outputs.forEach((output, n) => {
-        if (output.script.isDataOut() || output.script.isSafeDataOut()) return
-        outputs.push(`${txid}_o${n}`)
-      })
-
-      metadata = Run.util.metadata(hex)
-    } catch (e) {
-      this.logger.error(`${txid} => ${e.message}`)
-      this.database.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
-      return
-    }
-
-    const deps = new Set()
-
-    for (let i = 0; i < metadata.in; i++) {
-      const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
-      deps.add(prevtxid)
-    }
-
-    for (const ref of metadata.ref) {
-      if (ref.startsWith('native://')) {
-        continue
-      } else if (ref.includes('berry')) {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      } else {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      }
-    }
-
-    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
-
-    this.database.storeParsedExecutableTransaction(txid, hex, hasCode, deps, inputs, outputs)
-
-    for (const deptxid of deps) {
-      if (!this.database.isTransactionDownloaded(deptxid)) {
-        this.downloader.add(deptxid)
-      }
-    }
-  }
-
-  _parseTxid (txid) {
-    txid = txid.trim().toLowerCase()
-    if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
-    return txid
   }
 }
 
