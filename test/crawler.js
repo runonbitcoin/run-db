@@ -4,11 +4,12 @@
  * Tests for the crawler and APIs it uses
  */
 
-const { describe, it } = require('mocha')
+const { describe, it, beforeEach, afterEach } = require('mocha')
 const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
+const Database = require('../src/database')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -18,6 +19,11 @@ const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const crawled = (indexer) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
 const reorged = (indexer) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })
+const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
+const database = new Database(':memory:', logger, false)
+
+beforeEach(() => database.open())
+afterEach(() => database.close())
 
 // ------------------------------------------------------------------------------------------------
 // Crawler
@@ -30,7 +36,7 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid] }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
+    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await indexer.trust(txid)
     await indexed(indexer, txid)
@@ -47,7 +53,7 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid], txhexs: [txns[txid]] }
     }
     const api = { getNextBlock }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
+    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await indexer.trust(txid)
     await indexed(indexer, txid)
@@ -71,7 +77,7 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids, txhexs: txids.map(txid => txns[txid]) }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, DEFAULT_TRUSTLIST)
+    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
     await indexer.add(txids[1])
@@ -102,7 +108,7 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
+    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
     await indexer.trust(txid)
@@ -132,7 +138,7 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(':memory:', api, 'main', 1, 1, null, 0, Infinity, [])
+    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await indexer.trust(txid)
     await reorged(indexer)

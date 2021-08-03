@@ -16,6 +16,7 @@ const RunConnectFetcher = require('./run-connect')
 const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
 const BitcoinZmq = require('./bitcoin-zmq')
+const Database = require('./database')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -42,7 +43,9 @@ switch (API) {
   default: throw new Error(`Unknown API: ${API}`)
 }
 
-const indexer = new Indexer(DB, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
+const database = new Database(DB, logger, false)
+
+const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
 
 const server = new Server(indexer, logger, PORT)
@@ -52,6 +55,7 @@ const server = new Server(indexer, logger, PORT)
 // ------------------------------------------------------------------------------------------------
 
 async function main () {
+  database.open()
   await indexer.start()
   server.start()
 }
@@ -63,6 +67,7 @@ async function main () {
 async function shutdown () {
   server.stop()
   await indexer.stop()
+  database.close()
   process.exit(0)
 }
 

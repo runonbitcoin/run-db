@@ -4,7 +4,7 @@
  * Tests for src/server.js
  */
 
-const { describe, it } = require('mocha')
+const { describe, it, beforeEach, afterEach } = require('mocha')
 require('chai').use(require('chai-as-promised'))
 const { expect } = require('chai')
 const axios = require('axios')
@@ -12,6 +12,7 @@ const Indexer = require('../src/indexer')
 const Server = require('../src/server')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
+const Database = require('../src/database')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -23,6 +24,10 @@ const downloaded = (indexer, txid) => new Promise((resolve, reject) => { indexer
 const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
 const listening = (server) => new Promise((resolve, reject) => { server.onListening = () => resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
+const database = new Database(':memory:', logger, false)
+
+beforeEach(() => database.open())
+afterEach(() => database.close())
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -35,7 +40,7 @@ describe('Server', () => {
 
   describe('post tx', () => {
     it('add with body', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -52,7 +57,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('throws if add with rawtx mismatch', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -72,7 +77,7 @@ describe('Server', () => {
 
   describe('post trust', () => {
     it('trust multiple', async () => {
-      const indexer = new Indexer(':memory:', {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -95,7 +100,7 @@ describe('Server', () => {
 
   describe('get jig', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -113,7 +118,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -136,7 +141,7 @@ describe('Server', () => {
 
   describe('get berry', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -154,7 +159,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -177,7 +182,7 @@ describe('Server', () => {
 
   describe('get tx', () => {
     it('returns rawtx if downloaded', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -195,7 +200,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -214,7 +219,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if not downloaded', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -238,7 +243,7 @@ describe('Server', () => {
 
   describe('get unspent', () => {
     it('query all unspent', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -257,7 +262,7 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('query unspent by address', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()
@@ -278,7 +283,7 @@ describe('Server', () => {
 
   describe('misc', () => {
     it('cors', async () => {
-      const indexer = new Indexer(':memory:', api, 'main', 1, 1, logger, 0, Infinity, [])
+      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(indexer, logger, null)
       await indexer.start()
       server.start()

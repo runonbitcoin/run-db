@@ -16,7 +16,7 @@ const Crawler = require('./crawler')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (db, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
+  constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
     this.logger = logger || {}
     this.logger.info = this.logger.info || (() => {})
     this.logger.warn = this.logger.warn || (() => {})
@@ -32,6 +32,7 @@ class Indexer {
     this.onBlock = null
     this.onReorg = null
 
+    this.database = database
     this.api = api
     this.network = network
     this.startHeight = startHeight
@@ -40,7 +41,6 @@ class Indexer {
 
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
-    this.database = new Database(db, this.logger, false)
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
     this.executor = new Executor(network, numParallelExecutes, this.database)
     this.crawler = new Crawler(api, this.logger)
@@ -68,7 +68,6 @@ class Indexer {
 
   async start () {
     this.executor.start()
-    this.database.open()
     this.defaultTrustlist.forEach(txid => this.database.trust(txid))
     this.database.loadTransactionsToExecute()
     const height = this.database.getHeight() || this.startHeight
@@ -86,7 +85,6 @@ class Indexer {
     if (this.api.disconnect) await this.api.disconnect()
     this.downloader.stop()
     await this.executor.stop()
-    this.database.close()
   }
 
   add (txid, hex = null, height = null, time = null) {
