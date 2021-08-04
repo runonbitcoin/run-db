@@ -376,7 +376,13 @@ class Database {
     })
   }
 
-  close () {
+  async close () {
+    if (this.worker) {
+      this.logger.debug('Terminating background loader')
+      await this.worker.terminate()
+      this.worker = null
+    }
+
     if (this.db) {
       this.db.close()
       this.db = null
@@ -849,9 +855,9 @@ class Database {
     this.logger.debug('Loading transactions to execute')
 
     const path = require.resolve('./background-loader.js')
-    const worker = new Worker(path, { workerData: { dbPath: this.path } })
+    this.worker = new Worker(path, { workerData: { dbPath: this.path } })
 
-    worker.on('message', txid => {
+    this.worker.on('message', txid => {
       this.logger.info('Loaded', txid, 'for execution')
       this._checkExecutability(txid)
     })

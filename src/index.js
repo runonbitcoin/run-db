@@ -17,6 +17,7 @@ const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
 const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
+const DirectServer = require('./direct-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -53,7 +54,11 @@ const database = new Database(DB, logger, readonly)
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
 
-const server = new Server(database, logger, PORT)
+const server = SERVE_ONLY
+  ? new Server(database, logger, null)
+  : new DirectServer(DB, PORT, logger, database)
+
+let started = false
 
 // ------------------------------------------------------------------------------------------------
 // main
@@ -66,7 +71,9 @@ async function main () {
     await indexer.start()
   }
 
-  server.start()
+  await server.start()
+
+  started = true
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -74,13 +81,17 @@ async function main () {
 // ------------------------------------------------------------------------------------------------
 
 async function shutdown () {
-  server.stop()
+  if (!started) return
+
+  started = false
+
+  await server.stop()
 
   if (!SERVE_ONLY) {
     await indexer.stop()
   }
 
-  database.close()
+  await database.close()
 
   process.exit(0)
 }
