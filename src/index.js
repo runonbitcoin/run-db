@@ -55,7 +55,7 @@ const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
 
 const server = SERVE_ONLY
-  ? new Server(database, logger, null)
+  ? new Server(database, logger, PORT)
   : new DirectServer(DB, PORT, logger, database)
 
 let started = false
