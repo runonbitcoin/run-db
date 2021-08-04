@@ -35,12 +35,12 @@ class BitcoinRpc {
   }
 
   async _rpcCall (method, params) {
-    const response = await this.axios.post(this.baseUrl, JSON.stringify({
+    const response = await this._httpPost(this.baseUrl, {
       jsonrpc: '1.0',
       id: new Date().getTime(),
       method: method,
       params: params
-    }))
+    })
 
     const { error, result } = response.data
 
@@ -49,6 +49,26 @@ class BitcoinRpc {
     }
 
     return result
+  }
+
+  /**
+   * We do 1 retry here because the node has flukes from time to time.
+   * @param {string} url
+   * @param {object} body
+   * @returns axios response
+   */
+  async _httpPost (url, body) {
+    const serializedBody = JSON.stringify(body)
+    try {
+      return this.axios.post(url, serializedBody)
+    } catch (e) {
+      if (e.response) {
+        throw (e)
+      } else {
+        console.log(`retrying rpc request: ${serializedBody}`)
+        return this.axios.post(url, serializedBody)
+      }
+    }
   }
 }
 
