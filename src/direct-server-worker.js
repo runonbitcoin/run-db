@@ -30,9 +30,11 @@ database.deleteTransaction = (txid) => Bus.sendRequest(parentPort, 'deleteTransa
 Bus.listen(parentPort, { start, stop })
 
 async function start () {
+  await database.open()
   await server.start()
 }
 
 async function stop () {
   await server.stop()
+  await database.close()
 }
