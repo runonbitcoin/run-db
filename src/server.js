@@ -45,6 +45,7 @@ class Server {
         this.logger.info(lines[i])
       }
       buffer = lines[lines.length - 1]
+      callback()
       return true
     }
     app.use(morgan('tiny', { stream: new Writable({ write }) }))
