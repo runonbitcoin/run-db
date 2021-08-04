@@ -40,7 +40,7 @@ class Server {
     let buffer = ''
     const write = (chunk, encoding, callback) => {
       buffer = buffer + chunk.toString()
-      const lines = buffer.split('\n')
+      const lines = buffer.split(/\r\n|\n\r|\n|\r/)
       for (let i = 0; i < lines.length - 1; i++) {
         this.logger.info(lines[i])
       }
