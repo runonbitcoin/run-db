@@ -116,7 +116,7 @@ class Indexer {
     this.executor.execute(txid)
   }
 
-  _onAddTransaction (txid) {
+  _onAddTransaction (_txid) {
     // this.logger.info('Added', txid)
   }
 

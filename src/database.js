@@ -399,13 +399,18 @@ class Database {
   // --------------------------------------------------------------------------
 
   addBlock (txids, txhexs, height, hash, time) {
+    console.log(`saving block ${height} - ${hash}`)
     this.transaction(() => {
       txids.forEach((txid, i) => {
+        if (i % 100 === 0) {
+          console.log(`processing ${i}/${txids.length}`)
+        }
         const txhex = txhexs && txhexs[i]
         this.addTransaction(txid, txhex, height, time)
       })
       this.setHeightAndHash(height, hash)
     })
+    console.log(`finished block ${height} - ${hash}`)
   }
 
   addTransaction (txid, txhex, height, time) {
