@@ -1,4 +1,22 @@
-const axios = require('axios')
+const fetch = require('node-fetch')
+
+const httpPost = async (url, jsonBody) => {
+  const response = await fetch(url,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(jsonBody)
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`error during rpc call: ${jsonBody.method}, ${jsonBody.args}`)
+  }
+
+  return response
+}
 
 class BitcoinRpc {
   /**
@@ -8,11 +26,6 @@ class BitcoinRpc {
    */
   constructor (baseUrl) {
     this.baseUrl = baseUrl
-    this.axios = axios.create({
-      validateStatus: (status) => {
-        return status >= 200 && status < 300
-      }
-    })
   }
 
   /**
@@ -35,20 +48,34 @@ class BitcoinRpc {
   }
 
   async _rpcCall (method, params) {
-    const response = await this.axios.post(this.baseUrl, JSON.stringify({
+    const response = await this._httpPost(this.baseUrl, {
       jsonrpc: '1.0',
-      id: new Date().getTime(),
       method: method,
       params: params
-    }))
+    })
 
-    const { error, result } = response.data
+    if (!response.ok) {
+      throw new Error('error during rpc call')
+    }
+
+    const { error, result } = await response.json()
 
     if (error !== null) {
       throw new Error(error)
     }
 
     return result
+  }
+
+  async _httpPost (url, jsonBody) {
+    try {
+      return httpPost(url, jsonBody)
+    } catch (e) {
+      console.error(e.message)
+      console.log('retrying...')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      return httpPost(url, jsonBody)
+    }
   }
 }
 
