@@ -12,7 +12,7 @@ const httpPost = async (url, jsonBody) => {
   )
 
   if (!response.ok) {
-    throw new Error(`error during rpc call: ${jsonBody.method}, ${jsonBody.args}`)
+    throw new Error(`error during rpc call: ${jsonBody.method}, ${jsonBody.params}`)
   }
 
   return response
