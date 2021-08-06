@@ -54,10 +54,6 @@ class BitcoinRpc {
       params: params
     })
 
-    if (!response.ok) {
-      throw new Error('error during rpc call')
-    }
-
     const { error, result } = await response.json()
 
     if (error !== null) {
