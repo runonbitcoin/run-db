@@ -397,14 +397,14 @@ describe('BitcoinNodeConnection', () => {
       beforeEach(() => {
         bitcoinRpc.isRestEnabled = false
       })
-      it ('does not get txs one by one', async () => {
+      it('does not get txs one by one', async () => {
         const randomTx = buildRandomTx()
         const randomRunTx = await buildRandomRunTx(run)
         bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
         bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
         bitcoinRpc.closeBlock(0x1fffffe8 + 1)
         const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
-  
+
         expect(instance.getNextBlock(previousBlock.height, null)).not.to.eventually.throw()
       })
     })
@@ -420,9 +420,9 @@ describe('BitcoinNodeConnection', () => {
         bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
         bitcoinRpc.closeBlock(0x1fffffe8 + 1)
 
-        bitcoinRpc.getRawTransaction = () => {  throw new Error('should not call') }
+        bitcoinRpc.getRawTransaction = () => { throw new Error('should not call') }
         const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
-  
+
         const nextBlock = await instance.getNextBlock(previousBlock.height, null)
         expect(nextBlock.txhexs.length).to.eql(nextBlock.txids.length)
       })
