@@ -1,3 +1,4 @@
+const { response } = require('express')
 const fetch = require('node-fetch')
 
 const httpPost = async (url, jsonBody) => {
@@ -28,6 +29,11 @@ class BitcoinRpc {
     this.baseUrl = baseUrl
   }
 
+  async isRestApiEnabled () {
+    const response = fetch(`${this.baseUrl}/rest/tx/9834daa6d34690981888f7db4c1c36686ebb9b685d37115abc38e0e75f9cd98d.hex`)
+    return response.ok
+  }
+
   /**
    * @param {String} txid
    */
@@ -48,7 +54,7 @@ class BitcoinRpc {
   }
 
   async getRawBlockByHash (targetHash) {
-    const response = this._httpPost(`${this.baseUrl}/rest/block/${targetHash}.bin`)
+    const response = await fetch(`${this.baseUrl}/rest/block/${targetHash}.bin`)
     return Buffer.from(await response.arrayBuffer())
   }
 

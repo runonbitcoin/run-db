@@ -19,6 +19,11 @@ class TestBitcoinRpc {
       }
     ]
     this.nextBlockHeight = 1001
+    this.isRestEnabled = true
+  }
+
+  async isRestApiEnabled () {
+    return this.isRestEnabled
   }
 
   async getRawTransaction (txid, verbose = true) {
@@ -48,6 +53,9 @@ class TestBitcoinRpc {
   }
 
   async getRawBlockByHash (targetHash) {
+    if (!this.isRestEnabled) {
+      throw new Error('rest api is not enabled')
+    }
     const block = this.blocks.find(block => block.hash === targetHash)
     return Buffer.from(block.hex, 'hex')
   }
@@ -110,6 +118,10 @@ class TestZmq {
 
   subscribeRawTx (handler) {
     this.handler = handler
+  }
+
+  async connect () {
+    // nothing
   }
 
   // test
@@ -179,10 +191,11 @@ describe('BitcoinNodeConnection', () => {
   let instance = null
   let run = null
 
-  beforeEach(() => {
+  beforeEach(async () => {
     bitcoinZmq = new TestZmq()
     bitcoinRpc = new TestBitcoinRpc()
     instance = new BitcoinNodeConnection(bitcoinZmq, bitcoinRpc)
+    await instance.connect()
 
     run = new Run({
       purse: {
@@ -378,6 +391,41 @@ describe('BitcoinNodeConnection', () => {
 
       const nextBlock = await instance.getNextBlock(previousBlock.height, null)
       expect(nextBlock.txids).to.eql([randomRunTx.hash])
+    })
+
+    describe('when rest-api is not enabled and a giant block arrives', () => {
+      beforeEach(() => {
+        bitcoinRpc.isRestEnabled = false
+      })
+      it ('does not get txs one by one', async () => {
+        const randomTx = buildRandomTx()
+        const randomRunTx = await buildRandomRunTx(run)
+        bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+        bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
+        bitcoinRpc.closeBlock(0x1fffffe8 + 1)
+        const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+  
+        expect(instance.getNextBlock(previousBlock.height, null)).not.to.eventually.throw()
+      })
+    })
+
+    describe('when rest-api is enabled and a giant block arrives', () => {
+      beforeEach(() => {
+        bitcoinRpc.isRestEnabled = true
+      })
+      it('does not call getRawTransaction', async () => {
+        const randomTx = buildRandomTx()
+        const randomRunTx = await buildRandomRunTx(run)
+        bitcoinRpc.registerUnconfirmedTx(randomTx.hash, randomTx.toBuffer().toString('hex'))
+        bitcoinRpc.registerUnconfirmedTx(randomRunTx.hash, randomRunTx.toBuffer().toString('hex'))
+        bitcoinRpc.closeBlock(0x1fffffe8 + 1)
+
+        bitcoinRpc.getRawTransaction = () => {  throw new Error('should not call') }
+        const previousBlock = bitcoinRpc.blocks[bitcoinRpc.blocks.length - 2]
+  
+        const nextBlock = await instance.getNextBlock(previousBlock.height, null)
+        expect(nextBlock.txhexs.length).to.eql(nextBlock.txids.length)
+      })
     })
   })
 
