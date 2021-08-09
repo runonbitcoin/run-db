@@ -47,6 +47,11 @@ class BitcoinRpc {
     return this._rpcCall('getblockbyheight', [targetHeight, verbose])
   }
 
+  async getRawBlockByHash (targetHash) {
+    const response = this._httpPost(`${this.baseUrl}/rest/block/${targetHash}.bin`)
+    return Buffer.from(await response.arrayBuffer())
+  }
+
   async _rpcCall (method, params) {
     const response = await this._httpPost(this.baseUrl, {
       jsonrpc: '1.0',

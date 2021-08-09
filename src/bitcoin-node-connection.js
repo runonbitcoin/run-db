@@ -49,12 +49,8 @@ class BitcoinNodeConnection {
       return { reorg: true }
     }
 
-    if (blockData.size >= 0xf000000) { // Avoids create a string longer than the limit
-      return this._responsefromBlockData(blockData)
-    }
-
     const block = this._parseBlock(
-      await this.rpc.getBlockByHeight(targetBlockHeight, false),
+      await this.rpc.getRawBlockByHash(blockData.hash),
       targetBlockHeight
     )
     return this._buildBlockResponse(block, targetBlockHeight)
@@ -90,8 +86,8 @@ class BitcoinNodeConnection {
     return response
   }
 
-  _parseBlock (rpcResponse, requestedHeight) {
-    const bsvBlock = new bsv.Block(Buffer.from(rpcResponse, 'hex'))
+  _parseBlock (blockBuffer, requestedHeight) {
+    const bsvBlock = new bsv.Block(blockBuffer)
 
     return {
       height: requestedHeight,

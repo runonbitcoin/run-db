@@ -41,9 +41,15 @@ class TestBitcoinRpc {
       return {
         size: block.size || block.hex.length,
         previousblockhash: block.previousblockhash,
-        tx: block.txs.map(tx => tx.hash)
+        tx: block.txs.map(tx => tx.hash),
+        hash: block.hash
       }
     }
+  }
+
+  async getRawBlockByHash (targetHash) {
+    const block = this.blocks.find(block => block.hash === targetHash)
+    return Buffer.from(block.hex, 'hex')
   }
 
   // Test
