@@ -15,10 +15,12 @@ class BitcoinNodeConnection {
   constructor (zmq, rpc) {
     this.zmq = zmq
     this.rpc = rpc
+    this.isRestApiEnabled = false
   }
 
   async connect (_height, _network) {
     await this.zmq.connect()
+    this.isRestApiEnabled = await this.rpc.isRestApiEnabled()
   }
 
   async disconnect () {
@@ -49,15 +51,21 @@ class BitcoinNodeConnection {
       return { reorg: true }
     }
 
-    if (blockData.size >= 0xf000000) { // Avoids create a string longer than the limit
+    if (this.isRestApiEnabled) {
+      const block = this._parseBlock(
+        await this.rpc.getRawBlockByHash(blockData.hash),
+        targetBlockHeight
+      )
+      return this._buildBlockResponse(block, targetBlockHeight)
+    } else if (blockData.size >= 0xf000000) {
       return this._responsefromBlockData(blockData)
+    } else {
+      const block = this._parseBlock(
+        await this.rpc.getBlockByHeight(targetBlockHeight, false),
+        targetBlockHeight
+      )
+      return this._buildBlockResponse(block, targetBlockHeight)
     }
-
-    const block = this._parseBlock(
-      await this.rpc.getBlockByHeight(targetBlockHeight, false),
-      targetBlockHeight
-    )
-    return this._buildBlockResponse(block, targetBlockHeight)
   }
 
   async listenForMempool (mempoolTxCallback) {
@@ -90,8 +98,8 @@ class BitcoinNodeConnection {
     return response
   }
 
-  _parseBlock (rpcResponse, requestedHeight) {
-    const bsvBlock = new bsv.Block(Buffer.from(rpcResponse, 'hex'))
+  _parseBlock (blockBuffer, requestedHeight) {
+    const bsvBlock = new bsv.Block(blockBuffer)
 
     return {
       height: requestedHeight,

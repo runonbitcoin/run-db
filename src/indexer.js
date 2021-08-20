@@ -117,7 +117,7 @@ class Indexer {
   }
 
   _onAddTransaction (txid) {
-    this.logger.info('Added', txid)
+    this.logger.debug('Added', txid)
   }
 
   _onDeleteTransaction (txid) {
