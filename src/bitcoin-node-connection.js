@@ -49,7 +49,7 @@ class BitcoinNodeConnection {
       return { reorg: true }
     }
 
-    if (blockData.size >= 0x130f0000) { // Avoids create a string longer than the limit
+    if (blockData.size >= 0xf000000) { // Avoids create a string longer than the limit
       return this._responsefromBlockData(blockData)
     }
 
