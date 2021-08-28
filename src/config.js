@@ -13,6 +13,7 @@ require('dotenv').config()
 const API = process.env.API || 'mattercloud'
 const MATTERCLOUD_KEY = process.env.MATTERCLOUD_KEY
 const PLANARIA_TOKEN = process.env.PLANARIA_TOKEN
+const WHATSONCHAIN_KEY = process.env.WHATSONCHAIN_KEY
 const NETWORK = process.env.NETWORK || 'main'
 const DB = process.env.DB || 'run.db'
 const PORT = parseInt(process.env.PORT, 0)
@@ -104,6 +105,7 @@ module.exports = {
   API,
   MATTERCLOUD_KEY,
   PLANARIA_TOKEN,
+  WHATSONCHAIN_KEY,
   NETWORK,
   DB,
   PORT,
