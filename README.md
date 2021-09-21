@@ -1,4 +1,4 @@
-# RUN-DB
+# Run-DB
 
 [![tests](https://github.com/runonbitcoin/run-db/workflows/tests/badge.svg)](https://github.com/runonbitcoin/run-db/actions) [![codecov](https://codecov.io/gh/runonbitcoin/run-db/branch/master/graph/badge.svg?token=auXAJR3INN)](https://codecov.io/gh/runonbitcoin/run-db)
 
@@ -6,10 +6,12 @@
 
 Crawls the blockchain and indexes RUN state.
 
-Use RUN-DB to:
+Using Run-DB, you can self-host the State APIs that Run uses to work well.
+
+Use Run-DB to:
 - Operate a State Server to improve RUN performance by pre-loading jigs
 - Query balances, volume, history, and other information across many users and contracts
-- Blacklist individual transactions and their descendants
+- Blacklist individual transactions and their descendants in your app
 - Create your own local database of transactions your app uses
 
 ## Requirements
@@ -25,28 +27,30 @@ Node 10+
 
 **Note**: For testnet, you may use `test` in place of `main` in the above commands.
 
-## Use with your Server
+## Use with your App Server
 
 Setup your server's `Run` instance as follows:
 
 ```javascript
 const client = true
-const cache = new Run.plugins.RunDB('http://localhost:8000')
-const trust = ['cache']
-const run = new Run({ client, cache, trust })
+const state = new Run.plugins.RunDB('http://localhost:8000')
+const trust = ['state']
+const run = new Run({ client, state, trust })
 ```
 
-Client mode makes RUN-DB the source of truth for your server. RUN will not load jigs that are not in your database, and your inventory will only be populated by jig UTXOs known to your database.
+Client mode makes Run-DB the source of truth for your server for all jig information. RUN will not load jigs that are not in your database, and your inventory will only be populated by jig UTXOs known to your database.
 
-Setting trust to `'cache'` makes RUN use your database for its trustlist too. This means you only have to setup trust in one place using:
+Setting trust to `'state'` makes Run use your database for its trustlist too. This means you only have to setup trust in one place using:
 
 ```
 curl -X POST localhost:8000/trust/<txid>
 ```
 
+You may also want to run additional instance of Run-DB in `SERVE_ONLY` mode. That allows you to have an writer that crawls transactions and puts data into the database, and multiple readers that serve your application servers.
+
 ## Use with a Browser or Mobile Client
 
-The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your RUN-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
+The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your Run-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
 
 ## Configuration
 
@@ -110,7 +114,7 @@ it's not recommeded for production environments in mainnet at the moment.
 
 ## Performing Custom Queries
 
-RUN-DB uses SQLite as its underlying database in [WAL](https://sqlite.org/wal.html) mode. SQLite and WAL allows multiple connections to the database so long as there is only one writer, which should be RUN-DB. Alternatively, forking RUN-DB to create new endpoints for your application may be simpler.
+Run-DB uses SQLite as its underlying database in [WAL](https://sqlite.org/wal.html) mode. SQLite and WAL allows multiple connections to the database so long as there is only one writer, which should be Run-DB. Alternatively, forking Run-DB to create new endpoints for your application may be simpler.
 
 ### Example Queries
 
@@ -158,7 +162,7 @@ UPDATE tx SET executed = 0; DELETE FROM jig; DELETE FROM berry;
 
 ### Database Schema
 
-There are currently 8 tables updated by RUN-DB.
+There are currently 8 tables updated by Run-DB.
 
 #### jig
 
@@ -174,7 +178,7 @@ Stores jig and code states at output locations or destroyed locations.
 
 #### tx
 
-Stores all transactions known by RUN-DB and their indexing state.
+Stores all transactions known by Run-DB and their indexing state.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
