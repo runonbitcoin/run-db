@@ -53,7 +53,7 @@ class Server {
     app.use(bodyParser.text({ limit: '10mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))
 
-    app.use(cors({ origin: '*' }))
+    app.use(cors())
 
     app.get('/jig/:location', this.getJig.bind(this))
     app.get('/berry/:location', this.getBerry.bind(this))
