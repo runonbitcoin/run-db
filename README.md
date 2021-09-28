@@ -21,7 +21,7 @@ Node 10+
 ## Getting started
 
 1. Install `npm run install`
-2. Download a db snapshot: `wget https://run-db-backups.s3.us-east-2.amazonaws.com/snapshots/rundb-2021-09-21_14%3A01.sqlite3` (*optional*)
+2. Download a db snapshot: `wget https://run.network/run-db-snapshots/main/latest -O run.db` (*optional*)
 3. Run `npm run start`
 4. Install a trustlist: `curl -s https://api.run.network/v1/main/trust | curl -H "Content-Type: application/json" -X POST -d @- http://localhost:8000/trust` (*optional*)
 
