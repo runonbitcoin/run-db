@@ -894,7 +894,7 @@ class Database {
 
     this.worker.on('message', txid => {
       if (!txid) {
-        this.logger.info('Finished all loading transactions to execute async')
+        this.logger.info('Finished loading all transactions to execute async')
         this.worker = null
         return
       }
