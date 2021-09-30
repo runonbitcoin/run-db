@@ -899,14 +899,14 @@ class Database {
   // --------------------------------------------------------------------------
 
   loadTransactionsToExecute () {
-    this.logger.debug('Loading transactions async to execute')
+    this.logger.debug('Loading transactions to execute in background')
 
     const path = require.resolve('./background-loader.js')
     this.worker = new Worker(path, { workerData: { dbPath: this.path } })
 
     this.worker.on('message', txid => {
       if (!txid) {
-        this.logger.info('Finished loading transactions to executed')
+        this.logger.info('Finished all loading transactions to execute async')
         this.worker = null
         return
       }
