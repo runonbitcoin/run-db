@@ -400,7 +400,6 @@ class Database {
 
       this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'height\', ?)').run(height.toString())
       this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'hash\', ?)').run(hash)
-      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'filter\', ?)').run('')
 
       this.logger.info('Saving results')
     })
