@@ -12,10 +12,11 @@ const Bus = require('./bus')
 // ------------------------------------------------------------------------------------------------
 
 class Executor {
-  constructor (network, numWorkers, database) {
+  constructor (network, numWorkers, database, logger) {
     this.network = network
     this.numWorkers = numWorkers
     this.database = database
+    this.logger = logger
 
     this.onIndexed = null
     this.onExecuteFailed = null
@@ -28,6 +29,8 @@ class Executor {
 
   start () {
     for (let i = 0; i < this.numWorkers; i++) {
+      this.logger.debug('Starting worker', i)
+
       const path = require.resolve('./worker.js')
 
       const worker = new Worker(path, { workerData: { id: i, network: this.network } })
@@ -52,6 +55,8 @@ class Executor {
   }
 
   async stop () {
+    this.logger.debug('Stopping all workers')
+
     await Promise.all(this.workers.map(worker => worker.terminate()))
 
     this.workers = []
@@ -60,6 +65,8 @@ class Executor {
 
   async execute (txid) {
     if (this.executing.has(txid)) return
+
+    this.logger.debug('Enqueueing', txid, 'for execution')
 
     this.executing.add(txid)
 

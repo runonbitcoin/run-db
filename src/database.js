@@ -183,10 +183,8 @@ class Database {
 
     this.getHeightStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'height\'')
     this.getHashStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'hash\'')
-    this.getFilterStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'filter\'')
     this.setHeightStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'height\'')
     this.setHashStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'hash\'')
-    this.setFilterStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'filter\'')
   }
 
   initializeV1 () {
@@ -877,21 +875,12 @@ class Database {
     return row && row[0]
   }
 
-  getFilter () {
-    const row = this.getFilterStmt.raw(true).all()[0]
-    return row && row[0]
-  }
-
   setHeight (height) {
     this.setHeightStmt.run(height.toString())
   }
 
   setHash (hash) {
     this.setHashStmt.run(hash)
-  }
-
-  setFilter (filter) {
-    this.setFilterStmt.run(filter)
   }
 
   // --------------------------------------------------------------------------
@@ -911,7 +900,6 @@ class Database {
         return
       }
 
-      this.logger.info('Loaded', txid, 'for execution')
       this._checkExecutability(txid)
     })
   }

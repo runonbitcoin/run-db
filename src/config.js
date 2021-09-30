@@ -15,12 +15,12 @@ const MATTERCLOUD_KEY = process.env.MATTERCLOUD_KEY
 const PLANARIA_TOKEN = process.env.PLANARIA_TOKEN
 const NETWORK = process.env.NETWORK || 'main'
 const DB = process.env.DB || 'run.db'
-const PORT = parseInt(process.env.PORT, 0)
-const WORKERS = parseInt(process.env.WORKERS, 4)
-const FETCH_LIMIT = parseInt(process.env.FETCH_LIMIT, 20)
+const PORT = parseInt(process.env.PORT) || 0
+const WORKERS = parseInt(process.env.WORKERS) || 4
+const FETCH_LIMIT = parseInt(process.env.FETCH_LIMIT) || 20
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
-const TIMEOUT = parseInt(process.env.TIMEOUT, 10000)
-const MEMPOOL_EXPIRATION = parseInt(process.env.MEMPOOL_EXPIRATION, 60 * 60 * 24)
+const TIMEOUT = parseInt(process.env.TIMEOUT) || 10000
+const MEMPOOL_EXPIRATION = parseInt(process.env.MEMPOOL_EXPIRATION) || 60 * 60 * 24
 const ZMQ_URL = process.env.ZMQ_URL || null
 const RPC_URL = process.env.RPC_URL || null
 const DEBUG = process.env.DEBUG || false

@@ -238,10 +238,9 @@ Stores the transactions which have been blacklisted.
 
 #### crawl
 
-Stores the blockchain crawl height for data in the database.
+Stores the crawled block tip height and hash for data in the database.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
-| role | TEXT | Always `tip` |
-| height | INTEGER | Block height currently indexed |
-| hash | TEXT | Block hash currently indexed in hex |
+| key | TEXT | 'height' or 'hash'
+| value | TEXT | String value for the key |
