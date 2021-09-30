@@ -83,6 +83,8 @@ async function main () {
 async function shutdown () {
   if (!started) return
 
+  logger.debug('Shutting down')
+
   started = false
 
   await server.stop()

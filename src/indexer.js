@@ -68,7 +68,7 @@ class Indexer {
     const hash = this.database.getHash()
     if (this.api.connect) await this.api.connect(height, this.network)
 
-    this.logger.debug('Getting transactions to download')
+    this.logger.debug('Loading transactions to download')
     this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
 
     this.crawler.start(height, hash)
@@ -176,7 +176,8 @@ class Indexer {
       // If they don't make it into a block, then they will be expired in time.
       txids.forEach(txid => this.database.unconfirmTransaction(txid))
 
-      this.database.setHeightAndHash(newHeight, null)
+      this.database.setHeight(newHeight)
+      this.database.setHash(null)
     })
 
     if (this.onReorg) this.onReorg(newHeight)

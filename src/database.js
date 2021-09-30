@@ -39,7 +39,7 @@ class Database {
   }
 
   open () {
-    this.logger.debug('Opening database')
+    this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
 
     if (this.db) throw new Error('Database already open')
 
@@ -62,6 +62,7 @@ class Database {
       this.initializeV3()
       this.initializeV4()
       this.initializeV5()
+      this.initializeV6()
     }
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
@@ -180,9 +181,12 @@ class Database {
     this.isBannedStmt = this.db.prepare('SELECT COUNT(*) FROM ban WHERE txid = ?')
     this.getBanlistStmt = this.db.prepare('SELECT txid FROM ban')
 
-    this.getHeightStmt = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'')
-    this.getHashStmt = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'')
-    this.setHeightAndHashStmt = this.db.prepare('UPDATE crawl SET height = ?, hash = ? WHERE role = \'tip\'')
+    this.getHeightStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'height\'')
+    this.getHashStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'hash\'')
+    this.getFilterStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'filter\'')
+    this.setHeightStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'height\'')
+    this.setHashStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'hash\'')
+    this.setFilterStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'filter\'')
   }
 
   initializeV1 () {
@@ -376,6 +380,34 @@ class Database {
     })
   }
 
+  initializeV6 () {
+    if (this.db.pragma('user_version')[0].user_version !== 5) return
+
+    this.logger.info('Setting up database v6')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 6')
+
+      const height = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'').raw(true).all()[0]
+      const hash = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'').raw(true).all()[0]
+
+      this.db.prepare('DROP TABLE crawl').run()
+
+      this.db.prepare(
+        `CREATE TABLE IF NOT EXISTS crawl (
+          key TEXT UNIQUE,
+          value TEXT
+        )`
+      ).run()
+
+      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'height\', ?)').run(height.toString())
+      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'hash\', ?)').run(hash)
+      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'filter\', ?)').run('')
+
+      this.logger.info('Saving results')
+    })
+  }
+
   async close () {
     if (this.worker) {
       this.logger.debug('Terminating background loader')
@@ -384,6 +416,7 @@ class Database {
     }
 
     if (this.db) {
+      this.logger.debug('Closing' + (this.readonly ? ' readonly' : '') + ' database')
       this.db.close()
       this.db = null
     }
@@ -404,7 +437,8 @@ class Database {
         const txhex = txhexs && txhexs[i]
         this.addTransaction(txid, txhex, height, time)
       })
-      this.setHeightAndHash(height, hash)
+      this.setHeight(height)
+      this.setHash(hash)
     })
   }
 
@@ -835,7 +869,7 @@ class Database {
 
   getHeight () {
     const row = this.getHeightStmt.raw(true).all()[0]
-    return row && row[0]
+    return row && parseInt(row[0])
   }
 
   getHash () {
@@ -843,8 +877,21 @@ class Database {
     return row && row[0]
   }
 
-  setHeightAndHash (height, hash) {
-    this.setHeightAndHashStmt.run(height, hash)
+  getFilter () {
+    const row = this.getFilterStmt.raw(true).all()[0]
+    return row && row[0]
+  }
+
+  setHeight (height) {
+    this.setHeightStmt.run(height.toString())
+  }
+
+  setHash (hash) {
+    this.setHashStmt.run(hash)
+  }
+
+  setFilter (filter) {
+    this.setFilterStmt.run(filter)
   }
 
   // --------------------------------------------------------------------------
@@ -852,12 +899,18 @@ class Database {
   // --------------------------------------------------------------------------
 
   loadTransactionsToExecute () {
-    this.logger.debug('Loading transactions to execute')
+    this.logger.debug('Loading transactions async to execute')
 
     const path = require.resolve('./background-loader.js')
     this.worker = new Worker(path, { workerData: { dbPath: this.path } })
 
     this.worker.on('message', txid => {
+      if (!txid) {
+        this.logger.info('Finished loading transactions to executed')
+        this.worker = null
+        return
+      }
+
       this.logger.info('Loaded', txid, 'for execution')
       this._checkExecutability(txid)
     })

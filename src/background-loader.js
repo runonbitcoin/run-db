@@ -10,10 +10,6 @@ const Sqlite3Database = require('better-sqlite3')
 if (workerData.dbPath !== ':memory:') {
   const db = new Sqlite3Database(workerData.dbPath)
 
-  // 100MB cache
-  db.pragma('cache_size = 6400')
-  db.pragma('page_size = 16384')
-
   const getReadyToExecuteStmt = db.prepare(`
       SELECT txid
       FROM tx 
@@ -34,4 +30,6 @@ if (workerData.dbPath !== ':memory:') {
   for (const row of getReadyToExecuteStmt.raw(true).iterate()) {
     parentPort.postMessage(row[0])
   }
+
+  parentPort.postMessage(null)
 }
