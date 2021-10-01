@@ -6,7 +6,6 @@
 
 const Sqlite3Database = require('better-sqlite3')
 const Run = require('run-sdk')
-const { Worker } = require('worker_threads')
 const bsv = require('bsv')
 
 // ------------------------------------------------------------------------------------------------
@@ -15,6 +14,50 @@ const bsv = require('bsv')
 
 const HEIGHT_MEMPOOL = -1
 const HEIGHT_UNKNOWN = null
+
+// The + in the following 2 queries before downloaded improves performance by NOT using the
+// tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
+// See: https://www.sqlite.org/optoverview.html
+const IS_READY_TO_EXECUTE_SQL = `
+      SELECT (
+        downloaded = 1
+        AND executable = 1
+        AND executed = 0
+        AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
+        AND txid NOT IN ban
+        AND (
+          SELECT COUNT(*)
+          FROM tx AS tx2
+          JOIN deps
+          ON deps.up = tx2.txid
+          WHERE deps.down = tx.txid
+          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+        ) = 0
+      ) AS ready 
+      FROM tx
+      WHERE txid = ?
+    `
+
+const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL = `
+      SELECT down
+      FROM deps
+      JOIN tx
+      ON tx.txid = deps.down
+      WHERE up = ?
+      AND +downloaded = 1
+      AND executable = 1
+      AND executed = 0
+      AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
+      AND txid NOT IN ban
+      AND (
+        SELECT COUNT(*)
+        FROM tx AS tx2
+        JOIN deps
+        ON deps.up = tx2.txid
+        WHERE deps.down = tx.txid
+        AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+      ) = 0
+    `
 
 // ------------------------------------------------------------------------------------------------
 // Database
@@ -63,6 +106,7 @@ class Database {
       this.initializeV4()
       this.initializeV5()
       this.initializeV6()
+      this.initializeV7()
     }
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
@@ -88,48 +132,8 @@ class Database {
     this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
     this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    // The + in the following 2 queries before downloaded improves performance by NOT using the
-    // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
-    // See: https://www.sqlite.org/optoverview.html
-    this.isReadyToExecuteStmt = this.db.prepare(`
-      SELECT (
-        downloaded = 1
-        AND executable = 1
-        AND executed = 0
-        AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-        AND txid NOT IN ban
-        AND (
-          SELECT COUNT(*)
-          FROM tx AS tx2
-          JOIN deps
-          ON deps.up = tx2.txid
-          WHERE deps.down = tx.txid
-          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-        ) = 0
-      ) AS ready 
-      FROM tx
-      WHERE txid = ?
-    `)
-    this.getDownstreamReadyToExecuteStmt = this.db.prepare(`
-      SELECT down
-      FROM deps
-      JOIN tx
-      ON tx.txid = deps.down
-      WHERE up = ?
-      AND +downloaded = 1
-      AND executable = 1
-      AND executed = 0
-      AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-      AND txid NOT IN ban
-      AND (
-        SELECT COUNT(*)
-        FROM tx AS tx2
-        JOIN deps
-        ON deps.up = tx2.txid
-        WHERE deps.down = tx.txid
-        AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-      ) = 0
-    `)
+    this.isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
+    this.getDownstreamReadyToExecuteStmt = this.db.prepare(GET_DOWNSTREADM_READY_TO_EXECUTE_SQL)
 
     this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
     this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
@@ -185,6 +189,9 @@ class Database {
     this.getHashStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'hash\'')
     this.setHeightStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'height\'')
     this.setHashStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'hash\'')
+
+    this.markExecutingStmt = this.db.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
+    this.unmarkExecutingStmt = this.db.prepare('DELETE FROM executing WHERE txid = ?')
   }
 
   initializeV1 () {
@@ -405,6 +412,45 @@ class Database {
     })
   }
 
+  initializeV7 () {
+    if (this.db.pragma('user_version')[0].user_version !== 6) return
+
+    this.logger.info('Setting up database v7')
+
+    this.transaction(() => {
+      this.db.pragma('user_version = 7')
+
+      this.logger.info('Getting possible transactions to execute')
+      const stmt = this.db.prepare(`
+          SELECT txid
+          FROM tx 
+          WHERE downloaded = 1
+          AND executable = 1
+          AND executed = 0
+          AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
+          AND txid NOT IN ban
+        `)
+      const txids = stmt.raw(true).all().map(x => x[0])
+
+      const isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
+
+      const ready = []
+      for (let i = 0; i < txids.length; i++) {
+        const txid = txids[i]
+        const row = isReadyToExecuteStmt.get(txid)
+        if (row && row.ready) ready.push(txid)
+        if (i % 1000 === 0) console.log('Checking to execute', i, 'of', txids.length)
+      }
+
+      this.logger.info('Marking', ready.length, 'transactions to execute')
+      this.db.prepare('CREATE TABLE IF NOT EXISTS executing (txid TEXT UNIQUE)').run()
+      const markExecutingStmt = this.db.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
+      ready.forEach(txid => markExecutingStmt.run(txid))
+
+      this.logger.info('Saving results')
+    })
+  }
+
   async close () {
     if (this.worker) {
       this.logger.debug('Terminating background loader')
@@ -545,10 +591,11 @@ class Database {
     })
 
     // Non-executable might be berry data. We execute once we receive them.
-    if (this.onReadyToExecute) {
-      const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
-      downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
-    }
+    const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
+    downstreamReadyToExecute.forEach(downtxid => {
+      this.markExecutingStmt.run(downtxid)
+      if (this.onReadyToExecute) this.onReadyToExecute(downtxid)
+    })
   }
 
   storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
@@ -581,6 +628,7 @@ class Database {
     this.transaction(() => {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(1, txid)
+      this.unmarkExecutingStmt.run(txid)
 
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
@@ -609,10 +657,11 @@ class Database {
       }
     })
 
-    if (this.onReadyToExecute) {
-      const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
-      downstreamReadyToExecute.forEach(txid => this.onReadyToExecute(txid))
-    }
+    const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
+    downstreamReadyToExecute.forEach(downtxid => {
+      this.markExecutingStmt.run(downtxid)
+      if (this.onReadyToExecute) this.onReadyToExecute(downtxid)
+    })
   }
 
   setTransactionExecutionFailed (txid) {
@@ -620,6 +669,7 @@ class Database {
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
+      this.unmarkExecutingStmt.run(txid)
     })
 
     // We try executing downstream transactions if this was marked executable but it wasn't.
@@ -683,6 +733,7 @@ class Database {
         this.setTransactionIndexedStmt.run(0, txid)
         this.deleteJigStatesStmt.run(txid)
         this.deleteBerryStatesStmt.run(txid)
+        this.unmarkExecutingStmt.run(txid)
 
         const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
         downtxids.forEach(downtxid => this.unindexTransaction(downtxid))
@@ -887,25 +938,17 @@ class Database {
   // --------------------------------------------------------------------------
 
   loadTransactionsToExecute () {
-    this.logger.debug('Loading transactions to execute in background')
-
-    const path = require.resolve('./background-loader.js')
-    this.worker = new Worker(path, { workerData: { dbPath: this.path } })
-
-    this.worker.on('message', txid => {
-      if (!txid) {
-        this.logger.info('Finished loading all transactions to execute async')
-        this.worker = null
-        return
-      }
-
-      this._checkExecutability(txid)
-    })
+    this.logger.debug('Loading transactions to execute')
+    const txids = this.db.prepare('SELECT txid FROM executing').raw(true).all().map(x => x[0])
+    txids.forEach(txid => this._checkExecutability(txid))
   }
 
   _checkExecutability (txid) {
     const row = this.isReadyToExecuteStmt.get(txid)
-    if (row && row.ready && this.onReadyToExecute) this.onReadyToExecute(txid)
+    if (row && row.ready) {
+      this.markExecutingStmt.run(txid)
+      if (this.onReadyToExecute) this.onReadyToExecute(txid)
+    }
   }
 }
 
