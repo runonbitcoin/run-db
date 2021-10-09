@@ -705,20 +705,31 @@ class Database {
 
   deleteTransaction (txid, deleted = new Set()) {
     if (deleted.has(txid)) return
+
+    const txids = [txid]
     deleted.add(txid)
 
-    if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
-
     this.transaction(() => {
-      this.deleteTransactionStmt.run(txid)
-      this.deleteJigStatesStmt.run(txid)
-      this.deleteBerryStatesStmt.run(txid)
-      this.deleteSpendsStmt.run(txid)
-      this.unspendOutputsStmt.run(txid)
-      this.deleteDepsStmt.run(txid)
+      while (txids.length) {
+        const txid = txids.shift()
 
-      const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
-      downtxids.forEach(downtxid => this.deleteTransaction(downtxid, deleted))
+        if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
+
+        this.deleteTransactionStmt.run(txid)
+        this.deleteJigStatesStmt.run(txid)
+        this.deleteBerryStatesStmt.run(txid)
+        this.deleteSpendsStmt.run(txid)
+        this.unspendOutputsStmt.run(txid)
+        this.deleteDepsStmt.run(txid)
+
+        const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+
+        for (const downtxid of downtxids) {
+          if (deleted.has(downtxid)) continue
+          deleted.add(downtxid)
+          txids.push(downtxid)
+        }
+      }
     })
   }
 
