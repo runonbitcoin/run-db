@@ -50,7 +50,7 @@ class Server {
     }
     app.use(morgan('tiny', { stream: new Writable({ write }) }))
 
-    app.use(bodyParser.text({ limit: '10mb' }))
+    app.use(bodyParser.text({ limit: '25mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))
 
     app.use(cors())
