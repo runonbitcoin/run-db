@@ -159,18 +159,18 @@ class Indexer {
     this.logger.error(`Crawl error: ${e.toString()}`)
   }
 
-  _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
+  async _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
     this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
     this.database.addBlock(txids, txhexs, height, hash, time)
     if (this.onBlock) this.onBlock(height)
   }
 
-  _onRewindBlocks (newHeight) {
+  async _onRewindBlocks (newHeight) {
     this.logger.info(`Rewinding to block ${newHeight}`)
 
     const txids = this.database.getTransactionsAboveHeight(newHeight)
 
-    this.database.transaction(() => {
+    await this.database.transaction(() => {
       // Put all transactions back into the mempool. This is better than deleting them, because
       // when we assume they will just go into a different block, we don't need to re-execute.
       // If they don't make it into a block, then they will be expired in time.
@@ -187,12 +187,12 @@ class Indexer {
     this.database.addTransaction(txid, hex, Database.HEIGHT_MEMPOOL, null)
   }
 
-  _onExpireMempoolTransactions () {
+  async _onExpireMempoolTransactions () {
     const expirationTime = Math.round(Date.now() / 1000) - this.mempoolExpiration
 
     const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
     const deleted = new Set()
-    this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid, deleted)))
+    await this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid, deleted)))
   }
 }
 

@@ -65,7 +65,7 @@ let started = false
 // ------------------------------------------------------------------------------------------------
 
 async function main () {
-  database.open()
+  await database.open()
 
   if (!SERVE_ONLY) {
     await indexer.start()

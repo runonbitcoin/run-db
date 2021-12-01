@@ -81,7 +81,7 @@ class Database {
     this.onRequestDownload = null
   }
 
-  open () {
+  async open () {
     this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
 
     if (this.db) throw new Error('Database already open')
@@ -100,13 +100,13 @@ class Database {
 
     if (!this.readonly) {
       // Initialise and perform upgrades
-      this.initializeV1()
-      this.initializeV2()
-      this.initializeV3()
-      this.initializeV4()
-      this.initializeV5()
-      this.initializeV6()
-      this.initializeV7()
+      await this.initializeV1()
+      await this.initializeV2()
+      await this.initializeV3()
+      await this.initializeV4()
+      await this.initializeV5()
+      await this.initializeV6()
+      await this.initializeV7()
     }
 
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
@@ -194,12 +194,12 @@ class Database {
     this.unmarkExecutingStmt = this.db.prepare('DELETE FROM executing WHERE txid = ?')
   }
 
-  initializeV1 () {
+  async initializeV1 () {
     if (this.db.pragma('user_version')[0].user_version !== 0) return
 
     this.logger.info('Setting up database v1')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 1')
 
       this.db.prepare(
@@ -283,12 +283,12 @@ class Database {
     })
   }
 
-  initializeV2 () {
+  async initializeV2 () {
     if (this.db.pragma('user_version')[0].user_version !== 1) return
 
     this.logger.info('Setting up database v2')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 2')
 
       this.db.prepare(
@@ -338,12 +338,12 @@ class Database {
     this.db.prepare('VACUUM').run()
   }
 
-  initializeV3 () {
+  async initializeV3 () {
     if (this.db.pragma('user_version')[0].user_version !== 2) return
 
     this.logger.info('Setting up database v3')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 3')
 
       this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
@@ -354,12 +354,12 @@ class Database {
     })
   }
 
-  initializeV4 () {
+  async initializeV4 () {
     if (this.db.pragma('user_version')[0].user_version !== 3) return
 
     this.logger.info('Setting up database v4')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 4')
 
       this.db.prepare('ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (bytes IS NOT NULL) VIRTUAL').run()
@@ -370,12 +370,12 @@ class Database {
     })
   }
 
-  initializeV5 () {
+  async initializeV5 () {
     if (this.db.pragma('user_version')[0].user_version !== 4) return
 
     this.logger.info('Setting up database v5')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 5')
 
       this.db.prepare('CREATE INDEX IF NOT EXISTS ban_txid_index ON ban (txid)').run()
@@ -385,12 +385,12 @@ class Database {
     })
   }
 
-  initializeV6 () {
+  async initializeV6 () {
     if (this.db.pragma('user_version')[0].user_version !== 5) return
 
     this.logger.info('Setting up database v6')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 6')
 
       const height = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'').raw(true).all()[0]
@@ -412,12 +412,12 @@ class Database {
     })
   }
 
-  initializeV7 () {
+  async initializeV7 () {
     if (this.db.pragma('user_version')[0].user_version !== 6) return
 
     this.logger.info('Setting up database v7')
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.db.pragma('user_version = 7')
 
       this.logger.info('Getting possible transactions to execute')
@@ -465,44 +465,58 @@ class Database {
     }
   }
 
-  transaction (f) {
+  async transaction (f) {
     if (!this.db) return
-    this.db.transaction(f)()
+    try {
+      this.db.raw('beggin')
+      await f()
+      this.db.raw('commit')
+    } catch (e) {
+      this.db.raw('rollback')
+      throw e
+    }
+    // this.db.transaction(f)()
   }
 
   // --------------------------------------------------------------------------
   // tx
   // --------------------------------------------------------------------------
 
-  addBlock (txids, txhexs, height, hash, time) {
-    this.transaction(() => {
-      txids.forEach((txid, i) => {
-        const txhex = txhexs && txhexs[i]
-        this.addTransaction(txid, txhex, height, time)
-      })
+  async addBlock (txids, txhexs, height, hash, time) {
+    await this.transaction(async () => {
+      const indexes =  new Array(txids.length).map((_, i) => i)
+      for(const index of indexes) {
+        const txid = txids[index]
+        const txHex = txhexs && txhexs[i]
+        await this.addTransaction(txid, txHex, height, time)
+      }
+      // txids.forEach(async (txid, i) => {
+      //   const txhex = txhexs && txhexs[i]
+      //   await this.addTransaction(txid, txhex, height, time)
+      // })
       this.setHeight(height)
       this.setHash(hash)
     })
   }
 
-  addTransaction (txid, txhex, height, time) {
-    this.transaction(() => {
-      this.addNewTransaction(txid)
-      if (height) this.setTransactionHeight(txid, height)
-      if (time) this.setTransactionTime(txid, time)
+  async addTransaction (txid, txhex, height, time) {
+    await this.transaction(async () => {
+      await this.addNewTransaction(txid)
+      if (height) { await this.setTransactionHeight(txid, height) }
+      if (time) { await this.setTransactionTime(txid, time) }
     })
 
-    const downloaded = this.isTransactionDownloaded(txid)
+    const downloaded = await this.isTransactionDownloaded(txid)
     if (downloaded) return
 
     if (txhex) {
-      this.parseAndStoreTransaction(txid, txhex)
+      await this.parseAndStoreTransaction(txid, txhex)
     } else {
-      if (this.onRequestDownload) this.onRequestDownload(txid)
+      if (this.onRequestDownload) { await this.onRequestDownload(txid) }
     }
   }
 
-  parseAndStoreTransaction (txid, hex) {
+  async parseAndStoreTransaction (txid, hex) {
     if (this.isTransactionDownloaded(txid)) return
 
     let metadata = null
@@ -581,7 +595,7 @@ class Database {
   }
 
   storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
-    this.transaction(() => {
+    await this.transaction(() => {
       const bytes = Buffer.from(hex, 'hex')
       this.setTransactionBytesStmt.run(bytes, txid)
       this.setTransactionExecutableStmt.run(0, txid)
@@ -599,7 +613,7 @@ class Database {
   }
 
   storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
-    this.transaction(() => {
+    await this.transaction(() => {
       const bytes = Buffer.from(hex, 'hex')
       this.setTransactionBytesStmt.run(bytes, txid)
       this.setTransactionExecutableStmt.run(1, txid)
@@ -625,7 +639,7 @@ class Database {
   storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
 
-    this.transaction(() => {
+    await this.transaction(() => {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(1, txid)
       this.unmarkExecutingStmt.run(txid)
@@ -665,7 +679,7 @@ class Database {
   }
 
   setTransactionExecutionFailed (txid) {
-    this.transaction(() => {
+    await this.transaction(() => {
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(0, txid)
@@ -709,7 +723,7 @@ class Database {
     const txids = [txid]
     deleted.add(txid)
 
-    this.transaction(() => {
+    await this.transaction(() => {
       while (txids.length) {
         const txid = txids.shift()
 
@@ -738,7 +752,7 @@ class Database {
   }
 
   unindexTransaction (txid) {
-    this.transaction(() => {
+    await this.transaction(() => {
       if (this.getTransactionIndexedStmt.raw(true).get(txid)[0]) {
         this.setTransactionExecutedStmt.run(0, txid)
         this.setTransactionIndexedStmt.run(0, txid)
@@ -790,7 +804,7 @@ class Database {
   }
 
   addMissingDeps (txid, deptxids) {
-    this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxid)))
+    await this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxid)))
 
     this._checkExecutability(txid)
   }
@@ -879,7 +893,7 @@ class Database {
       this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
     }
 
-    this.transaction(() => trusted.forEach(txid => this.setTrustedStmt.run(txid, 1)))
+    await this.transaction(() => trusted.forEach(txid => this.setTrustedStmt.run(txid, 1)))
 
     trusted.forEach(txid => this._checkExecutability(txid))
 
@@ -888,7 +902,7 @@ class Database {
 
   untrust (txid) {
     if (!this.isTrusted(txid)) return
-    this.transaction(() => {
+    await this.transaction(() => {
       this.unindexTransaction(txid)
       this.setTrustedStmt.run(txid, 0)
     })
@@ -909,7 +923,7 @@ class Database {
   }
 
   ban (txid) {
-    this.transaction(() => {
+    await this.transaction(() => {
       this.unindexTransaction(txid)
       this.banStmt.run(txid)
     })
