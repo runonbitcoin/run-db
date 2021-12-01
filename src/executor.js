@@ -74,11 +74,11 @@ class Executor {
 
     worker.missingDeps = new Set()
 
-    const hex = this.database.getTransactionHex(txid)
-    const trustlist = this.database.getTrustlist()
+    const hex = await this.database.getTransactionHex(txid)
+    const trustList = await this.database.getTrustlist()
 
     try {
-      const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustlist)
+      const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
 
       if (this.onIndexed) this.onIndexed(txid, result)
     } catch (e) {
@@ -107,27 +107,27 @@ class Executor {
       return worker
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
       this.workerRequests.push(resolve)
     })
   }
 
-  _onCacheGet (key) {
+  async _onCacheGet (key) {
     if (key.startsWith('jig://')) {
-      const state = this.database.getJigState(key.slice('jig://'.length))
+      const state = await this.database.getJigState(key.slice('jig://'.length))
       if (state) return JSON.parse(state)
     }
     if (key.startsWith('berry://')) {
-      const state = this.database.getBerryState(key.slice('berry://'.length))
+      const state = await this.database.getBerryState(key.slice('berry://'.length))
       if (state) return JSON.parse(state)
     }
     if (key.startsWith('tx://')) {
-      return this.database.getTransactionHex(key.slice('tx://'.length))
+      return await this.database.getTransactionHex(key.slice('tx://'.length))
     }
   }
 
-  _onBlockchainFetch (worker, txid) {
-    const hex = this.database.getTransactionHex(txid)
+  async _onBlockchainFetch (worker, txid) {
+    const hex = await this.database.getTransactionHex(txid)
     if (hex) return hex
     worker.missingDeps.add(txid)
     throw new Error(`Not found: ${txid}`)

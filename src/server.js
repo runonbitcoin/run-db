@@ -67,8 +67,7 @@ class Server {
 
     app.post('/trust/:txid?', this.postTrust.bind(this))
     app.post('/ban/:txid', this.postBan.bind(this))
-    app.post('/tx', this.postTx.bind(this))
-    app.post('/tx/:txid', this.postTx.bind(this)) // Keeping this for retro compatibility.
+    app.post('/tx/:txid', this.postTx.bind(this))
 
     app.delete('/trust/:txid', this.deleteTrust.bind(this))
     app.delete('/ban/:txid', this.deleteBan.bind(this))
@@ -94,7 +93,7 @@ class Server {
 
   async getJig (req, res, next) {
     try {
-      const state = this.database.getJigState(req.params.location)
+      const state = await this.database.getJigState(req.params.location)
       if (state) {
         res.setHeader('Content-Type', 'application/json')
         res.send(state)
@@ -119,9 +118,9 @@ class Server {
   async getTx (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      const rawtx = this.database.getTransactionHex(txid)
-      if (rawtx) {
-        res.send(rawtx)
+      const rawTx = await this.database.getTransactionHex(txid)
+      if (rawTx) {
+        res.send(rawTx)
       } else {
         res.status(404).send(`Not found: ${req.params.txid}\n`)
       }
@@ -131,7 +130,7 @@ class Server {
   async getTime (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      const time = this.database.getTransactionTime(txid)
+      const time = await this.database.getTransactionTime(txid)
       if (time) {
         res.json(time)
       } else {
@@ -142,7 +141,7 @@ class Server {
 
   async getSpends (req, res, next) {
     try {
-      const txid = this.database.getSpend(req.params.location)
+      const txid = await this.database.getSpend(req.params.location)
       if (txid) {
         res.send(txid)
       } else {
@@ -160,21 +159,21 @@ class Server {
       if (req.query.pubkey) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.pubkey).script())
 
       if (cls && lock && scripthash) {
-        res.json(this.database.getAllUnspentByClassOriginAndLockOriginAndScripthash(cls, lock, scripthash))
+        res.json(await this.database.getAllUnspentByClassOriginAndLockOriginAndScripthash(cls, lock, scripthash))
       } else if (cls && lock) {
-        res.json(this.database.getAllUnspentByClassOriginAndLockOrigin(cls, lock))
+        res.json(await this.database.getAllUnspentByClassOriginAndLockOrigin(cls, lock))
       } else if (cls && scripthash) {
-        res.json(this.database.getAllUnspentByClassOriginAndScripthash(cls, scripthash))
+        res.json(await this.database.getAllUnspentByClassOriginAndScripthash(cls, scripthash))
       } else if (lock && scripthash) {
-        res.json(this.database.getAllUnspentByLockOriginAndScripthash(lock, scripthash))
+        res.json(await this.database.getAllUnspentByLockOriginAndScripthash(lock, scripthash))
       } else if (scripthash) {
-        res.json(this.database.getAllUnspentByScripthash(scripthash))
+        res.json(await this.database.getAllUnspentByScripthash(scripthash))
       } else if (lock) {
-        res.json(this.database.getAllUnspentByLockOrigin(lock))
+        res.json(await this.database.getAllUnspentByLockOrigin(lock))
       } else if (cls) {
-        res.json(this.database.getAllUnspentByClassOrigin(cls))
+        res.json(await this.database.getAllUnspentByClassOrigin(cls))
       } else {
-        res.json(this.database.getAllUnspent())
+        res.json(await this.database.getAllUnspent())
       }
     } catch (e) { next(e) }
   }
@@ -182,9 +181,9 @@ class Server {
   async getTrust (req, res, next) {
     try {
       if (req.params.txid) {
-        res.json(this.database.isTrusted(req.params.txid))
+        res.json(await this.database.isTrusted(req.params.txid))
       } else {
-        res.json(Array.from(this.database.getTrustlist()))
+        res.json(Array.from(await this.database.getTrustlist()))
       }
     } catch (e) { next(e) }
   }
@@ -192,9 +191,9 @@ class Server {
   async getBan (req, res, next) {
     try {
       if (req.params.txid) {
-        res.json(this.database.isBanned(req.params.txid))
+        res.json(await this.database.isBanned(req.params.txid))
       } else {
-        res.json(Array.from(this.database.getBanlist()))
+        res.json(Array.from(await this.database.getBanlist()))
       }
     } catch (e) { next(e) }
   }
@@ -202,8 +201,8 @@ class Server {
   async getStatus (req, res, next) {
     try {
       const status = {
-        height: this.database.getHeight(),
-        hash: this.database.getHash()
+        height: await this.database.getHeight(),
+        hash: await this.database.getHash()
       }
       res.json(status)
     } catch (e) { next(e) }
@@ -212,14 +211,14 @@ class Server {
   async postTrust (req, res, next) {
     try {
       if (Array.isArray(req.body)) {
-        req.body.forEach(txid => {
-          txid = this._parseTxid(txid)
-          this.database.trust(txid)
-        })
+        for (const maybeTxid of req.body) {
+          const txid = this._parseTxid(maybeTxid)
+          await this.database.trust(txid)
+        }
         res.send(`Trusted ${req.body.length} transactions\n`)
       } else {
         const txid = this._parseTxid(req.params.txid)
-        this.database.trust(txid)
+        await this.database.trust(txid)
         res.send(`Trusted ${req.params.txid}\n`)
       }
     } catch (e) { next(e) }
@@ -228,28 +227,31 @@ class Server {
   async postBan (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      this.database.ban(txid)
+      await this.database.ban(txid)
       res.send(`Banned ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
 
   async postTx (req, res, next) {
     try {
-      if (typeof req.body !== 'string') {
-        throw new Error('missing rawtx')
+      let txid = this._parseTxid(req.params.txid)
+      let hex = null
+      if (typeof req.body === 'string') {
+        hex = req.body
+        const bsvtx = new bsv.Transaction(hex)
+        if (!txid) txid = bsvtx.hash
+        if (txid && txid !== bsvtx.hash) throw new Error('txid does not match rawtx')
       }
-      const hex = req.body
-      const bsvtx = new bsv.Transaction(hex)
-
-      this.database.addTransaction(bsvtx.hash, hex)
-      res.send(`Added ${bsvtx.hash}\n`)
+      if (!txid) throw new Error('Invalid request parameters')
+      await this.database.addTransaction(txid, hex)
+      res.send(`Added ${txid}\n`)
     } catch (e) { next(e) }
   }
 
   async deleteTrust (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      this.database.untrust(txid)
+      await this.database.untrust(txid)
       res.send(`Untrusted ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
@@ -257,7 +259,7 @@ class Server {
   async deleteBan (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      this.database.unban(txid)
+      await this.database.unban(txid)
       res.send(`Unbanned ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }
@@ -265,7 +267,7 @@ class Server {
   async deleteTx (req, res, next) {
     try {
       const txid = this._parseTxid(req.params.txid)
-      this.database.deleteTransaction(txid)
+      await this.database.deleteTransaction(txid)
       res.send(`Removed ${req.params.txid}\n`)
     } catch (e) { next(e) }
   }

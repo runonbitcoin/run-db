@@ -468,11 +468,12 @@ class Database {
   async transaction (f) {
     if (!this.db) return
     try {
-      this.db.raw('beggin')
+      // this.db.exec('begin;')
       await f()
-      this.db.raw('commit')
+      // this.db.exec('commit;')
     } catch (e) {
-      this.db.raw('rollback')
+      // this.db.exec('rollback;')
+      console.error(e)
       throw e
     }
     // this.db.transaction(f)()
@@ -484,18 +485,18 @@ class Database {
 
   async addBlock (txids, txhexs, height, hash, time) {
     await this.transaction(async () => {
-      const indexes =  new Array(txids.length).map((_, i) => i)
-      for(const index of indexes) {
+      const indexes = new Array(txids.length).fill(null).map((_, i) => i)
+      for (const index of indexes) {
         const txid = txids[index]
-        const txHex = txhexs && txhexs[i]
+        const txHex = txhexs && txhexs[index]
         await this.addTransaction(txid, txHex, height, time)
       }
       // txids.forEach(async (txid, i) => {
       //   const txhex = txhexs && txhexs[i]
       //   await this.addTransaction(txid, txhex, height, time)
       // })
-      this.setHeight(height)
-      this.setHash(hash)
+      await this.setHeight(height)
+      await this.setHash(hash)
     })
   }
 
@@ -517,7 +518,7 @@ class Database {
   }
 
   async parseAndStoreTransaction (txid, hex) {
-    if (this.isTransactionDownloaded(txid)) return
+    if (await this.isTransactionDownloaded(txid)) return
 
     let metadata = null
     let bsvtx = null
@@ -542,7 +543,7 @@ class Database {
       metadata = Run.util.metadata(hex)
     } catch (e) {
       this.logger.error(`${txid} => ${e.message}`)
-      this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
+      await this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
       return
     }
 
@@ -567,34 +568,34 @@ class Database {
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
-    this.storeParsedExecutableTransaction(txid, hex, hasCode, deps, inputs, outputs)
+    await this.storeParsedExecutableTransaction(txid, hex, hasCode, deps, inputs, outputs)
 
     for (const deptxid of deps) {
-      if (!this.isTransactionDownloaded(deptxid)) {
+      if (!await this.isTransactionDownloaded(deptxid)) {
         if (this.onRequestDownload) this.onRequestDownload(deptxid)
       }
     }
   }
 
-  addNewTransaction (txid) {
-    if (this.hasTransaction(txid)) return
+  async addNewTransaction (txid) {
+    if (await this.hasTransaction(txid)) return
 
     const time = Math.round(Date.now() / 1000)
 
     this.addNewTransactionStmt.run(txid, time)
 
-    if (this.onAddTransaction) this.onAddTransaction(txid)
+    if (this.onAddTransaction) { await this.onAddTransaction(txid) }
   }
 
-  setTransactionHeight (txid, height) {
+  async setTransactionHeight (txid, height) {
     this.setTransactionHeightStmt.run(height, txid)
   }
 
-  setTransactionTime (txid, time) {
+  async setTransactionTime (txid, time) {
     this.setTransactionTimeStmt.run(time, txid)
   }
 
-  storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
+  async storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
     await this.transaction(() => {
       const bytes = Buffer.from(hex, 'hex')
       this.setTransactionBytesStmt.run(bytes, txid)
@@ -612,8 +613,8 @@ class Database {
     })
   }
 
-  storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
-    await this.transaction(() => {
+  async storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
+    await this.transaction(async () => {
       const bytes = Buffer.from(hex, 'hex')
       this.setTransactionBytesStmt.run(bytes, txid)
       this.setTransactionExecutableStmt.run(1, txid)
@@ -623,20 +624,20 @@ class Database {
       outputs.forEach(location => this.setUnspentStmt.run(location))
 
       for (const deptxid of deps) {
-        this.addNewTransaction(deptxid)
+        await this.addNewTransaction(deptxid)
         this.addDepStmt.run(deptxid, txid)
 
         if (this.getTransactionFailedStmt.get(deptxid).failed) {
-          this.setTransactionExecutionFailed(txid)
+          await this.setTransactionExecutionFailed(txid)
           return
         }
       }
     })
 
-    this._checkExecutability(txid)
+    await this._checkExecutability(txid)
   }
 
-  storeExecutedTransaction (txid, result) {
+  async storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
 
     await this.transaction(() => {
@@ -678,7 +679,7 @@ class Database {
     })
   }
 
-  setTransactionExecutionFailed (txid) {
+  async setTransactionExecutionFailed (txid) {
     await this.transaction(() => {
       this.setTransactionExecutableStmt.run(0, txid)
       this.setTransactionExecutedStmt.run(1, txid)
@@ -691,33 +692,35 @@ class Database {
 
     let executable = false
     try {
-      const rawtx = this.getTransactionHex(txid)
-      Run.util.metadata(rawtx)
+      const rawTx = await this.getTransactionHex(txid)
+      Run.util.metadata(rawTx)
       executable = true
     } catch (e) { }
 
     if (!executable) {
       const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
-      downstream.forEach(downtxid => this._checkExecutability(downtxid))
+      for (const downtxid of downstream) {
+        await this._checkExecutability(downtxid)
+      }
     }
   }
 
-  getTransactionHex (txid) {
+  async getTransactionHex (txid) {
     const row = this.getTransactionHexStmt.raw(true).get(txid)
     return row && row[0]
   }
 
-  getTransactionTime (txid) {
+  async getTransactionTime (txid) {
     const row = this.getTransactionTimeStmt.raw(true).get(txid)
     return row && row[0]
   }
 
-  getTransactionHeight (txid) {
+  async getTransactionHeight (txid) {
     const row = this.getTransactionHeightStmt.raw(true).get(txid)
     return row && row[0]
   }
 
-  deleteTransaction (txid, deleted = new Set()) {
+  async deleteTransaction (txid, deleted = new Set()) {
     if (deleted.has(txid)) return
 
     const txids = [txid]
@@ -747,12 +750,12 @@ class Database {
     })
   }
 
-  unconfirmTransaction (txid) {
+  async unconfirmTransaction (txid) {
     this.unconfirmTransactionStmt.run(txid)
   }
 
-  unindexTransaction (txid) {
-    await this.transaction(() => {
+  async unindexTransaction (txid) {
+    await this.transaction(async () => {
       if (this.getTransactionIndexedStmt.raw(true).get(txid)[0]) {
         this.setTransactionExecutedStmt.run(0, txid)
         this.setTransactionIndexedStmt.run(0, txid)
@@ -760,31 +763,38 @@ class Database {
         this.deleteBerryStatesStmt.run(txid)
         this.unmarkExecutingStmt.run(txid)
 
-        const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
-        downtxids.forEach(downtxid => this.unindexTransaction(downtxid))
+        const downloadedTxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+        for (const downloadedTxid of downloadedTxids) {
+          await this.unindexTransaction(downloadedTxid)
+        }
 
-        if (this.onUnindexTransaction) this.onUnindexTransaction(txid)
+        if (this.onUnindexTransaction) { await this.onUnindexTransaction(txid) }
       }
     })
   }
 
-  hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
-  isTransactionDownloaded (txid) {
+  async hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
+
+  async isTransactionDownloaded (txid) {
     const result = this.getTransactionDownloadedStmt.raw(true).get(txid)
-    return result && !!result[0]
+    return result ? !!result[0] : false
   }
 
-  getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
-  getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
-  getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
-  getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
-  getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
+  async getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
+
+  async getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
+
+  async getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
+
+  async getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
+
+  async getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
 
   // --------------------------------------------------------------------------
   // spends
   // --------------------------------------------------------------------------
 
-  getSpend (location) {
+  async getSpend (location) {
     const row = this.getSpendStmt.raw(true).get(location)
     return row && row[0]
   }
@@ -793,27 +803,31 @@ class Database {
   // deps
   // --------------------------------------------------------------------------
 
-  addDep (txid, deptxid) {
-    this.addNewTransaction(deptxid)
+  async addDep (txid, deptxid) {
+    await this.addNewTransaction(deptxid)
 
     this.addDepStmt.run(deptxid, txid)
 
     if (this.getTransactionFailedStmt.get(deptxid).failed) {
-      this.setTransactionExecutionFailed(deptxid)
+      await this.setTransactionExecutionFailed(deptxid)
     }
   }
 
-  addMissingDeps (txid, deptxids) {
-    await this.transaction(() => deptxids.forEach(deptxid => this.addDep(txid, deptxid)))
+  async addMissingDeps (txid, deptxids) {
+    await this.transaction(async () => {
+      for (const deptxid of deptxids) {
+        await this.addDep(txid, deptxid)
+      }
+    })
 
-    this._checkExecutability(txid)
+    await this._checkExecutability(txid)
   }
 
   // --------------------------------------------------------------------------
   // jig
   // --------------------------------------------------------------------------
 
-  getJigState (location) {
+  async getJigState (location) {
     const row = this.getJigStateStmt.raw(true).get(location)
     return row && row[0]
   }
@@ -822,39 +836,39 @@ class Database {
   // unspent
   // --------------------------------------------------------------------------
 
-  getAllUnspent () {
+  async getAllUnspent () {
     return this.getAllUnspentStmt.raw(true).all().map(row => row[0])
   }
 
-  getAllUnspentByClassOrigin (origin) {
+  async getAllUnspentByClassOrigin (origin) {
     return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
   }
 
-  getAllUnspentByLockOrigin (origin) {
+  async getAllUnspentByLockOrigin (origin) {
     return this.getAllUnspentByLockStmt.raw(true).all(origin).map(row => row[0])
   }
 
-  getAllUnspentByScripthash (scripthash) {
+  async getAllUnspentByScripthash (scripthash) {
     return this.getAllUnspentByScripthashStmt.raw(true).all(scripthash).map(row => row[0])
   }
 
-  getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
+  async getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
     return this.getAllUnspentByClassLockStmt.raw(true).all(clsOrigin, lockOrigin).map(row => row[0])
   }
 
-  getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
+  async getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
     return this.getAllUnspentByClassScripthashStmt.raw(true).all(clsOrigin, scripthash).map(row => row[0])
   }
 
-  getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
+  async getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
     return this.getAllUnspentByLockScripthashStmt.raw(true).all(lockOrigin, scripthash).map(row => row[0])
   }
 
-  getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
+  async getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
     return this.getAllUnspentByClassLockScripthashStmt.raw(true).all(clsOrigin, lockOrigin, scripthash).map(row => row[0])
   }
 
-  getNumUnspent () {
+  async getNumUnspent () {
     return this.getNumUnspentStmt.get().unspent
   }
 
@@ -862,7 +876,7 @@ class Database {
   // berry
   // --------------------------------------------------------------------------
 
-  getBerryState (location) {
+  async getBerryState (location) {
     const row = this.getBerryStateStmt.raw(true).get(location)
     return row && row[0]
   }
@@ -871,13 +885,13 @@ class Database {
   // trust
   // --------------------------------------------------------------------------
 
-  isTrusted (txid) {
+  async isTrusted (txid) {
     const row = this.isTrustedStmt.raw(true).get(txid)
     return !!row && !!row[0]
   }
 
-  trust (txid) {
-    if (this.isTrusted(txid)) return
+  async trust (txid) {
+    if (await this.isTrusted(txid)) return
 
     const trusted = [txid]
 
@@ -887,7 +901,7 @@ class Database {
     while (queue.length) {
       const uptxid = queue.shift()
       if (visited.has(uptxid)) continue
-      if (this.isTrusted(uptxid)) continue
+      if (await this.isTrusted(uptxid)) continue
       visited.add(uptxid)
       trusted.push(txid)
       this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
@@ -895,21 +909,23 @@ class Database {
 
     await this.transaction(() => trusted.forEach(txid => this.setTrustedStmt.run(txid, 1)))
 
-    trusted.forEach(txid => this._checkExecutability(txid))
+    for (const txid of trusted) {
+      await this._checkExecutability(txid)
+    }
 
     if (this.onTrustTransaction) trusted.forEach(txid => this.onTrustTransaction(txid))
   }
 
-  untrust (txid) {
-    if (!this.isTrusted(txid)) return
-    await this.transaction(() => {
-      this.unindexTransaction(txid)
+  async untrust (txid) {
+    if (!await this.isTrusted(txid)) return
+    await this.transaction(async () => {
+      await this.unindexTransaction(txid)
       this.setTrustedStmt.run(txid, 0)
     })
     if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
   }
 
-  getTrustlist () {
+  async getTrustlist () {
     return this.getTrustlistStmt.raw(true).all().map(x => x[0])
   }
 
@@ -917,26 +933,26 @@ class Database {
   // ban
   // --------------------------------------------------------------------------
 
-  isBanned (txid) {
+  async isBanned (txid) {
     const row = this.isBannedStmt.raw(true).get(txid)
     return !!row && !!row[0]
   }
 
-  ban (txid) {
-    await this.transaction(() => {
-      this.unindexTransaction(txid)
+  async ban (txid) {
+    await this.transaction(async () => {
+      await this.unindexTransaction(txid)
       this.banStmt.run(txid)
     })
     if (this.onBanTransaction) this.onBanTransaction(txid)
   }
 
-  unban (txid) {
+  async unban (txid) {
     this.unbanStmt.run(txid)
-    this._checkExecutability(txid)
+    await this._checkExecutability(txid)
     if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
   }
 
-  getBanlist () {
+  async getBanlist () {
     return this.getBanlistStmt.raw(true).all().map(x => x[0])
   }
 
@@ -944,21 +960,21 @@ class Database {
   // crawl
   // --------------------------------------------------------------------------
 
-  getHeight () {
+  async getHeight () {
     const row = this.getHeightStmt.raw(true).all()[0]
     return row && parseInt(row[0])
   }
 
-  getHash () {
+  async getHash () {
     const row = this.getHashStmt.raw(true).all()[0]
     return row && row[0]
   }
 
-  setHeight (height) {
+  async setHeight (height) {
     this.setHeightStmt.run(height.toString())
   }
 
-  setHash (hash) {
+  async setHash (hash) {
     this.setHashStmt.run(hash)
   }
 
@@ -966,13 +982,15 @@ class Database {
   // internal
   // --------------------------------------------------------------------------
 
-  loadTransactionsToExecute () {
+  async loadTransactionsToExecute () {
     this.logger.debug('Loading transactions to execute')
     const txids = this.db.prepare('SELECT txid FROM executing').raw(true).all().map(x => x[0])
-    txids.forEach(txid => this._checkExecutability(txid))
+    for (const txid of txids) {
+      await this._checkExecutability(txid)
+    }
   }
 
-  _checkExecutability (txid) {
+  async _checkExecutability (txid) {
     const row = this.isReadyToExecuteStmt.get(txid)
     if (row && row.ready) {
       this.markExecutingStmt.run(txid)

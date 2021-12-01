@@ -182,7 +182,7 @@ describe('Indexer', () => {
     database.addTransaction(txid2, rawtx2)
     database.trust(txid1)
     await indexed(indexer, txid2)
-    expect(indexer.database.getNumUnspent()).to.equal(0)
+    expect(await indexer.database.getNumUnspent()).to.equal(0)
     await indexer.stop()
   })
 })
