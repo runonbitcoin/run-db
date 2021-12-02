@@ -913,7 +913,11 @@ class Database {
       await this._checkExecutability(txid)
     }
 
-    if (this.onTrustTransaction) trusted.forEach(txid => this.onTrustTransaction(txid))
+    if (this.onTrustTransaction) {
+      for (const txid of trusted) {
+        await this.onTrustTransaction(txid)
+      }
+    }
   }
 
   async untrust (txid) {
