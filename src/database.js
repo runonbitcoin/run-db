@@ -468,11 +468,11 @@ class Database {
   async transaction (f) {
     if (!this.db) return
     try {
-      // this.db.exec('begin;')
+      this.db.exec('begin;')
       await f()
-      // this.db.exec('commit;')
+      this.db.exec('commit;')
     } catch (e) {
-      // this.db.exec('rollback;')
+      this.db.exec('rollback;')
       console.error(e)
       throw e
     }
@@ -484,20 +484,18 @@ class Database {
   // --------------------------------------------------------------------------
 
   async addBlock (txids, txhexs, height, hash, time) {
-    await this.transaction(async () => {
-      const indexes = new Array(txids.length).fill(null).map((_, i) => i)
-      for (const index of indexes) {
-        const txid = txids[index]
-        const txHex = txhexs && txhexs[index]
-        await this.addTransaction(txid, txHex, height, time)
-      }
-      // txids.forEach(async (txid, i) => {
-      //   const txhex = txhexs && txhexs[i]
-      //   await this.addTransaction(txid, txhex, height, time)
-      // })
-      await this.setHeight(height)
-      await this.setHash(hash)
-    })
+    const indexes = new Array(txids.length).fill(null).map((_, i) => i)
+    for (const index of indexes) {
+      const txid = txids[index]
+      const txHex = txhexs && txhexs[index]
+      await this.addTransaction(txid, txHex, height, time)
+    }
+    // txids.forEach(async (txid, i) => {
+    //   const txhex = txhexs && txhexs[i]
+    //   await this.addTransaction(txid, txhex, height, time)
+    // })
+    await this.setHeight(height)
+    await this.setHash(hash)
   }
 
   async addTransaction (txid, txhex, height, time) {

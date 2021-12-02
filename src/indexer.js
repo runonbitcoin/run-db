@@ -173,18 +173,15 @@ class Indexer {
     this.logger.info(`Rewinding to block ${newHeight}`)
 
     const txids = await this.database.getTransactionsAboveHeight(newHeight)
+    // Put all transactions back into the mempool. This is better than deleting them, because
+    // when we assume they will just go into a different block, we don't need to re-execute.
+    // If they don't make it into a block, then they will be expired in time.
+    for (const txid of txids) {
+      await this.database.unconfirmTransaction(txid)
+    }
 
-    await this.database.transaction(async () => {
-      // Put all transactions back into the mempool. This is better than deleting them, because
-      // when we assume they will just go into a different block, we don't need to re-execute.
-      // If they don't make it into a block, then they will be expired in time.
-      for (const txid of txids) {
-        await this.database.unconfirmTransaction(txid)
-      }
-
-      await this.database.setHeight(newHeight)
-      await this.database.setHash(null)
-    })
+    await this.database.setHeight(newHeight)
+    await this.database.setHash(null)
 
     if (this.onReorg) this.onReorg(newHeight)
   }
@@ -198,11 +195,9 @@ class Indexer {
 
     const expired = await this.database.getMempoolTransactionsBeforeTime(expirationTime)
     const deleted = new Set()
-    await this.database.transaction(async () => {
-      for (const txid of expired) {
-        await this.database.deleteTransaction(txid, deleted)
-      }
-    })
+    for (const txid of expired) {
+      await this.database.deleteTransaction(txid, deleted)
+    }
   }
 }
 
