@@ -41,10 +41,10 @@ describe('Indexer', () => {
     database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-    expect(database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
-    expect(database.getTransactionHeight(txid)).to.equal(null)
-    expect(database.getTransactionTime(txid)).to.be.greaterThan(new Date() / 1000 - 3)
-    expect(database.getTransactionTime(txid)).to.be.lessThan(new Date() / 1000 + 3)
+    expect(await database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
+    expect(await database.getTransactionHeight(txid)).to.equal(null)
+    expect(await database.getTransactionTime(txid)).to.be.greaterThan(new Date() / 1000 - 3)
+    expect(await database.getTransactionTime(txid)).to.be.lessThan(new Date() / 1000 + 3)
     await indexer.stop()
   })
 
@@ -130,9 +130,9 @@ describe('Indexer', () => {
     database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
     database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
-    expect(database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).not.to.equal(undefined)
-    database.deleteTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
-    expect(database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).to.equal(undefined)
+    expect(await database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).not.to.equal(undefined)
+    await database.deleteTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
+    expect(await database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).to.equal(undefined)
     await indexer.stop()
   })
 
@@ -142,11 +142,11 @@ describe('Indexer', () => {
     this.timeout(40000)
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     await indexer.start()
-    database.addTransaction('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
+    await database.addTransaction('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
     await indexed(indexer, '11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
-    expect(database.getSpend('7fa1b0eb8408047e138aadf72ee0980e42afab2208181429b050ad495a384d39_o1'))
+    expect(await database.getSpend('7fa1b0eb8408047e138aadf72ee0980e42afab2208181429b050ad495a384d39_o1'))
       .to.equal('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
-    expect(database.getSpend('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83_o1'))
+    expect(await database.getSpend('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83_o1'))
       .to.equal(null)
     await indexer.stop()
   })
@@ -160,12 +160,12 @@ describe('Indexer', () => {
     const txid1 = new bsv.Transaction(rawtx1).hash
     const txid2 = new bsv.Transaction(rawtx2).hash
     await indexer.start()
-    database.addTransaction(txid1, rawtx1)
-    database.trust(txid1)
+    await database.addTransaction(txid1, rawtx1)
+    await database.trust(txid1)
     await indexed(indexer, txid1)
-    database.addTransaction(txid2, rawtx2)
+    await database.addTransaction(txid2, rawtx2)
     await failed(indexer, txid2)
-    expect(database.getSpend(txid1 + '_o1')).to.equal(txid2)
+    expect(await database.getSpend(txid1 + '_o1')).to.equal(txid2)
     await indexer.stop()
   })
 

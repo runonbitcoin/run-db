@@ -105,7 +105,7 @@ class Server {
 
   async getBerry (req, res, next) {
     try {
-      const state = this.database.getBerryState(req.params.location)
+      const state = await this.database.getBerryState(req.params.location)
       if (state) {
         res.setHeader('Content-Type', 'application/json')
         res.send(state)

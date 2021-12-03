@@ -523,9 +523,9 @@ class Database {
     const inputs = []
     const outputs = []
 
-    try {
-      if (!hex) throw new Error('No hex')
+    if (!hex) { throw new Error('No hex') }
 
+    try {
       bsvtx = new bsv.Transaction(hex)
 
       bsvtx.inputs.forEach(input => {

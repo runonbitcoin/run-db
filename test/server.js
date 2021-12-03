@@ -50,7 +50,7 @@ describe('Server', () => {
       await axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[txid], options)
       await axios.post(`http://localhost:${server.port}/trust/${txid}`)
       await indexed(indexer, txid)
-      server.stop()
+      await server.stop()
       await indexer.stop()
     })
 
@@ -90,7 +90,9 @@ describe('Server', () => {
       ]
       const options = { headers: { 'Content-Type': 'application/json' } }
       await axios.post(`http://localhost:${server.port}/trust`, trustlist, options)
-      trustlist.forEach(txid => expect(indexer.database.isTrusted(txid)).to.equal(true))
+      for (const txid of trustlist) {
+        expect(await indexer.database.isTrusted(txid)).to.equal(true)
+      }
       server.stop()
       await indexer.stop()
     })
@@ -146,9 +148,9 @@ describe('Server', () => {
       const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = new Server(database, logger, null)
       await indexer.start()
-      server.start()
+      await server.start()
       await listening(server)
-      database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+      await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
       await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
       const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
       const state = (await axios.get(`http://localhost:${server.port}/berry/${encodeURIComponent(location)}`)).data
