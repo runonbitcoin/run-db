@@ -127,7 +127,7 @@ describe('Crawler', () => {
 
   // --------------------------------------------------------------------------
 
-  it.skip('reorg while executing', async () => {
+  it('keeps the states after a reorg', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     let didReorg = false
     function getNextBlock (height, hash) {
@@ -144,7 +144,9 @@ describe('Crawler', () => {
     await reorged(indexer)
     await indexer.stop()
     expect(await database.getTransactionHex(txid)).not.to.equal(undefined)
-    expect(await database.getJigState(txid + '_o1')).to.equal()
+    const state = JSON.parse(await database.getJigState(txid + '_o1'))
+    expect(state.props.origin).to.equal('_o1')
+    expect(state.src).to.match(/class Dragon/)
     expect(await database.getTransactionHeight(txid)).to.equal(-1)
   })
 })
