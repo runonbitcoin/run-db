@@ -38,8 +38,8 @@ class Crawler {
     this.height = height
     this.hash = hash
 
-    await this._pollForNewBlocks()
-    await this._expireMempoolTransactions()
+    this._pollForNewBlocks().catch(console.error)
+    this._expireMempoolTransactions().catch(console.error)
   }
 
   stop () {

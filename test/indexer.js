@@ -85,11 +85,12 @@ describe('Indexer', () => {
   it('fail to index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
+    const promise = failed(indexer, 'a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
     await database.trust('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
     await database.trust('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
     await database.addTransaction('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
     await database.addTransaction('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
-    await failed(indexer, 'a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
+    await promise
     await indexer.stop()
   })
 
@@ -160,11 +161,13 @@ describe('Indexer', () => {
     const txid1 = new bsv.Transaction(rawtx1).hash
     const txid2 = new bsv.Transaction(rawtx2).hash
     await indexer.start()
+    const successPromise = indexed(indexer, txid1)
+    const failurePromise = failed(indexer, txid2)
     await database.addTransaction(txid1, rawtx1)
     await database.trust(txid1)
-    await indexed(indexer, txid1)
+    await successPromise
     await database.addTransaction(txid2, rawtx2)
-    await failed(indexer, txid2)
+    await failurePromise
     expect(await database.getSpend(txid1 + '_o1')).to.equal(txid2)
     await indexer.stop()
   })

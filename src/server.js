@@ -37,18 +37,18 @@ class Server {
 
     const app = express()
 
-    let buffer = ''
-    const write = (chunk, encoding, callback) => {
-      buffer = buffer + chunk.toString()
-      const lines = buffer.split(/\r\n|\n\r|\n|\r/)
-      for (let i = 0; i < lines.length - 1; i++) {
-        this.logger.info(lines[i])
-      }
-      buffer = lines[lines.length - 1]
-      callback()
-      return true
-    }
-    app.use(morgan('tiny', { stream: new Writable({ write }) }))
+    // let buffer = ''
+    // const write = (chunk, encoding, callback) => {
+    //   buffer = buffer + chunk.toString()
+    //   const lines = buffer.split(/\r\n|\n\r|\n|\r/)
+    //   for (let i = 0; i < lines.length - 1; i++) {
+    //     this.logger.info(lines[i])
+    //   }
+    //   buffer = lines[lines.length - 1]
+    //   callback()
+    //   return true
+    // }
+    // app.use(morgan('tiny', { stream: new Writable({ write }) }))
 
     app.use(bodyParser.text({ limit: '25mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))

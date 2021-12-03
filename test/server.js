@@ -41,15 +41,16 @@ describe('Server', () => {
   describe('post tx', () => {
     it('add with body', async () => {
       const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
-      const server = new Server(database, logger, null)
+      const server = new Server(database, logger, 52521)
       await indexer.start()
-      server.start()
+      await server.start()
       await listening(server)
       const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
       const options = { headers: { 'Content-Type': 'text/plain' } }
+      const promise = indexed(indexer, txid)
       await axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[txid], options)
       await axios.post(`http://localhost:${server.port}/trust/${txid}`)
-      await indexed(indexer, txid)
+      await promise
       await server.stop()
       await indexer.stop()
     })
