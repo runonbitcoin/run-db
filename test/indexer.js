@@ -35,10 +35,10 @@ describe('Indexer', () => {
   it('add and index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
-    database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
-    database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
-    database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
+    await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
+    await database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
     expect(await database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
@@ -72,10 +72,10 @@ describe('Indexer', () => {
   it('add in reverse and index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
-    database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
-    database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
-    database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
+    await database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
+    await database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await indexer.stop()
   })
@@ -85,10 +85,10 @@ describe('Indexer', () => {
   it('fail to index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
-    database.trust('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
-    database.trust('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
-    database.addTransaction('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
-    database.addTransaction('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
+    await database.trust('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
+    await database.trust('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
+    await database.addTransaction('b17a9af70ab0f46809f908b2e900e395ba40996000bf4f00e3b27a1e93280cf1')
+    await database.addTransaction('a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
     await failed(indexer, 'a5291157ab7a2d80d834bbe82c380ce3976f53990d20c62c477ca3a2ac93a7e9')
     await indexer.stop()
   })
@@ -98,14 +98,14 @@ describe('Indexer', () => {
   it('discovered berry transaction', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
-    database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
-    database.addTransaction('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a') // B (old)
-    database.addTransaction('312985bd960ae4c59856b3089b04017ede66506ea181333eec7c9bb88b11c490') // txo, Tx
-    database.addTransaction('727e7b423b7ee40c0b5be87fba7fa5673ea2d20a74259040a7295d9c32a90011') // Hex
-    database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
-    database.trust('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a')
-    database.trust('312985bd960ae4c59856b3089b04017ede66506ea181333eec7c9bb88b11c490')
-    database.trust('727e7b423b7ee40c0b5be87fba7fa5673ea2d20a74259040a7295d9c32a90011')
+    await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
+    await database.addTransaction('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a') // B (old)
+    await database.addTransaction('312985bd960ae4c59856b3089b04017ede66506ea181333eec7c9bb88b11c490') // txo, Tx
+    await database.addTransaction('727e7b423b7ee40c0b5be87fba7fa5673ea2d20a74259040a7295d9c32a90011') // Hex
+    await database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+    await database.trust('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a')
+    await database.trust('312985bd960ae4c59856b3089b04017ede66506ea181333eec7c9bb88b11c490')
+    await database.trust('727e7b423b7ee40c0b5be87fba7fa5673ea2d20a74259040a7295d9c32a90011')
     // Don't index the berry data, because it will be fetched automatically
     // database.addTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
     await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
@@ -117,7 +117,7 @@ describe('Indexer', () => {
   it('add and download dependencies', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
-    database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await new Promise((resolve, reject) => setTimeout(resolve, 1000))
     await indexer.stop()
   })
@@ -127,8 +127,8 @@ describe('Indexer', () => {
   it('remove discovered dep', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     await indexer.start()
-    database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
-    database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+    await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
+    await database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     expect(await database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).not.to.equal(undefined)
     await database.deleteTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
@@ -178,9 +178,9 @@ describe('Indexer', () => {
     const txid1 = new bsv.Transaction(rawtx1).hash
     const txid2 = new bsv.Transaction(rawtx2).hash
     await indexer.start()
-    database.addTransaction(txid1, rawtx1)
-    database.addTransaction(txid2, rawtx2)
-    database.trust(txid1)
+    await database.addTransaction(txid1, rawtx1)
+    await database.addTransaction(txid2, rawtx2)
+    await database.trust(txid1)
     await indexed(indexer, txid2)
     expect(await indexer.database.getNumUnspent()).to.equal(0)
     await indexer.stop()

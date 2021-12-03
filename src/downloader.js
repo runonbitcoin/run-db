@@ -30,18 +30,18 @@ class Downloader {
     this.attempts = new Map()
   }
 
-  add (txid) {
+  async add (txid) {
     if (this.has(txid)) return
     if (!this.fetchFunction) return
 
-    this._enqueueFetch(txid)
+    await this._enqueueFetch(txid)
   }
 
-  _enqueueFetch (txid) {
+  async _enqueueFetch (txid) {
     if (this.fetching.size >= this.numParallelDownloads) {
       this.queued.add(txid)
     } else {
-      this._fetch(txid)
+      await this._fetch(txid)
     }
   }
 
@@ -67,31 +67,31 @@ class Downloader {
     try {
       const { hex, height, time } = await this.fetchFunction(txid)
 
-      this._onFetchSucceed(txid, hex, height, time)
+      await this._onFetchSucceed(txid, hex, height, time)
     } catch (e) {
-      this._onFetchFailed(txid, e)
+      await this._onFetchFailed(txid, e)
     } finally {
-      this._fetchNextInQueue()
+      await this._fetchNextInQueue()
     }
   }
 
-  _onFetchSucceed (txid, hex, height, time) {
+  async _onFetchSucceed (txid, hex, height, time) {
     if (!this.fetching.delete(txid)) return
 
     this.attempts.delete(txid)
 
-    if (this.onDownloadTransaction) this.onDownloadTransaction(txid, hex, height, time)
+    if (this.onDownloadTransaction) { await this.onDownloadTransaction(txid, hex, height, time) }
   }
 
-  _onFetchFailed (txid, e) {
+  async _onFetchFailed (txid, e) {
     if (!this.fetching.delete(txid)) return
 
-    if (this.onFailedToDownloadTransaction) this.onFailedToDownloadTransaction(txid, e)
+    if (this.onFailedToDownloadTransaction) await this.onFailedToDownloadTransaction(txid, e)
 
     const attempts = (this.attempts.get(txid) || 0) + 1
     const secondsToRetry = Math.pow(2, attempts)
 
-    if (this.onRetryingDownload) this.onRetryingDownload(txid, secondsToRetry)
+    if (this.onRetryingDownload) await this.onRetryingDownload(txid, secondsToRetry)
 
     this.attempts.set(txid, attempts)
     this.waitingToRetry.add(txid)
@@ -103,13 +103,13 @@ class Downloader {
     }, secondsToRetry * 1000)
   }
 
-  _fetchNextInQueue () {
+  async _fetchNextInQueue () {
     if (!this.queued.size) return
 
     const txid = this.queued.keys().next().value
     this.queued.delete(txid)
 
-    this._fetch(txid)
+    await this._fetch(txid)
   }
 }
 

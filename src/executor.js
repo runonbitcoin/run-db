@@ -80,12 +80,14 @@ class Executor {
     try {
       const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
 
-      if (this.onIndexed) this.onIndexed(txid, result)
+      if (this.onIndexed) {
+        this.onIndexed(txid, result).catch(console.error)
+      }
     } catch (e) {
       if (worker.missingDeps.size) {
-        if (this.onMissingDeps) this.onMissingDeps(txid, Array.from(worker.missingDeps))
+        if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
       } else {
-        if (this.onExecuteFailed) this.onExecuteFailed(txid, e)
+        if (this.onExecuteFailed) await this.onExecuteFailed(txid, e)
       }
     } finally {
       this.executing.delete(txid)

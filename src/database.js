@@ -490,10 +490,6 @@ class Database {
       const txHex = txhexs && txhexs[index]
       await this.addTransaction(txid, txHex, height, time)
     }
-    // txids.forEach(async (txid, i) => {
-    //   const txhex = txhexs && txhexs[i]
-    //   await this.addTransaction(txid, txhex, height, time)
-    // })
     await this.setHeight(height)
     await this.setHash(hash)
   }
@@ -570,7 +566,7 @@ class Database {
 
     for (const deptxid of deps) {
       if (!await this.isTransactionDownloaded(deptxid)) {
-        if (this.onRequestDownload) this.onRequestDownload(deptxid)
+        if (this.onRequestDownload) await this.onRequestDownload(deptxid)
       }
     }
   }
@@ -605,10 +601,10 @@ class Database {
 
     // Non-executable might be berry data. We execute once we receive them.
     const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
-    downstreamReadyToExecute.forEach(downtxid => {
+    for (const downtxid of downstreamReadyToExecute) {
       this.markExecutingStmt.run(downtxid)
-      if (this.onReadyToExecute) this.onReadyToExecute(downtxid)
-    })
+      if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
+    }
   }
 
   async storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
@@ -638,7 +634,7 @@ class Database {
   async storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
 
-    await this.transaction(() => {
+    await this.transaction(async () => {
       this.setTransactionExecutedStmt.run(1, txid)
       this.setTransactionIndexedStmt.run(1, txid)
       this.unmarkExecutingStmt.run(txid)
@@ -671,10 +667,10 @@ class Database {
     })
 
     const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
-    downstreamReadyToExecute.forEach(downtxid => {
+    for (const downtxid of downstreamReadyToExecute) {
       this.markExecutingStmt.run(downtxid)
-      if (this.onReadyToExecute) this.onReadyToExecute(downtxid)
-    })
+      if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
+    }
   }
 
   async setTransactionExecutionFailed (txid) {
@@ -724,11 +720,11 @@ class Database {
     const txids = [txid]
     deleted.add(txid)
 
-    await this.transaction(() => {
+    await this.transaction(async () => {
       while (txids.length) {
         const txid = txids.shift()
 
-        if (this.onDeleteTransaction) this.onDeleteTransaction(txid)
+        if (this.onDeleteTransaction) { await this.onDeleteTransaction(txid) }
 
         this.deleteTransactionStmt.run(txid)
         this.deleteJigStatesStmt.run(txid)
@@ -905,7 +901,7 @@ class Database {
       this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
     }
 
-    await this.transaction(() => trusted.forEach(txid => this.setTrustedStmt.run(txid, 1)))
+    trusted.forEach(txid => this.setTrustedStmt.run(txid, 1))
 
     for (const txid of trusted) {
       await this._checkExecutability(txid)
@@ -924,7 +920,7 @@ class Database {
       await this.unindexTransaction(txid)
       this.setTrustedStmt.run(txid, 0)
     })
-    if (this.onUntrustTransaction) this.onUntrustTransaction(txid)
+    if (this.onUntrustTransaction) await this.onUntrustTransaction(txid)
   }
 
   async getTrustlist () {
@@ -945,13 +941,13 @@ class Database {
       await this.unindexTransaction(txid)
       this.banStmt.run(txid)
     })
-    if (this.onBanTransaction) this.onBanTransaction(txid)
+    if (this.onBanTransaction) await this.onBanTransaction(txid)
   }
 
   async unban (txid) {
     this.unbanStmt.run(txid)
     await this._checkExecutability(txid)
-    if (this.onUnbanTransaction) this.onUnbanTransaction(txid)
+    if (this.onUnbanTransaction) await this.onUnbanTransaction(txid)
   }
 
   async getBanlist () {
@@ -996,7 +992,7 @@ class Database {
     const row = this.isReadyToExecuteStmt.get(txid)
     if (row && row.ready) {
       this.markExecutingStmt.run(txid)
-      if (this.onReadyToExecute) this.onReadyToExecute(txid)
+      if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
     }
   }
 }

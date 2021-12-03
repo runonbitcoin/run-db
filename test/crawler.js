@@ -40,9 +40,9 @@ describe('Crawler', () => {
     await indexer.start()
     await database.trust(txid)
     await indexed(indexer, txid)
+    await indexer.stop()
     expect(await database.getHeight()).to.equal(1)
     expect(await database.getHash()).to.equal('abc')
-    await indexer.stop()
   })
 
   // --------------------------------------------------------------------------
@@ -57,9 +57,9 @@ describe('Crawler', () => {
     await indexer.start()
     await database.trust(txid)
     await indexed(indexer, txid)
+    await indexer.stop()
     expect(await database.getHeight()).to.equal(1)
     expect(await database.getHash()).to.equal('abc')
-    await indexer.stop()
   })
 
   // --------------------------------------------------------------------------
@@ -87,10 +87,10 @@ describe('Crawler', () => {
     await indexed(indexer, txids[1])
     indexedMiddleTransaction = true
     await indexed(indexer, txids[0])
+    await indexer.stop()
     expect(await database.getTransactionHex(txids[0])).to.equal(txns[txids[0]])
     expect(await database.getTransactionHex(txids[1])).to.equal(txns[txids[1]])
     expect(await database.getTransactionHex(txids[2])).to.equal(txns[txids[2]])
-    await indexer.stop()
   })
 
   // --------------------------------------------------------------------------
@@ -142,10 +142,10 @@ describe('Crawler', () => {
     await indexer.start()
     await database.trust(txid)
     await reorged(indexer)
+    await indexer.stop()
     expect(await database.getTransactionHex(txid)).not.to.equal(undefined)
     expect(await database.getJigState(txid + '_o1')).to.equal(undefined)
     expect(await database.getTransactionHeight(txid)).to.equal(-1)
-    await indexer.stop()
   })
 })
 

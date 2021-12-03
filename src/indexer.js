@@ -91,15 +91,15 @@ class Indexer {
     if (height) { await this.database.setTransactionHeight(txid, height) }
     if (time) { await this.database.setTransactionTime(txid, time) }
     await this.database.parseAndStoreTransaction(txid, hex)
-    if (this.onDownload) this.onDownload(txid)
+    if (this.onDownload) await this.onDownload(txid)
   }
 
-  _onFailedToDownloadTransaction (txid, e) {
+  async _onFailedToDownloadTransaction (txid, e) {
     this.logger.error('Failed to download', txid, e.toString())
-    if (this.onFailToDownload) this.onFailToDownload(txid)
+    if (this.onFailToDownload) { await this.onFailToDownload(txid) }
   }
 
-  _onRetryingDownload (txid, secondsToRetry) {
+  async _onRetryingDownload (txid, secondsToRetry) {
     this.logger.info('Retrying download', txid, 'after', secondsToRetry, 'seconds')
   }
 
@@ -107,7 +107,9 @@ class Indexer {
     if (!await this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid}`)
     await this.database.storeExecutedTransaction(txid, result)
-    if (this.onIndex) this.onIndex(txid)
+    if (this.onIndex) {
+      await this.onIndex(txid)
+    }
   }
 
   async _onExecuteFailed (txid, e) {
@@ -116,41 +118,41 @@ class Indexer {
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
-  _onReadyToExecute (txid) {
-    this.executor.execute(txid)
+  async _onReadyToExecute (txid) {
+    await this.executor.execute(txid)
   }
 
-  _onAddTransaction (txid) {
+  async _onAddTransaction (txid) {
     this.logger.info('Added', txid)
   }
 
-  _onDeleteTransaction (txid) {
+  async _onDeleteTransaction (txid) {
     this.logger.info('Removed', txid)
-    this.downloader.remove(txid)
+    await this.downloader.remove(txid)
   }
 
-  _onTrustTransaction (txid) {
+  async _onTrustTransaction (txid) {
     this.logger.info('Trusted', txid)
   }
 
-  _onUntrustTransaction (txid) {
+  async _onUntrustTransaction (txid) {
     this.logger.info('Untrusted', txid)
   }
 
-  _onBanTransaction (txid) {
+  async _onBanTransaction (txid) {
     this.logger.info('Banned', txid)
   }
 
-  _onUnbanTransaction (txid) {
+  async _onUnbanTransaction (txid) {
     this.logger.info('Unbanned', txid)
   }
 
-  _onUnindexTransaction (txid) {
+  async _onUnindexTransaction (txid) {
     this.logger.info('Unindexed', txid)
   }
 
-  _onRequestDownload (txid) {
-    this.downloader.add(txid)
+  async _onRequestDownload (txid) {
+    await this.downloader.add(txid)
   }
 
   async _onMissingDeps (txid, deptxids) {
@@ -159,14 +161,14 @@ class Indexer {
     deptxids.forEach(deptxid => this.downloader.add(deptxid))
   }
 
-  _onCrawlError (e) {
+  async _onCrawlError (e) {
     this.logger.error(`Crawl error: ${e.toString()}`)
   }
 
   async _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
     this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
     await this.database.addBlock(txids, txhexs, height, hash, time)
-    if (this.onBlock) this.onBlock(height)
+    if (this.onBlock) await this.onBlock(height)
   }
 
   async _onRewindBlocks (newHeight) {

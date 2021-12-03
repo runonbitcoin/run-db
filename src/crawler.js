@@ -29,7 +29,7 @@ class Crawler {
     this.onExpireMempoolTransactions = null
   }
 
-  start (height, hash) {
+  async start (height, hash) {
     this.logger.debug('Starting crawler')
 
     if (this.started) return
@@ -38,8 +38,8 @@ class Crawler {
     this.height = height
     this.hash = hash
 
-    this._pollForNewBlocks()
-    this._expireMempoolTransactions()
+    await this._pollForNewBlocks()
+    await this._expireMempoolTransactions()
   }
 
   stop () {
@@ -51,12 +51,12 @@ class Crawler {
     this.expireMempoolTransactionsTimerId = null
   }
 
-  _expireMempoolTransactions () {
+  async _expireMempoolTransactions () {
     if (!this.started) return
 
     this.logger.debug('Expiring mempool transactions')
 
-    if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
+    if (this.onExpireMempoolTransactions) { await this.onExpireMempoolTransactions() }
 
     this.expireMempoolTransactionsTimerId = setTimeout(
       this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
@@ -68,7 +68,7 @@ class Crawler {
     try {
       await this._pollForNextBlock()
     } catch (e) {
-      if (this.onCrawlError) this.onCrawlError(e)
+      if (this.onCrawlError) { await this.onCrawlError(e) }
       // Swallow, we'll retry
     }
 
@@ -97,7 +97,7 @@ class Crawler {
     // Case: reorg
     if (block && block.reorg) {
       this.logger.debug('Reorg detected')
-      this._rewindAfterReorg()
+      await this._rewindAfterReorg()
       setTimeout(() => this._pollForNextBlock(), 0)
       return
     }
@@ -113,7 +113,7 @@ class Crawler {
     if (block) {
       this.logger.debug('Received new block at height', block.height)
       if (this.onCrawlBlockTransactions) {
-        this.onCrawlBlockTransactions(block.height, block.hash, block.time, block.txids, block.txhexs)
+        await this.onCrawlBlockTransactions(block.height, block.hash, block.time, block.txids, block.txhexs)
       }
       this.height = block.height
       this.hash = block.hash
@@ -121,9 +121,9 @@ class Crawler {
     }
   }
 
-  _rewindAfterReorg () {
+  async _rewindAfterReorg () {
     const newHeight = this.height - this.rewindCount
-    if (this.onRewindBlocks) this.onRewindBlocks(newHeight)
+    if (this.onRewindBlocks) { await this.onRewindBlocks(newHeight) }
     this.height = newHeight
     this.hash = null
   }
@@ -138,8 +138,8 @@ class Crawler {
     this.listeningForMempool = true
   }
 
-  _onMempoolRunTransaction (txid, rawtx) {
-    if (this.onMempoolTransaction) this.onMempoolTransaction(txid, rawtx)
+  async _onMempoolRunTransaction (txid, rawtx) {
+    if (this.onMempoolTransaction) await this.onMempoolTransaction(txid, rawtx)
   }
 }
 
