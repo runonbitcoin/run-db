@@ -37,9 +37,10 @@ describe('Crawler', () => {
     }
     const api = { getNextBlock, fetch }
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+    const promise = indexed(indexer, txid)
     await indexer.start()
     await database.trust(txid)
-    await indexed(indexer, txid)
+    await promise
     await indexer.stop()
     expect(await database.getHeight()).to.equal(1)
     expect(await database.getHash()).to.equal('abc')

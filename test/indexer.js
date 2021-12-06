@@ -35,11 +35,12 @@ describe('Indexer', () => {
   it('add and index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
+    const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     await database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await promise
     const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
     expect(await database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
     expect(await database.getTransactionHeight(txid)).to.equal(null)
@@ -168,8 +169,8 @@ describe('Indexer', () => {
     await successPromise
     await database.addTransaction(txid2, rawtx2)
     await failurePromise
-    expect(await database.getSpend(txid1 + '_o1')).to.equal(txid2)
     await indexer.stop()
+    expect(await database.getSpend(txid1 + '_o1')).to.equal(txid2)
   })
 
   // --------------------------------------------------------------------------

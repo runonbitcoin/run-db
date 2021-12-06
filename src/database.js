@@ -4,9 +4,9 @@
  * Layer between the database and the application
  */
 
-const Sqlite3Database = require('better-sqlite3')
 const Run = require('run-sdk')
 const bsv = require('bsv')
+const { SqliteDatasource } = require('./sqlite-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -65,9 +65,9 @@ const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL = `
 
 class Database {
   constructor (path, logger, readonly = false) {
+    this.ds = new SqliteDatasource(path, logger, readonly)
     this.path = path
     this.logger = logger
-    this.db = null
     this.readonly = readonly
 
     this.onReadyToExecute = null
@@ -81,12 +81,17 @@ class Database {
     this.onRequestDownload = null
   }
 
+  get db () {
+    return this.ds.connection
+  }
+
   async open () {
     this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
 
     if (this.db) throw new Error('Database already open')
 
-    this.db = new Sqlite3Database(this.path, { readonly: this.readonly })
+    await this.ds.setUp()
+    // this.db = new Sqlite3Database(this.path, { readonly: this.readonly })
 
     // 100MB cache
     this.db.pragma('cache_size = 6400')
@@ -97,59 +102,59 @@ class Database {
 
     // Synchronizes WAL at checkpoints
     this.db.pragma('synchronous = NORMAL')
+    //
+    // if (!this.readonly) {
+    //   // Initialise and perform upgrades
+    //   await this.initializeV1()
+    //   await this.initializeV2()
+    //   await this.initializeV3()
+    //   await this.initializeV4()
+    //   await this.initializeV5()
+    //   await this.initializeV6()
+    //   await this.initializeV7()
+    // }
 
-    if (!this.readonly) {
-      // Initialise and perform upgrades
-      await this.initializeV1()
-      await this.initializeV2()
-      await this.initializeV3()
-      await this.initializeV4()
-      await this.initializeV5()
-      await this.initializeV6()
-      await this.initializeV7()
-    }
+    // this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
+    // this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
+    // this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
+    // this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
+    // this.setTransactionHeightStmt = this.db.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
+    // this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
+    // this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
+    // this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
+    // this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
+    // this.getTransactionHexStmt = this.db.prepare('SELECT LOWER(HEX(bytes)) AS hex FROM tx WHERE txid = ?')
+    // this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
+    // this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
+    // this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
+    // this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
+    // this.getTransactionFailedStmt = this.db.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
+    // this.getTransactionDownloadedStmt = this.db.prepare('SELECT downloaded FROM tx WHERE txid = ?')
+    // this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
+    // this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
+    // this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
+    // this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
+    // this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
+    // this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
+    // this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
+    // this.isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
+    // this.getDownstreamReadyToExecuteStmt = this.db.prepare(GET_DOWNSTREADM_READY_TO_EXECUTE_SQL)
 
-    this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
-    this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
-    this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
-    this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
-    this.setTransactionHeightStmt = this.db.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
-    this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
-    this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
-    this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
-    this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    this.getTransactionHexStmt = this.db.prepare('SELECT LOWER(HEX(bytes)) AS hex FROM tx WHERE txid = ?')
-    this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
-    this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
-    this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
-    this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
-    this.getTransactionFailedStmt = this.db.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
-    this.getTransactionDownloadedStmt = this.db.prepare('SELECT downloaded FROM tx WHERE txid = ?')
-    this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
-    this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
-    this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
-    this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
-    this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
-    this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
-    this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    this.isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
-    this.getDownstreamReadyToExecuteStmt = this.db.prepare(GET_DOWNSTREADM_READY_TO_EXECUTE_SQL)
+    // this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
+    // this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
+    // this.getSpendStmt = this.db.prepare('SELECT spend_txid FROM spends WHERE location = ?')
+    // this.unspendOutputsStmt = this.db.prepare('UPDATE spends SET spend_txid = null WHERE spend_txid = ?')
+    // this.deleteSpendsStmt = this.db.prepare('DELETE FROM spends WHERE location LIKE ? || \'%\'')
 
-    this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
-    this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
-    this.getSpendStmt = this.db.prepare('SELECT spend_txid FROM spends WHERE location = ?')
-    this.unspendOutputsStmt = this.db.prepare('UPDATE spends SET spend_txid = null WHERE spend_txid = ?')
-    this.deleteSpendsStmt = this.db.prepare('DELETE FROM spends WHERE location LIKE ? || \'%\'')
-
-    this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
-    this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
-    this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
-    this.getUpstreamUnexecutedCodeStmt = this.db.prepare(`
-      SELECT txdeps.txid as txid
-      FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
-      JOIN tx ON tx.txid = txdeps.txid
-      WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
-    `)
+    // this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
+    // this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
+    // this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
+    // this.getUpstreamUnexecutedCodeStmt = this.db.prepare(`
+    //   SELECT txdeps.txid as txid
+    //   FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
+    //   JOIN tx ON tx.txid = txdeps.txid
+    //   WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
+    // `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
     this.setJigClassStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
@@ -452,17 +457,7 @@ class Database {
   }
 
   async close () {
-    if (this.worker) {
-      this.logger.debug('Terminating background loader')
-      await this.worker.terminate()
-      this.worker = null
-    }
-
-    if (this.db) {
-      this.logger.debug('Closing' + (this.readonly ? ' readonly' : '') + ' database')
-      this.db.close()
-      this.db = null
-    }
+    this.ds.tearDown()
   }
 
   async transaction (f) {
@@ -576,31 +571,36 @@ class Database {
 
     const time = Math.round(Date.now() / 1000)
 
-    this.addNewTransactionStmt.run(txid, time)
+    // this.addNewTransactionStmt.run(txid, time)
+    await this.ds.addNewTx(txid, time)
 
     if (this.onAddTransaction) { await this.onAddTransaction(txid) }
   }
 
   async setTransactionHeight (txid, height) {
-    this.setTransactionHeightStmt.run(height, txid)
+    await this.ds.setTxHeight(txid, height)
   }
 
   async setTransactionTime (txid, time) {
-    this.setTransactionTimeStmt.run(time, txid)
+    await this.ds.setTxTime(txid, time)
   }
 
   async storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
-    await this.transaction(() => {
+    await this.transaction(async () => {
       const bytes = Buffer.from(hex, 'hex')
-      this.setTransactionBytesStmt.run(bytes, txid)
-      this.setTransactionExecutableStmt.run(0, txid)
+      await this.ds.setTxBytes(txid, bytes)
+      await this.ds.setExecutableForTx(txid, 0)
 
-      inputs.forEach(location => this.setSpendStmt.run(location, txid))
-      outputs.forEach(location => this.setUnspentStmt.run(location))
+      for (const location of inputs) {
+        await this.ds.upsertSpend(location, txid)
+      }
+      for (const location of outputs) {
+        await this.ds.setAsUnspent(location)
+      }
     })
 
     // Non-executable might be berry data. We execute once we receive them.
-    const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
+    const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
     for (const downtxid of downstreamReadyToExecute) {
       this.markExecutingStmt.run(downtxid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
@@ -610,18 +610,24 @@ class Database {
   async storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
     await this.transaction(async () => {
       const bytes = Buffer.from(hex, 'hex')
-      this.setTransactionBytesStmt.run(bytes, txid)
-      this.setTransactionExecutableStmt.run(1, txid)
-      this.setTransactionHasCodeStmt.run(hasCode ? 1 : 0, txid)
+      await this.ds.setTxBytes(txid, bytes)
+      await this.ds.setExecutableForTx(txid, 1)
 
-      inputs.forEach(location => this.setSpendStmt.run(location, txid))
-      outputs.forEach(location => this.setUnspentStmt.run(location))
+      await this.ds.setHasCodeForTx(txid, hasCode ? 1 : 0)
+
+      for (const location of inputs) {
+        await this.ds.upsertSpend(location, txid)
+      }
+      for (const location of outputs) {
+        await this.ds.setAsUnspent(location)
+      }
 
       for (const deptxid of deps) {
         await this.addNewTransaction(deptxid)
-        this.addDepStmt.run(deptxid, txid)
+        await this.ds.addDep(deptxid, txid)
 
-        if (this.getTransactionFailedStmt.get(deptxid).failed) {
+        const failed = await this.ds.getFailedTx(deptxid)
+        if (failed) {
           await this.setTransactionExecutionFailed(txid)
           return
         }
@@ -635,14 +641,15 @@ class Database {
     const { cache, classes, locks, scripthashes } = result
 
     await this.transaction(async () => {
-      this.setTransactionExecutedStmt.run(1, txid)
-      this.setTransactionIndexedStmt.run(1, txid)
+      await this.ds.setExecutedForTx(txid, 1)
+      await this.ds.setIndexedForTx(txid, 1)
       this.unmarkExecutingStmt.run(txid)
 
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
-          this.setJigStateStmt.run(location, JSON.stringify(cache[key]))
+          await this.ds.setJig(location, JSON.stringify(cache[key]))
+          // this.setJigStateStmt.run(location, JSON.stringify(cache[key]))
           continue
         }
 
@@ -666,7 +673,8 @@ class Database {
       }
     })
 
-    const downstreamReadyToExecute = this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
+
+    const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
     for (const downtxid of downstreamReadyToExecute) {
       this.markExecutingStmt.run(downtxid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
@@ -674,10 +682,10 @@ class Database {
   }
 
   async setTransactionExecutionFailed (txid) {
-    await this.transaction(() => {
-      this.setTransactionExecutableStmt.run(0, txid)
-      this.setTransactionExecutedStmt.run(1, txid)
-      this.setTransactionIndexedStmt.run(0, txid)
+    await this.transaction(async () => {
+      await this.ds.setExecutableForTx(txid, 0)
+      await this.ds.setExecutedForTx(txid, 1)
+      await this.ds.setIndexedForTx(txid, 0)
       this.unmarkExecutingStmt.run(txid)
     })
 
@@ -692,7 +700,8 @@ class Database {
     } catch (e) { }
 
     if (!executable) {
-      const downstream = this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
+
+      const downstream = await this.ds.searchDownstreamForTxid(txid)
       for (const downtxid of downstream) {
         await this._checkExecutability(downtxid)
       }
@@ -700,18 +709,15 @@ class Database {
   }
 
   async getTransactionHex (txid) {
-    const row = this.getTransactionHexStmt.raw(true).get(txid)
-    return row && row[0]
+    return this.ds.getTxHex(txid)
   }
 
   async getTransactionTime (txid) {
-    const row = this.getTransactionTimeStmt.raw(true).get(txid)
-    return row && row[0]
+    return this.ds.getTxTime(txid)
   }
 
   async getTransactionHeight (txid) {
-    const row = this.getTransactionHeightStmt.raw(true).get(txid)
-    return row && row[0]
+    return this.ds.getTxHeight(txid)
   }
 
   async deleteTransaction (txid, deleted = new Set()) {
@@ -726,14 +732,14 @@ class Database {
 
         if (this.onDeleteTransaction) { await this.onDeleteTransaction(txid) }
 
-        this.deleteTransactionStmt.run(txid)
+        await this.ds.deleteTx(txid)
         this.deleteJigStatesStmt.run(txid)
         this.deleteBerryStatesStmt.run(txid)
-        this.deleteSpendsStmt.run(txid)
-        this.unspendOutputsStmt.run(txid)
-        this.deleteDepsStmt.run(txid)
+        await this.ds.deleteSpendsForTxid(txid)
+        await this.ds.unspendOutput(txid)
+        await this.ds.deleteDepsForTxid(txid)
 
-        const downtxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+        const downtxids = await this.ds.searchDownstreamForTxid(txid)
 
         for (const downtxid of downtxids) {
           if (deleted.has(downtxid)) continue
@@ -745,19 +751,20 @@ class Database {
   }
 
   async unconfirmTransaction (txid) {
-    this.unconfirmTransactionStmt.run(txid)
+    await this.ds.unconfirmTx(txid)
   }
 
   async unindexTransaction (txid) {
     await this.transaction(async () => {
-      if (this.getTransactionIndexedStmt.raw(true).get(txid)[0]) {
-        this.setTransactionExecutedStmt.run(0, txid)
-        this.setTransactionIndexedStmt.run(0, txid)
+      const indexed = await this.ds.txIsIndexed(txid)
+      if (indexed) {
+        await this.ds.setExecutedForTx(txid, 0)
+        await this.ds.setIndexedForTx(txid, 0)
         this.deleteJigStatesStmt.run(txid)
         this.deleteBerryStatesStmt.run(txid)
         this.unmarkExecutingStmt.run(txid)
 
-        const downloadedTxids = this.getDownstreamStmt.raw(true).all(txid).map(row => row[0])
+        const downloadedTxids = await this.ds.searchDownstreamForTxid(txid)
         for (const downloadedTxid of downloadedTxids) {
           await this.unindexTransaction(downloadedTxid)
         }
@@ -767,30 +774,40 @@ class Database {
     })
   }
 
-  async hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
-
-  async isTransactionDownloaded (txid) {
-    const result = this.getTransactionDownloadedStmt.raw(true).get(txid)
-    return result ? !!result[0] : false
+  async hasTransaction (txid) {
+    return this.ds.txExists(txid)
   }
 
-  async getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
+  async isTransactionDownloaded (txid) {
+    return this.ds.checkTxIsDownloaded(txid)
+  }
 
-  async getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
+  async getTransactionsAboveHeight (height) {
+    return this.ds.searchTxsAboveHeight(height)
+  }
 
-  async getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
+  async getMempoolTransactionsBeforeTime (time) {
+    return this.ds.mempoolTxsPreviousToTime(time)
+  }
 
-  async getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
+  async getTransactionsToDownload () {
+    return this.ds.searchTxsToDownload()
+  }
 
-  async getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
+  async getDownloadedCount () {
+    return this.ds.countDownloadedTxs()
+  }
+
+  async getIndexedCount () {
+    return this.ds.countIndexedTxs()
+  }
 
   // --------------------------------------------------------------------------
   // spends
   // --------------------------------------------------------------------------
 
   async getSpend (location) {
-    const row = this.getSpendStmt.raw(true).get(location)
-    return row && row[0]
+    return this.ds.getSpendingTxid(location)
   }
 
   // --------------------------------------------------------------------------
@@ -800,9 +817,10 @@ class Database {
   async addDep (txid, deptxid) {
     await this.addNewTransaction(deptxid)
 
-    this.addDepStmt.run(deptxid, txid)
+    await this.ds.addDep(deptxid, txid)
 
-    if (this.getTransactionFailedStmt.get(deptxid).failed) {
+    const failed = await this.ds.getFailedTx(deptxid)
+    if (failed) {
       await this.setTransactionExecutionFailed(deptxid)
     }
   }
@@ -890,7 +908,7 @@ class Database {
     const trusted = [txid]
 
     // Recursively trust code parents
-    const queue = this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).map(x => x[0])
+    const queue = await this.ds.getNonExecutedUpstreamTxIds(txid)
     const visited = new Set()
     while (queue.length) {
       const uptxid = queue.shift()
@@ -898,7 +916,8 @@ class Database {
       if (await this.isTrusted(uptxid)) continue
       visited.add(uptxid)
       trusted.push(txid)
-      this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).forEach(x => queue.push(x[0]))
+      const nextTxids = await this.ds.getNonExecutedUpstreamTxIds(uptxid)
+      nextTxids.forEach(txid => queue.push(txid))
     }
 
     trusted.forEach(txid => this.setTrustedStmt.run(txid, 1))
@@ -989,7 +1008,7 @@ class Database {
   }
 
   async _checkExecutability (txid) {
-    const row = this.isReadyToExecuteStmt.get(txid)
+    const row = await this.ds.txidReadyToExecute(txid)
     if (row && row.ready) {
       this.markExecutingStmt.run(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
