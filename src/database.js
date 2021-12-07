@@ -259,12 +259,10 @@ class Database {
   }
 
   async setTransactionExecutionFailed (txid) {
-    await this.transaction(async () => {
-      await this.ds.setExecutableForTx(txid, 0)
-      await this.ds.setExecutedForTx(txid, 1)
-      await this.ds.setIndexedForTx(txid, 0)
-      await this.ds.removeTxFromExecuting(txid)
-    })
+    await this.ds.setExecutableForTx(txid, 0)
+    await this.ds.setExecutedForTx(txid, 1)
+    await this.ds.setIndexedForTx(txid, 0)
+    await this.ds.removeTxFromExecuting(txid)
 
     // We try executing downstream transactions if this was marked executable but it wasn't.
     // This allows an admin to manually change executable status in the database.
