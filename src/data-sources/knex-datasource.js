@@ -3,8 +3,8 @@
  *
  * Layer between the database and the application
  */
-const Sqlite3Database = require('better-sqlite3')
-const { HEIGHT_MEMPOOL } = require('./constants')
+const knex = require('knex')
+const { HEIGHT_MEMPOOL } = require('../constants')
 
 // The + in the following 2 queries before downloaded improves performance by NOT using the
 // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
@@ -54,9 +54,9 @@ const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
 // Database
 // ------------------------------------------------------------------------------------------------
 
-class SqliteDatasource {
-  constructor (path, logger, readonly = false) {
-    this.path = path
+class KnexDataSource {
+  constructor (dbUri, logger, readonly = false) {
+    this.dbUri = dbUri
     this.logger = logger
     this.readonly = readonly
     this.connection = null
@@ -66,29 +66,20 @@ class SqliteDatasource {
     this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
     if (this.connection) throw new Error('Database already open')
 
-    this.connection = new Sqlite3Database(this.path, { readonly: this.readonly })
+    this.connection = knex({
+      client: 'pg',
+      connection: this.dbUri
+    })
 
-    // 100MB cache
-    this.connection.pragma('cache_size = 6400')
-    this.connection.pragma('page_size = 16384')
+    // Initialise and perform upgrades
+    await this.initializeV1()
+    await this.initializeV2()
+    await this.initializeV3()
+    await this.initializeV4()
+    await this.initializeV5()
+    await this.initializeV6()
+    await this.initializeV7()
 
-    // WAL mode allows simultaneous readers
-    this.connection.pragma('journal_mode = WAL')
-
-    // Synchronizes WAL at checkpoints
-    this.connection.pragma('synchronous = NORMAL')
-
-    if (!this.readonly) {
-      // Initialise and perform upgrades
-      await this.initializeV1()
-      await this.initializeV2()
-      await this.initializeV3()
-      await this.initializeV4()
-      await this.initializeV5()
-      await this.initializeV6()
-      await this.initializeV7()
-    }
-    //
     this.addNewTransactionStmt = this.connection.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
     this.setTransactionBytesStmt = this.connection.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.connection.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
@@ -180,7 +171,7 @@ class SqliteDatasource {
 
     this.logger.info('Setting up database v1')
 
-    await this.transaction(() => {
+    await this.performOnTransaction(() => {
       this.connection.pragma('user_version = 1')
 
       this.connection.prepare(
@@ -441,16 +432,9 @@ class SqliteDatasource {
   }
 
   async performOnTransaction (fn) {
-    if (!this.connection) return
-    try {
-      this.connection.exec('begin;')
-      await fn()
-      this.connection.exec('commit;')
-    } catch (e) {
-      this.connection.exec('rollback;')
-      console.error(e)
-      throw e
-    }
+    this.knex.transaction(async (trx) => {
+      await fn(trx)
+    })
   }
 
   async transaction (f) {
@@ -757,4 +741,4 @@ class SqliteDatasource {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = { SqliteDatasource }
+module.exports = { KnexDataSource }

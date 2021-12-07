@@ -6,7 +6,7 @@
 
 const Run = require('run-sdk')
 const bsv = require('bsv')
-const { SqliteDatasource } = require('./sqlite-datasource')
+const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 
 // ------------------------------------------------------------------------------------------------
