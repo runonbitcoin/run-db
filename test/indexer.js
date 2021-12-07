@@ -101,6 +101,7 @@ describe('Indexer', () => {
   it('discovered berry transaction', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
+    const promise = indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
     await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
     await database.addTransaction('24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a') // B (old)
     await database.addTransaction('312985bd960ae4c59856b3089b04017ede66506ea181333eec7c9bb88b11c490') // txo, Tx
@@ -111,7 +112,7 @@ describe('Indexer', () => {
     await database.trust('727e7b423b7ee40c0b5be87fba7fa5673ea2d20a74259040a7295d9c32a90011')
     // Don't index the berry data, because it will be fetched automatically
     // database.addTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
-    await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+    await promise
     await indexer.stop()
   })
 

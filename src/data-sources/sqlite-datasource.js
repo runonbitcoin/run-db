@@ -625,20 +625,28 @@ class SqliteDatasource {
 
   async getJigState (location) {
     const row = this.getJigStateStmt.raw(true).get(location)
-    return row && row[0]
+    if (row && row[0]) {
+      return JSON.parse(row[0])
+    } else {
+      return null
+    }
   }
 
-  async setJig (location, jig) {
-    this.setJigStateStmt.run(location, jig)
+  async setJigState (location, stateObject) {
+    this.setJigStateStmt.run(location, JSON.stringify(stateObject))
   }
 
-  async setBerry (location, berry) {
-    this.setBerryStateStmt.run(location, berry)
+  async setBerryState (location, stateObject) {
+    this.setBerryStateStmt.run(location, JSON.stringify(stateObject))
   }
 
-  async getBerry (location) {
+  async getBerryState (location) {
     const row = this.getBerryStateStmt.raw(true).get(location)
-    return row && row[0]
+    if (row && row[0]) {
+      return JSON.parse(row[0])
+    } else {
+      return null
+    }
   }
 
   async setJigClass (location, cls) {

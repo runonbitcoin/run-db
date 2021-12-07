@@ -117,11 +117,11 @@ class Executor {
   async _onCacheGet (key) {
     if (key.startsWith('jig://')) {
       const state = await this.database.getJigState(key.slice('jig://'.length))
-      if (state) return JSON.parse(state)
+      if (state) return state
     }
     if (key.startsWith('berry://')) {
       const state = await this.database.getBerryState(key.slice('berry://'.length))
-      if (state) return JSON.parse(state)
+      if (state) return state
     }
     if (key.startsWith('tx://')) {
       return await this.database.getTransactionHex(key.slice('tx://'.length))

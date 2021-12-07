@@ -16,9 +16,9 @@ const Database = require('../src/database')
 // ------------------------------------------------------------------------------------------------
 
 const fetch = txid => { return { hex: require('./txns.json')[txid] } }
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const crawled = (indexer) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
-const reorged = (indexer) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })
+const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
+const crawled = (indexer) => new Promise((resolve) => { indexer.onBlock = height => resolve(height) })
+const reorged = (indexer) => new Promise((resolve) => { indexer.onReorg = newHeight => resolve(newHeight) })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const database = new Database(':memory:', logger, false)
 
@@ -32,7 +32,7 @@ afterEach(() => database.close())
 describe('Crawler', () => {
   it('add txids', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
-    function getNextBlock (height, hash) {
+    function getNextBlock (_height, _hash) {
       return { height: 1, hash: 'abc', txids: [txid] }
     }
     const api = { getNextBlock, fetch }
@@ -50,7 +50,7 @@ describe('Crawler', () => {
 
   it('add block', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
-    function getNextBlock (height, hash) {
+    function getNextBlock (_height, _hash) {
       return { height: 1, hash: 'abc', txids: [txid], txhexs: [txns[txid]] }
     }
     const api = { getNextBlock }
@@ -72,7 +72,7 @@ describe('Crawler', () => {
       'ca9555f54dd44457d7c912e8eea375a8ed6d8ea1806a206b43af5c7f94ea47e7'
     ]
     let indexedMiddleTransaction = false
-    function getNextBlock (height, hash) {
+    function getNextBlock (height, _hash) {
       if (!indexedMiddleTransaction) return null
       if (height === 1) return null
       return { height: 1, hash: 'abc', txids, txhexs: txids.map(txid => txns[txid]) }
@@ -100,7 +100,7 @@ describe('Crawler', () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     let didReorg = false
     let didIndex = false
-    function getNextBlock (height, hash) {
+    function getNextBlock (height, _hash) {
       if (didReorg) return { height: 3, hash: 'def', txids: [] }
       if (height < 5) return { height: height + 1, hash: 'abc' + height, txids: [] }
       if (height === 5) return { height: height + 1, hash: 'abc', txids: [txid] }
@@ -131,7 +131,7 @@ describe('Crawler', () => {
   it('keeps the states after a reorg', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     let didReorg = false
-    function getNextBlock (height, hash) {
+    function getNextBlock (height, _hash) {
       if (didReorg) return { height: 3, hash: 'def', txids: [] }
       if (height < 5) return { height: height + 1, hash: 'abc' + height, txids: [] }
       if (height === 5) return { height: height + 1, hash: 'abc', txids: [txid] }
@@ -145,7 +145,7 @@ describe('Crawler', () => {
     await reorged(indexer)
     await indexer.stop()
     expect(await database.getTransactionHex(txid)).not.to.equal(undefined)
-    const state = JSON.parse(await database.getJigState(txid + '_o1'))
+    const state = await database.getJigState(txid + '_o1')
     expect(state.props.origin).to.equal('_o1')
     expect(state.src).to.match(/class Dragon/)
     expect(await database.getTransactionHeight(txid)).to.equal(-1)
