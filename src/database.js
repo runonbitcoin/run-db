@@ -16,9 +16,7 @@ const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 class Database {
   constructor (path, logger, readonly = false) {
     this.ds = new SqliteDatasource(path, logger, readonly)
-    this.path = path
     this.logger = logger
-    this.readonly = readonly
 
     this.onReadyToExecute = null
     this.onAddTransaction = null
