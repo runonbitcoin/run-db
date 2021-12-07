@@ -440,6 +440,19 @@ class SqliteDatasource {
     }
   }
 
+  async performOnTransaction (fn) {
+    if (!this.connection) return
+    try {
+      this.connection.exec('begin;')
+      await fn()
+      this.connection.exec('commit;')
+    } catch (e) {
+      this.connection.exec('rollback;')
+      console.error(e)
+      throw e
+    }
+  }
+
   async transaction (f) {
     if (!this.connection) return
     try {

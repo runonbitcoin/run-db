@@ -44,17 +44,7 @@ class Database {
   }
 
   async transaction (f) {
-    if (!this.db) return
-    try {
-      this.db.exec('begin;')
-      await f()
-      this.db.exec('commit;')
-    } catch (e) {
-      this.db.exec('rollback;')
-      console.error(e)
-      throw e
-    }
-    // this.db.transaction(f)()
+    await this.ds.performOnTransaction(f)
   }
 
   // --------------------------------------------------------------------------
@@ -73,7 +63,7 @@ class Database {
   }
 
   async addTransaction (txid, txhex, height, time) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       await this.addNewTransaction(txid)
       if (height) { await this.setTransactionHeight(txid, height) }
       if (time) { await this.setTransactionTime(txid, time) }
@@ -169,7 +159,7 @@ class Database {
   }
 
   async storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       const bytes = Buffer.from(hex, 'hex')
       await this.ds.setTxBytes(txid, bytes)
       await this.ds.setExecutableForTx(txid, 0)
@@ -191,7 +181,7 @@ class Database {
   }
 
   async storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       const bytes = Buffer.from(hex, 'hex')
       await this.ds.setTxBytes(txid, bytes)
       await this.ds.setExecutableForTx(txid, 1)
@@ -223,7 +213,7 @@ class Database {
   async storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
 
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       await this.ds.setExecutedForTx(txid, 1)
       await this.ds.setIndexedForTx(txid, 1)
       await this.ds.removeTxFromExecuting(txid)
@@ -300,7 +290,7 @@ class Database {
     const txids = [txid]
     deleted.add(txid)
 
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       while (txids.length) {
         const txid = txids.shift()
 
@@ -329,7 +319,7 @@ class Database {
   }
 
   async unindexTransaction (txid) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       const indexed = await this.ds.txIsIndexed(txid)
       if (indexed) {
         await this.ds.setExecutedForTx(txid, 0)
@@ -400,7 +390,7 @@ class Database {
   }
 
   async addMissingDeps (txid, deptxids) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       for (const deptxid of deptxids) {
         await this.addDep(txid, deptxid)
       }
@@ -508,7 +498,7 @@ class Database {
 
   async untrust (txid) {
     if (!await this.isTrusted(txid)) return
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       await this.unindexTransaction(txid)
       await this.ds.setTrust(txid, 0)
     })
@@ -528,7 +518,7 @@ class Database {
   }
 
   async ban (txid) {
-    await this.transaction(async () => {
+    await this.ds.performOnTransaction(async () => {
       await this.unindexTransaction(txid)
       await this.ds.saveBan(txid)
     })
