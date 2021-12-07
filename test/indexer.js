@@ -19,8 +19,8 @@ const Database = require('../src/database')
 
 const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
+const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
+const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const database = new Database(':memory:', logger, false)
 
@@ -58,7 +58,7 @@ describe('Indexer', () => {
     const pubkey = new bsv.PrivateKey('testnet').toPublicKey().toString()
     tx.update(() => new A(pubkey))
     const rawtx = await tx.export()
-    const api = { fetch: txid => { return { hex: rawtx } } }
+    const api = { fetch: _txid => { return { hex: rawtx } } }
     const indexer = new Indexer(database, api, 'test', 1, 1, logger, 0, Infinity, [])
     const txid = new bsv.Transaction(rawtx).hash
     await indexer.start()
@@ -73,11 +73,12 @@ describe('Indexer', () => {
   it('add in reverse and index', async () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
+    const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
     await database.addTransaction('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     await database.trust('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64')
     await database.trust('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+    await promise
     await indexer.stop()
   })
 
@@ -120,7 +121,7 @@ describe('Indexer', () => {
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    await new Promise((resolve, reject) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
     await indexer.stop()
   })
 
@@ -144,8 +145,9 @@ describe('Indexer', () => {
     this.timeout(40000)
     const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     await indexer.start()
+    const promise = indexed(indexer, '11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
     await database.addTransaction('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
-    await indexed(indexer, '11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
+    await promise
     expect(await database.getSpend('7fa1b0eb8408047e138aadf72ee0980e42afab2208181429b050ad495a384d39_o1'))
       .to.equal('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83')
     expect(await database.getSpend('11f27cdad53128a4eb14c8328515dfab56b16ea5a71dd26abe9e9d7488f3ab83_o1'))
@@ -182,10 +184,11 @@ describe('Indexer', () => {
     const txid1 = new bsv.Transaction(rawtx1).hash
     const txid2 = new bsv.Transaction(rawtx2).hash
     await indexer.start()
+    const promise = indexed(indexer, txid2)
     await database.addTransaction(txid1, rawtx1)
     await database.addTransaction(txid2, rawtx2)
     await database.trust(txid1)
-    await indexed(indexer, txid2)
+    await promise
     expect(await indexer.database.getNumUnspent()).to.equal(0)
     await indexer.stop()
   })

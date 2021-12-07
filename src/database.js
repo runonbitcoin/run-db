@@ -7,57 +7,7 @@
 const Run = require('run-sdk')
 const bsv = require('bsv')
 const { SqliteDatasource } = require('./sqlite-datasource')
-
-// ------------------------------------------------------------------------------------------------
-// Globals
-// ------------------------------------------------------------------------------------------------
-
-const HEIGHT_MEMPOOL = -1
-const HEIGHT_UNKNOWN = null
-
-// The + in the following 2 queries before downloaded improves performance by NOT using the
-// tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
-// See: https://www.sqlite.org/optoverview.html
-const IS_READY_TO_EXECUTE_SQL = `
-      SELECT (
-        downloaded = 1
-        AND executable = 1
-        AND executed = 0
-        AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-        AND txid NOT IN ban
-        AND (
-          SELECT COUNT(*)
-          FROM tx AS tx2
-          JOIN deps
-          ON deps.up = tx2.txid
-          WHERE deps.down = tx.txid
-          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-        ) = 0
-      ) AS ready 
-      FROM tx
-      WHERE txid = ?
-    `
-
-const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL = `
-      SELECT down
-      FROM deps
-      JOIN tx
-      ON tx.txid = deps.down
-      WHERE up = ?
-      AND +downloaded = 1
-      AND executable = 1
-      AND executed = 0
-      AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-      AND txid NOT IN ban
-      AND (
-        SELECT COUNT(*)
-        FROM tx AS tx2
-        JOIN deps
-        ON deps.up = tx2.txid
-        WHERE deps.down = tx.txid
-        AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-      ) = 0
-    `
+const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 
 // ------------------------------------------------------------------------------------------------
 // Database
@@ -86,378 +36,11 @@ class Database {
   }
 
   async open () {
-    this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
-
-    if (this.db) throw new Error('Database already open')
-
     await this.ds.setUp()
-    // this.db = new Sqlite3Database(this.path, { readonly: this.readonly })
-
-    // 100MB cache
-    this.db.pragma('cache_size = 6400')
-    this.db.pragma('page_size = 16384')
-
-    // WAL mode allows simultaneous readers
-    this.db.pragma('journal_mode = WAL')
-
-    // Synchronizes WAL at checkpoints
-    this.db.pragma('synchronous = NORMAL')
-    //
-    // if (!this.readonly) {
-    //   // Initialise and perform upgrades
-    //   await this.initializeV1()
-    //   await this.initializeV2()
-    //   await this.initializeV3()
-    //   await this.initializeV4()
-    //   await this.initializeV5()
-    //   await this.initializeV6()
-    //   await this.initializeV7()
-    // }
-
-    // this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
-    // this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
-    // this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
-    // this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
-    // this.setTransactionHeightStmt = this.db.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
-    // this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
-    // this.setTransactionExecutedStmt = this.db.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
-    // this.setTransactionIndexedStmt = this.db.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
-    // this.hasTransactionStmt = this.db.prepare('SELECT txid FROM tx WHERE txid = ?')
-    // this.getTransactionHexStmt = this.db.prepare('SELECT LOWER(HEX(bytes)) AS hex FROM tx WHERE txid = ?')
-    // this.getTransactionTimeStmt = this.db.prepare('SELECT time FROM tx WHERE txid = ?')
-    // this.getTransactionHeightStmt = this.db.prepare('SELECT height FROM tx WHERE txid = ?')
-    // this.getTransactionHasCodeStmt = this.db.prepare('SELECT has_code FROM tx WHERE txid = ?')
-    // this.getTransactionIndexedStmt = this.db.prepare('SELECT indexed FROM tx WHERE txid = ?')
-    // this.getTransactionFailedStmt = this.db.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
-    // this.getTransactionDownloadedStmt = this.db.prepare('SELECT downloaded FROM tx WHERE txid = ?')
-    // this.deleteTransactionStmt = this.db.prepare('DELETE FROM tx WHERE txid = ?')
-    // this.unconfirmTransactionStmt = this.db.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
-    // this.getTransactionsAboveHeightStmt = this.db.prepare('SELECT txid FROM tx WHERE height > ?')
-    // this.getMempoolTransactionsBeforeTimeStmt = this.db.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
-    // this.getTransactionsToDownloadStmt = this.db.prepare('SELECT txid FROM tx WHERE downloaded = 0')
-    // this.getTransactionsDownloadedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
-    // this.getTransactionsIndexedCountStmt = this.db.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    // this.isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
-    // this.getDownstreamReadyToExecuteStmt = this.db.prepare(GET_DOWNSTREADM_READY_TO_EXECUTE_SQL)
-
-    // this.setSpendStmt = this.db.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
-    // this.setUnspentStmt = this.db.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
-    // this.getSpendStmt = this.db.prepare('SELECT spend_txid FROM spends WHERE location = ?')
-    // this.unspendOutputsStmt = this.db.prepare('UPDATE spends SET spend_txid = null WHERE spend_txid = ?')
-    // this.deleteSpendsStmt = this.db.prepare('DELETE FROM spends WHERE location LIKE ? || \'%\'')
-
-    // this.addDepStmt = this.db.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
-    // this.deleteDepsStmt = this.db.prepare('DELETE FROM deps WHERE down = ?')
-    // this.getDownstreamStmt = this.db.prepare('SELECT down FROM deps WHERE up = ?')
-    // this.getUpstreamUnexecutedCodeStmt = this.db.prepare(`
-    //   SELECT txdeps.txid as txid
-    //   FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
-    //   JOIN tx ON tx.txid = txdeps.txid
-    //   WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
-    // `)
-
-    this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
-    this.setJigClassStmt = this.db.prepare('UPDATE jig SET class = ? WHERE location = ?')
-    this.setJigLockStmt = this.db.prepare('UPDATE jig SET lock = ? WHERE location = ?')
-    this.setJigScripthashStmt = this.db.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
-    this.getJigStateStmt = this.db.prepare('SELECT state FROM jig WHERE location = ?')
-    this.deleteJigStatesStmt = this.db.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
-
-    const getAllUnspentSql = `
-      SELECT spends.location AS location FROM spends
-      JOIN jig ON spends.location = jig.location
-      WHERE spends.spend_txid IS NULL`
-    this.getAllUnspentStmt = this.db.prepare(getAllUnspentSql)
-    this.getAllUnspentByClassStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ?`)
-    this.getAllUnspentByLockStmt = this.db.prepare(`${getAllUnspentSql} AND jig.lock = ?`)
-    this.getAllUnspentByScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.scripthash = ?`)
-    this.getAllUnspentByClassLockStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND lock = ?`)
-    this.getAllUnspentByClassScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND scripthash = ?`)
-    this.getAllUnspentByLockScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.lock = ? AND scripthash = ?`)
-    this.getAllUnspentByClassLockScripthashStmt = this.db.prepare(`${getAllUnspentSql} AND jig.class = ? AND jig.lock = ? AND scripthash = ?`)
-    this.getNumUnspentStmt = this.db.prepare('SELECT COUNT(*) as unspent FROM spends JOIN jig ON spends.location = jig.location WHERE spends.spend_txid IS NULL')
-
-    this.setBerryStateStmt = this.db.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
-    this.getBerryStateStmt = this.db.prepare('SELECT state FROM berry WHERE location = ?')
-    this.deleteBerryStatesStmt = this.db.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
-
-    this.setTrustedStmt = this.db.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
-    this.getTrustlistStmt = this.db.prepare('SELECT txid FROM trust WHERE value = 1')
-    this.isTrustedStmt = this.db.prepare('SELECT COUNT(*) FROM trust WHERE txid = ? AND value = 1')
-
-    this.banStmt = this.db.prepare('INSERT OR REPLACE INTO ban (txid) VALUES (?)')
-    this.unbanStmt = this.db.prepare('DELETE FROM ban WHERE txid = ?')
-    this.isBannedStmt = this.db.prepare('SELECT COUNT(*) FROM ban WHERE txid = ?')
-    this.getBanlistStmt = this.db.prepare('SELECT txid FROM ban')
-
-    this.getHeightStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'height\'')
-    this.getHashStmt = this.db.prepare('SELECT value FROM crawl WHERE key = \'hash\'')
-    this.setHeightStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'height\'')
-    this.setHashStmt = this.db.prepare('UPDATE crawl SET value = ? WHERE key = \'hash\'')
-
-    this.markExecutingStmt = this.db.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
-    this.unmarkExecutingStmt = this.db.prepare('DELETE FROM executing WHERE txid = ?')
-  }
-
-  async initializeV1 () {
-    if (this.db.pragma('user_version')[0].user_version !== 0) return
-
-    this.logger.info('Setting up database v1')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 1')
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS tx (
-          txid TEXT NOT NULL,
-          height INTEGER,
-          time INTEGER,
-          hex TEXT,
-          has_code INTEGER,
-          executable INTEGER,
-          executed INTEGER,
-          indexed INTEGER,
-          UNIQUE(txid)
-        )`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS spends (
-          location TEXT NOT NULL PRIMARY KEY,
-          spend_txid TEXT
-        ) WITHOUT ROWID`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS deps (
-          up TEXT NOT NULL,
-          down TEXT NOT NULL,
-          UNIQUE(up, down)
-        )`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS jig (
-          location TEXT NOT NULL PRIMARY KEY,
-          state TEXT NOT NULL,
-          class TEXT,
-          scripthash TEXT,
-          lock TEXT
-        ) WITHOUT ROWID`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS berry (
-          location TEXT NOT NULL PRIMARY KEY,
-          state TEXT NOT NULL
-        ) WITHOUT ROWID`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS trust (
-          txid TEXT NOT NULL PRIMARY KEY,
-          value INTEGER
-        ) WITHOUT ROWID`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS ban (
-          txid TEXT NOT NULL PRIMARY KEY
-        ) WITHOUT ROWID`
-      ).run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS crawl (
-          role TEXT UNIQUE,
-          height INTEGER,
-          hash TEXT
-        )`
-      ).run()
-
-      this.db.prepare(
-        'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
-      ).run()
-
-      this.db.prepare(
-        'CREATE INDEX IF NOT EXISTS jig_index ON jig (class)'
-      ).run()
-
-      this.db.prepare(
-        'INSERT OR IGNORE INTO crawl (role, height, hash) VALUES (\'tip\', 0, NULL)'
-      ).run()
-    })
-  }
-
-  async initializeV2 () {
-    if (this.db.pragma('user_version')[0].user_version !== 1) return
-
-    this.logger.info('Setting up database v2')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 2')
-
-      this.db.prepare(
-        `CREATE TABLE tx_v2 (
-          txid TEXT NOT NULL,
-          height INTEGER,
-          time INTEGER,
-          bytes BLOB,
-          has_code INTEGER,
-          executable INTEGER,
-          executed INTEGER,
-          indexed INTEGER
-        )`
-      ).run()
-
-      const txids = this.db.prepare('SELECT txid FROM tx').all().map(row => row.txid)
-      const gettx = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
-      const insert = this.db.prepare('INSERT INTO tx_v2 (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-
-      this.logger.info('Migrating data')
-      for (const txid of txids) {
-        const row = gettx.get(txid)
-        const bytes = row.hex ? Buffer.from(row.hex, 'hex') : null
-        insert.run(row.txid, row.height, row.time, bytes, row.has_code, row.executable, row.executed, row.indexed)
-      }
-
-      this.db.prepare(
-        'DROP INDEX tx_txid_index'
-      ).run()
-
-      this.db.prepare(
-        'DROP TABLE tx'
-      ).run()
-
-      this.db.prepare(
-        'ALTER TABLE tx_v2 RENAME TO tx'
-      ).run()
-
-      this.db.prepare(
-        'CREATE INDEX IF NOT EXISTS tx_txid_index ON tx (txid)'
-      ).run()
-
-      this.logger.info('Saving results')
-    })
-
-    this.logger.info('Optimizing database')
-    this.db.prepare('VACUUM').run()
-  }
-
-  async initializeV3 () {
-    if (this.db.pragma('user_version')[0].user_version !== 2) return
-
-    this.logger.info('Setting up database v3')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 3')
-
-      this.db.prepare('CREATE INDEX IF NOT EXISTS deps_up_index ON deps (up)').run()
-      this.db.prepare('CREATE INDEX IF NOT EXISTS deps_down_index ON deps (down)').run()
-      this.db.prepare('CREATE INDEX IF NOT EXISTS trust_txid_index ON trust (txid)').run()
-
-      this.logger.info('Saving results')
-    })
-  }
-
-  async initializeV4 () {
-    if (this.db.pragma('user_version')[0].user_version !== 3) return
-
-    this.logger.info('Setting up database v4')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 4')
-
-      this.db.prepare('ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (bytes IS NOT NULL) VIRTUAL').run()
-
-      this.db.prepare('CREATE INDEX IF NOT EXISTS tx_downloaded_index ON tx (downloaded)').run()
-
-      this.logger.info('Saving results')
-    })
-  }
-
-  async initializeV5 () {
-    if (this.db.pragma('user_version')[0].user_version !== 4) return
-
-    this.logger.info('Setting up database v5')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 5')
-
-      this.db.prepare('CREATE INDEX IF NOT EXISTS ban_txid_index ON ban (txid)').run()
-      this.db.prepare('CREATE INDEX IF NOT EXISTS tx_height_index ON tx (height)').run()
-
-      this.logger.info('Saving results')
-    })
-  }
-
-  async initializeV6 () {
-    if (this.db.pragma('user_version')[0].user_version !== 5) return
-
-    this.logger.info('Setting up database v6')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 6')
-
-      const height = this.db.prepare('SELECT height FROM crawl WHERE role = \'tip\'').raw(true).all()[0]
-      const hash = this.db.prepare('SELECT hash FROM crawl WHERE role = \'tip\'').raw(true).all()[0]
-
-      this.db.prepare('DROP TABLE crawl').run()
-
-      this.db.prepare(
-        `CREATE TABLE IF NOT EXISTS crawl (
-          key TEXT UNIQUE,
-          value TEXT
-        )`
-      ).run()
-
-      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'height\', ?)').run(height.toString())
-      this.db.prepare('INSERT INTO crawl (key, value) VALUES (\'hash\', ?)').run(hash)
-
-      this.logger.info('Saving results')
-    })
-  }
-
-  async initializeV7 () {
-    if (this.db.pragma('user_version')[0].user_version !== 6) return
-
-    this.logger.info('Setting up database v7')
-
-    await this.transaction(() => {
-      this.db.pragma('user_version = 7')
-
-      this.logger.info('Getting possible transactions to execute')
-      const stmt = this.db.prepare(`
-          SELECT txid
-          FROM tx 
-          WHERE downloaded = 1
-          AND executable = 1
-          AND executed = 0
-          AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-          AND txid NOT IN ban
-        `)
-      const txids = stmt.raw(true).all().map(x => x[0])
-
-      const isReadyToExecuteStmt = this.db.prepare(IS_READY_TO_EXECUTE_SQL)
-
-      const ready = []
-      for (let i = 0; i < txids.length; i++) {
-        const txid = txids[i]
-        const row = isReadyToExecuteStmt.get(txid)
-        if (row && row.ready) ready.push(txid)
-        if (i % 1000 === 0) console.log('Checking to execute', i, 'of', txids.length)
-      }
-
-      this.logger.info('Marking', ready.length, 'transactions to execute')
-      this.db.prepare('CREATE TABLE IF NOT EXISTS executing (txid TEXT UNIQUE)').run()
-      const markExecutingStmt = this.db.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
-      ready.forEach(txid => markExecutingStmt.run(txid))
-
-      this.logger.info('Saving results')
-    })
   }
 
   async close () {
-    this.ds.tearDown()
+    await this.ds.tearDown()
   }
 
   async transaction (f) {
@@ -602,7 +185,7 @@ class Database {
     // Non-executable might be berry data. We execute once we receive them.
     const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
     for (const downtxid of downstreamReadyToExecute) {
-      this.markExecutingStmt.run(downtxid)
+      await this.ds.markTxAsExecuting(downtxid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
     }
   }
@@ -643,40 +226,34 @@ class Database {
     await this.transaction(async () => {
       await this.ds.setExecutedForTx(txid, 1)
       await this.ds.setIndexedForTx(txid, 1)
-      this.unmarkExecutingStmt.run(txid)
+      await this.ds.removeTxFromExecuting(txid)
 
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           await this.ds.setJig(location, JSON.stringify(cache[key]))
-          // this.setJigStateStmt.run(location, JSON.stringify(cache[key]))
-          continue
-        }
-
-        if (key.startsWith('berry://')) {
+        } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
-          this.setBerryStateStmt.run(location, JSON.stringify(cache[key]))
-          continue
+          await this.ds.setBerry(location, JSON.stringify(cache[key]))
         }
       }
 
       for (const [location, cls] of classes) {
-        this.setJigClassStmt.run(cls, location)
+        await this.ds.setJigClass(location, cls)
       }
 
       for (const [location, lock] of locks) {
-        this.setJigLockStmt.run(lock, location)
+        await this.ds.setJigLockStmt(location, lock)
       }
 
       for (const [location, scripthash] of scripthashes) {
-        this.setJigScripthashStmt.run(scripthash, location)
+        await this.ds.setJigScriptHash(location, scripthash)
       }
     })
 
-
     const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
     for (const downtxid of downstreamReadyToExecute) {
-      this.markExecutingStmt.run(downtxid)
+      await this.ds.markTxAsExecuting(downtxid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
     }
   }
@@ -686,7 +263,7 @@ class Database {
       await this.ds.setExecutableForTx(txid, 0)
       await this.ds.setExecutedForTx(txid, 1)
       await this.ds.setIndexedForTx(txid, 0)
-      this.unmarkExecutingStmt.run(txid)
+      await this.ds.removeTxFromExecuting(txid)
     })
 
     // We try executing downstream transactions if this was marked executable but it wasn't.
@@ -700,7 +277,6 @@ class Database {
     } catch (e) { }
 
     if (!executable) {
-
       const downstream = await this.ds.searchDownstreamForTxid(txid)
       for (const downtxid of downstream) {
         await this._checkExecutability(downtxid)
@@ -733,8 +309,8 @@ class Database {
         if (this.onDeleteTransaction) { await this.onDeleteTransaction(txid) }
 
         await this.ds.deleteTx(txid)
-        this.deleteJigStatesStmt.run(txid)
-        this.deleteBerryStatesStmt.run(txid)
+        await this.ds.deleteJigStatesForTxid(txid)
+        await this.ds.deleteBerryStatesForTxid(txid)
         await this.ds.deleteSpendsForTxid(txid)
         await this.ds.unspendOutput(txid)
         await this.ds.deleteDepsForTxid(txid)
@@ -760,9 +336,9 @@ class Database {
       if (indexed) {
         await this.ds.setExecutedForTx(txid, 0)
         await this.ds.setIndexedForTx(txid, 0)
-        this.deleteJigStatesStmt.run(txid)
-        this.deleteBerryStatesStmt.run(txid)
-        this.unmarkExecutingStmt.run(txid)
+        await this.ds.deleteJigStatesStmt(txid)
+        await this.ds.deleteBerryStatesForTxid(txid)
+        await this.ds.removeTxFromExecuting(txid)
 
         const downloadedTxids = await this.ds.searchDownstreamForTxid(txid)
         for (const downloadedTxid of downloadedTxids) {
@@ -840,8 +416,7 @@ class Database {
   // --------------------------------------------------------------------------
 
   async getJigState (location) {
-    const row = this.getJigStateStmt.raw(true).get(location)
-    return row && row[0]
+    return this.ds.getJigState(location)
   }
 
   // --------------------------------------------------------------------------
@@ -849,39 +424,39 @@ class Database {
   // --------------------------------------------------------------------------
 
   async getAllUnspent () {
-    return this.getAllUnspentStmt.raw(true).all().map(row => row[0])
+    return this.ds.getAllUnspent()
   }
 
   async getAllUnspentByClassOrigin (origin) {
-    return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
+    return this.ds.getAllUnspentByClassOrigin(origin)
   }
 
   async getAllUnspentByLockOrigin (origin) {
-    return this.getAllUnspentByLockStmt.raw(true).all(origin).map(row => row[0])
+    return this.ds.getAllUnspentByLockOrigin(origin)
   }
 
   async getAllUnspentByScripthash (scripthash) {
-    return this.getAllUnspentByScripthashStmt.raw(true).all(scripthash).map(row => row[0])
+    return this.ds.getAllUnspentByScripthash(scripthash)
   }
 
   async getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
-    return this.getAllUnspentByClassLockStmt.raw(true).all(clsOrigin, lockOrigin).map(row => row[0])
+    return this.ds.getAllUnspentByClassOriginAndLockOrigin(clsOrigin, lockOrigin)
   }
 
   async getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
-    return this.getAllUnspentByClassScripthashStmt.raw(true).all(clsOrigin, scripthash).map(row => row[0])
+    return this.ds.getAllUnspentByClassOriginAndScripthash(clsOrigin, scripthash)
   }
 
   async getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
-    return this.getAllUnspentByLockScripthashStmt.raw(true).all(lockOrigin, scripthash).map(row => row[0])
+    return this.ds.getAllUnspentByLockOriginAndScripthash(lockOrigin, scripthash)
   }
 
   async getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
-    return this.getAllUnspentByClassLockScripthashStmt.raw(true).all(clsOrigin, lockOrigin, scripthash).map(row => row[0])
+    return this.ds.getAllUnspentByClassOriginAndLockOriginAndScriptHash(clsOrigin, lockOrigin, scripthash)
   }
 
   async getNumUnspent () {
-    return this.getNumUnspentStmt.get().unspent
+    return this.ds.countTotalUnspent()
   }
 
   // --------------------------------------------------------------------------
@@ -889,8 +464,7 @@ class Database {
   // --------------------------------------------------------------------------
 
   async getBerryState (location) {
-    const row = this.getBerryStateStmt.raw(true).get(location)
-    return row && row[0]
+    return this.ds.getBerry(location)
   }
 
   // --------------------------------------------------------------------------
@@ -898,8 +472,7 @@ class Database {
   // --------------------------------------------------------------------------
 
   async isTrusted (txid) {
-    const row = this.isTrustedStmt.raw(true).get(txid)
-    return !!row && !!row[0]
+    return this.ds.isTrusted(txid)
   }
 
   async trust (txid) {
@@ -920,7 +493,9 @@ class Database {
       nextTxids.forEach(txid => queue.push(txid))
     }
 
-    trusted.forEach(txid => this.setTrustedStmt.run(txid, 1))
+    for (const trustedTxid of trusted) {
+      await this.ds.setTrust(trustedTxid, 1)
+    }
 
     for (const txid of trusted) {
       await this._checkExecutability(txid)
@@ -937,13 +512,13 @@ class Database {
     if (!await this.isTrusted(txid)) return
     await this.transaction(async () => {
       await this.unindexTransaction(txid)
-      this.setTrustedStmt.run(txid, 0)
+      await this.ds.setTrust(txid, 0)
     })
     if (this.onUntrustTransaction) await this.onUntrustTransaction(txid)
   }
 
   async getTrustlist () {
-    return this.getTrustlistStmt.raw(true).all().map(x => x[0])
+    return this.ds.searchAllTrust()
   }
 
   // --------------------------------------------------------------------------
@@ -951,26 +526,25 @@ class Database {
   // --------------------------------------------------------------------------
 
   async isBanned (txid) {
-    const row = this.isBannedStmt.raw(true).get(txid)
-    return !!row && !!row[0]
+    return this.ds.checkIsBanned(txid)
   }
 
   async ban (txid) {
     await this.transaction(async () => {
       await this.unindexTransaction(txid)
-      this.banStmt.run(txid)
+      await this.ds.saveBan(txid)
     })
     if (this.onBanTransaction) await this.onBanTransaction(txid)
   }
 
   async unban (txid) {
-    this.unbanStmt.run(txid)
+    await this.ds.removeBan(txid)
     await this._checkExecutability(txid)
     if (this.onUnbanTransaction) await this.onUnbanTransaction(txid)
   }
 
   async getBanlist () {
-    return this.getBanlistStmt.raw(true).all().map(x => x[0])
+    return this.ds.searchAllBans()
   }
 
   // --------------------------------------------------------------------------
@@ -978,21 +552,19 @@ class Database {
   // --------------------------------------------------------------------------
 
   async getHeight () {
-    const row = this.getHeightStmt.raw(true).all()[0]
-    return row && parseInt(row[0])
+    return this.ds.getCrawlHeight()
   }
 
   async getHash () {
-    const row = this.getHashStmt.raw(true).all()[0]
-    return row && row[0]
+    return this.ds.getCrawlHash()
   }
 
   async setHeight (height) {
-    this.setHeightStmt.run(height.toString())
+    await this.ds.setCrawlHeight(height)
   }
 
   async setHash (hash) {
-    this.setHashStmt.run(hash)
+    await this.ds.setCrawlHash(hash)
   }
 
   // --------------------------------------------------------------------------
@@ -1010,7 +582,7 @@ class Database {
   async _checkExecutability (txid) {
     const row = await this.ds.txidReadyToExecute(txid)
     if (row && row.ready) {
-      this.markExecutingStmt.run(txid)
+      await this.ds.markTxAsExecuting(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
     }
   }

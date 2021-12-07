@@ -77,12 +77,9 @@ class Executor {
     const hex = await this.database.getTransactionHex(txid)
     const trustList = await this.database.getTrustlist()
 
+    let result = null
     try {
-      const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
-
-      if (this.onIndexed) {
-        this.onIndexed(txid, result).catch(console.error)
-      }
+      result = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
     } catch (e) {
       if (worker.missingDeps.size) {
         if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
@@ -99,6 +96,9 @@ class Executor {
         this.workerRequests.shift()(worker)
       }
     }
+    if (this.onIndexed && result !== null) {
+      await this.onIndexed(txid, result)
+    }
   }
 
   _requestWorker () {
@@ -109,7 +109,7 @@ class Executor {
       return worker
     }
 
-    return new Promise((resolve, _reject) => {
+    return new Promise((resolve) => {
       this.workerRequests.push(resolve)
     })
   }

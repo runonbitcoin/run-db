@@ -68,7 +68,6 @@ class SqliteDatasource {
 
     this.connection = new Sqlite3Database(this.path, { readonly: this.readonly })
 
-
     // 100MB cache
     this.connection.pragma('cache_size = 6400')
     this.connection.pragma('page_size = 16384')
@@ -680,7 +679,7 @@ class SqliteDatasource {
     return this.getAllUnspentByLockScripthashStmt.raw(true).all(lockOrigin, scripthash).map(row => row[0])
   }
 
-  async getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
+  async getAllUnspentByClassOriginAndLockOriginAndScriptHash (clsOrigin, lockOrigin, scripthash) {
     return this.getAllUnspentByClassLockScripthashStmt.raw(true).all(clsOrigin, lockOrigin, scripthash).map(row => row[0])
   }
 
