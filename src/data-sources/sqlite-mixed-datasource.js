@@ -17,15 +17,29 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async extraSchemaMigrations () {
-    this.connection.exec(`
-      ALTER TABLE tx DROP COLUMN bytes;
-    `)
-    this.connection.exec(`
+    this.connection.prepare(
+      'DROP INDEX IF EXISTS tx_downloaded_index;'
+    ).run()
+
+    this.connection.prepare(
+      'ALTER TABLE tx DROP COLUMN downloaded;'
+    ).run()
+
+    this.connection.prepare(
+      'ALTER TABLE tx DROP COLUMN bytes;'
+    ).run()
+
+    this.connection.prepare(
+      'ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (1) VIRTUAL'
+    ).run()
+
+    this.connection.prepare(`
       ALTER TABLE jig DROP COLUMN state;
-    `)
-    this.connection.exec(`
+    `).run()
+
+    this.connection.prepare(`
       ALTER TABLE berry DROP COLUMN state;
-    `)
+    `).run()
   }
 
   async setUp () {
@@ -35,6 +49,10 @@ class SqliteMixedDatasource extends SqliteDatasource {
     this.setJigStateStmt = null
     this.getBerryStateStmt = null
     this.setBerryStateStmt = null
+    this.getTransactionsCountStmt = this.connection.prepare(`
+      select count(*) as count from tx;
+    `)
+    this.addNewTransactionStmt = this.connection.prepare('INSERT OR IGNORE INTO tx (txid, height, time, has_code, executable, executed, indexed) VALUES (?, null, ?, 0, 0, 0, 0)')
   }
 
   async getTxHex (txid) {
@@ -92,6 +110,16 @@ class SqliteMixedDatasource extends SqliteDatasource {
     if (!result.ok) {
       throw new Error(`Error saving jig state: ${location}`)
     }
+  }
+
+  // tx
+
+  async checkTxIsDownloaded (_txid) {
+    return true
+  }
+
+  async countDownloadedTxs () {
+    return this.getTransactionsCountStmt.get().count
   }
 }
 

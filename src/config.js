@@ -25,6 +25,8 @@ const ZMQ_URL = process.env.ZMQ_URL || null
 const RPC_URL = process.env.RPC_URL || null
 const DEBUG = process.env.DEBUG || false
 const SERVE_ONLY = process.env.SERVE_ONLY || false
+const DATA_SOURCE = process.env.DATA_SOURCE || 'sqlite'
+const DATA_API_ROOT = process.env.DATA_API_ROOT || null
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -115,5 +117,7 @@ module.exports = {
   ZMQ_URL,
   RPC_URL,
   DEBUG,
-  SERVE_ONLY
+  SERVE_ONLY,
+  DATA_SOURCE,
+  DATA_API_ROOT
 }

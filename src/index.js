@@ -8,7 +8,7 @@ const Indexer = require('./indexer')
 const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -19,6 +19,8 @@ const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
 const DirectServer = require('./direct-server')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
+const path = require('path')
+const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -51,7 +53,15 @@ switch (API) {
 
 const readonly = !!SERVE_ONLY
 
-const dataSource = new SqliteDatasource(DB, logger, readonly)
+let dataSource
+if (DATA_SOURCE === 'sqlite') {
+  dataSource = new SqliteDatasource(DB, logger, readonly)
+} else if (DATA_SOURCE === 'mixed') {
+  dataSource = new SqliteMixedDatasource(DB, logger, readonly, DATA_API_ROOT)
+} else {
+  throw new Error(`unknown datasource: ${DATA_SOURCE}. Please check "DATA_SOURCE" configuration.`)
+}
+
 const database = new Database(dataSource, logger)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
