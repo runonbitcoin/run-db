@@ -10,6 +10,7 @@ const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
+const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -20,7 +21,8 @@ const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = 
 const crawled = (indexer) => new Promise((resolve) => { indexer.onBlock = height => resolve(height) })
 const reorged = (indexer) => new Promise((resolve) => { indexer.onReorg = newHeight => resolve(newHeight) })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const database = new Database(':memory:', logger, false)
+const ds = new SqliteDatasource(':memory:', logger, false)
+const database = new Database(ds, logger)
 
 beforeEach(() => database.open())
 afterEach(() => database.close())

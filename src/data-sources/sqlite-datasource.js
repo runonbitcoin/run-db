@@ -62,33 +62,17 @@ class SqliteDatasource {
     this.connection = null
   }
 
-  async setUp () {
-    this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
-    if (this.connection) throw new Error('Database already open')
+  async migrateSchema () {
+    await this.initializeV1()
+    await this.initializeV2()
+    await this.initializeV3()
+    await this.initializeV4()
+    await this.initializeV5()
+    await this.initializeV6()
+    await this.initializeV7()
+  }
 
-    this.connection = new Sqlite3Database(this.path, { readonly: this.readonly })
-
-    // 100MB cache
-    this.connection.pragma('cache_size = 6400')
-    this.connection.pragma('page_size = 16384')
-
-    // WAL mode allows simultaneous readers
-    this.connection.pragma('journal_mode = WAL')
-
-    // Synchronizes WAL at checkpoints
-    this.connection.pragma('synchronous = NORMAL')
-
-    if (!this.readonly) {
-      // Initialise and perform upgrades
-      await this.initializeV1()
-      await this.initializeV2()
-      await this.initializeV3()
-      await this.initializeV4()
-      await this.initializeV5()
-      await this.initializeV6()
-      await this.initializeV7()
-    }
-    //
+  prepareStatements () {
     this.addNewTransactionStmt = this.connection.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
     this.setTransactionBytesStmt = this.connection.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.connection.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
@@ -173,6 +157,29 @@ class SqliteDatasource {
     this.markExecutingStmt = this.connection.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
     this.unmarkExecutingStmt = this.connection.prepare('DELETE FROM executing WHERE txid = ?')
     this.findAllExecutingTxidsStmt = this.connection.prepare('SELECT txid FROM executing')
+  }
+
+  async setUp () {
+    this.logger.debug('Opening' + (this.readonly ? ' readonly' : '') + ' database')
+    if (this.connection) throw new Error('Database already open')
+
+    this.connection = new Sqlite3Database(this.path, { readonly: this.readonly })
+
+    // 100MB cache
+    this.connection.pragma('cache_size = 6400')
+    this.connection.pragma('page_size = 16384')
+
+    // WAL mode allows simultaneous readers
+    this.connection.pragma('journal_mode = WAL')
+
+    // Synchronizes WAL at checkpoints
+    this.connection.pragma('synchronous = NORMAL')
+
+    if (!this.readonly) {
+      await this.migrateSchema()
+    }
+
+    this.prepareStatements()
   }
 
   async initializeV1 () {

@@ -18,6 +18,7 @@ const BitcoinRpc = require('./bitcoin-rpc')
 const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
 const DirectServer = require('./direct-server')
+const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -49,7 +50,9 @@ switch (API) {
 }
 
 const readonly = !!SERVE_ONLY
-const database = new Database(DB, logger, readonly)
+
+const dataSource = new SqliteDatasource(DB, logger, readonly)
+const database = new Database(dataSource, logger)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)

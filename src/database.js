@@ -6,7 +6,6 @@
 
 const Run = require('run-sdk')
 const bsv = require('bsv')
-const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 
 // ------------------------------------------------------------------------------------------------
@@ -14,8 +13,8 @@ const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 // ------------------------------------------------------------------------------------------------
 
 class Database {
-  constructor (path, logger, readonly = false) {
-    this.ds = new SqliteDatasource(path, logger, readonly)
+  constructor (datasource, logger) {
+    this.ds = datasource
     this.logger = logger
 
     this.onReadyToExecute = null

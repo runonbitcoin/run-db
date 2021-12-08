@@ -13,6 +13,7 @@ const Server = require('../src/server')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
+const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -20,11 +21,12 @@ const Database = require('../src/database')
 
 const fetch = async txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
-const downloaded = (indexer, txid) => new Promise((resolve, reject) => { indexer.onDownload = x => txid === x && resolve() })
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const listening = (server) => new Promise((resolve, reject) => { server.onListening = () => resolve() })
+const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
+const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
+const listening = (server) => new Promise((resolve) => { server.onListening = () => resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const database = new Database(':memory:', logger, false)
+const ds = new SqliteDatasource(':memory:', logger, false)
+const database = new Database(ds, logger)
 
 beforeEach(() => database.open())
 afterEach(() => database.close())
@@ -57,9 +59,7 @@ describe('Server', () => {
 
     // ------------------------------------------------------------------------
 
-    it('does not throw if add with rawtx mismatch', async () => {
-      // Because the "POST /tx/:txid" endpoint is being deprecated we are not doing this
-      // checking anymore. The txid of the url is ignored.
+    it('throws if add with rawtx mismatch', async () => {
       const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(database, logger, null)
       await indexer.start()
@@ -68,7 +68,7 @@ describe('Server', () => {
       const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
       const otherTxid = 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d'
       const options = { headers: { 'Content-Type': 'text/plain' } }
-      await expect(axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[otherTxid], options)).to.be.fulfilled
+      await expect(axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[otherTxid], options)).to.be.rejectedWith(Error)
       server.stop()
       await indexer.stop()
     })
@@ -110,8 +110,9 @@ describe('Server', () => {
       await indexer.start()
       server.start()
       await listening(server)
-      database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await promise
       const location = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1'
       const state = (await axios.get(`http://localhost:${server.port}/jig/${location}`)).data
       expect(typeof state).to.equal('object')
@@ -129,7 +130,7 @@ describe('Server', () => {
       server.start()
       await listening(server)
       const location = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1'
-      await expect(axios.get(`http://localhost:${server.port}/jig/${location}`)).to.be.rejected
+      await expect(axios.get(`http://localhost:${server.port}/jig/${location}`)).to.be.rejectedWith(Error)
       try {
         await axios.get(`http://localhost:${server.port}/jig/${location}`)
       } catch (e) {
@@ -170,7 +171,7 @@ describe('Server', () => {
       server.start()
       await listening(server)
       const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
-      await expect(axios.get(`http://localhost:${server.port}/berry/${location}`)).to.be.rejected
+      await expect(axios.get(`http://localhost:${server.port}/berry/${location}`)).to.be.rejectedWith(Error)
       try {
         await axios.get(`http://localhost:${server.port}/berry/${location}`)
       } catch (e) {
@@ -193,8 +194,9 @@ describe('Server', () => {
       server.start()
       await listening(server)
       const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-      database.addTransaction(txid)
-      await downloaded(indexer, txid)
+      const promise = downloaded(indexer, txid)
+      await database.addTransaction(txid)
+      await promise
       const rawtx = (await axios.get(`http://localhost:${server.port}/tx/${txid}`)).data
       expect(typeof rawtx).to.equal('string')
       expect(rawtx.length).to.equal(2074)
@@ -211,7 +213,7 @@ describe('Server', () => {
       server.start()
       await listening(server)
       const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejected
+      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
       try {
         await axios.get(`http://localhost:${server.port}/tx/${txid}`)
       } catch (e) {
@@ -231,7 +233,7 @@ describe('Server', () => {
       await listening(server)
       const txid = '1111111111111111111111111111111111111111111111111111111111111111'
       database.addTransaction(txid)
-      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejected
+      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
       try {
         await axios.get(`http://localhost:${server.port}/tx/${txid}`)
       } catch (e) {
@@ -253,8 +255,9 @@ describe('Server', () => {
       await indexer.start()
       server.start()
       await listening(server)
-      database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await promise
       const unspent = (await axios.get(`http://localhost:${server.port}/unspent`)).data
       expect(unspent.length).to.equal(3)
       expect(unspent.includes('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64_o1')).to.equal(true)
@@ -272,8 +275,9 @@ describe('Server', () => {
       await indexer.start()
       server.start()
       await listening(server)
-      database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
+      await promise
       const address = '1Kc8XRNryDycwvfEQiFF2TZwD1CVhgwGy2'
       const unspent = (await axios.get(`http://localhost:${server.port}/unspent?address=${address}`)).data
       expect(unspent.length).to.equal(3)

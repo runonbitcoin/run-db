@@ -12,6 +12,7 @@ const Run = require('run-sdk')
 const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
+const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -22,7 +23,8 @@ const api = { fetch }
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const database = new Database(':memory:', logger, false)
+const ds = new SqliteDatasource(':memory:', logger, false)
+const database = new Database(ds, logger)
 
 beforeEach(() => database.open())
 afterEach(() => database.close())

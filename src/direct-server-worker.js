@@ -8,6 +8,7 @@ const { parentPort, workerData } = require('worker_threads')
 const Server = require('./server')
 const Bus = require('./bus')
 const Database = require('./database')
+const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 
 const logger = {
   info: (...args) => Bus.sendRequest(parentPort, 'info', ...args),
@@ -17,7 +18,8 @@ const logger = {
 }
 
 const readonly = true
-const database = new Database(workerData.dbPath, logger, readonly)
+const ds = new SqliteDatasource(':memory:', logger, readonly)
+const database = new Database(ds, logger)
 const server = new Server(database, logger, workerData.port)
 
 database.trust = (txid) => Bus.sendRequest(parentPort, 'trust', txid)
