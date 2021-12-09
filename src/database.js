@@ -66,18 +66,21 @@ class Database {
       if (time) { await this.setTransactionTime(txid, time) }
     })
 
-    const downloaded = await this.isTransactionDownloaded(txid)
-    if (downloaded) return
-
-    if (txhex) {
-      await this.parseAndStoreTransaction(txid, txhex)
-    } else {
-      if (this.onRequestDownload) { await this.onRequestDownload(txid) }
+    // const downloaded = await this.isTransactionIn(txid)
+    // if (downloaded) return
+    if (!txhex) {
+      txhex = await this.ds.getTxHex()
     }
+    await this.parseAndStoreTransaction(txid, txhex)
+    // if (txhex) {
+    //
+    // } else {
+    //   if (this.onRequestDownload) { await this.onRequestDownload(txid) }
+    // }
   }
 
   async parseAndStoreTransaction (txid, hex) {
-    if (await this.isTransactionDownloaded(txid)) return
+    // if (await this.isTransactionDownloaded(txid)) return
 
     let metadata = null
     let bsvtx = null

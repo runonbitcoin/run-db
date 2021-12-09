@@ -19,7 +19,6 @@ const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
 const DirectServer = require('./direct-server')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
-const path = require('path')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 
 // ------------------------------------------------------------------------------------------------

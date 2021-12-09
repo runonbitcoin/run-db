@@ -9,6 +9,8 @@ const Server = require('./server')
 const Bus = require('./bus')
 const Database = require('./database')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
+const { DATA_SOURCE, DB, DATA_API_ROOT } = require('./config')
+const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 
 const logger = {
   info: (...args) => Bus.sendRequest(parentPort, 'info', ...args),
@@ -18,8 +20,17 @@ const logger = {
 }
 
 const readonly = true
-const ds = new SqliteDatasource(':memory:', logger, readonly)
-const database = new Database(ds, logger)
+
+let dataSource
+if (DATA_SOURCE === 'sqlite') {
+  dataSource = new SqliteDatasource(DB, logger, readonly)
+} else if (DATA_SOURCE === 'mixed') {
+  dataSource = new SqliteMixedDatasource(DB, logger, readonly, DATA_API_ROOT)
+} else {
+  throw new Error(`unknown datasource: ${DATA_SOURCE}. Please check "DATA_SOURCE" configuration.`)
+}
+
+const database = new Database(dataSource, logger)
 const server = new Server(database, logger, workerData.port)
 
 database.trust = (txid) => Bus.sendRequest(parentPort, 'trust', txid)

@@ -75,6 +75,7 @@ const run = new Run({ network, logger: null })
 
 async function execute (txid, hex, trustlist) {
   run.cache = new Cache()
+  run.state = new Run.plugins.LocalState()
   run.blockchain = new Blockchain(txid)
   run.timeout = 300000
   run.client = false
