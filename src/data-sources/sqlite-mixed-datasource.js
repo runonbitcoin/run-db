@@ -72,7 +72,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
     this.getTransactionHasCodeStmt = this.connection.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.connection.prepare('SELECT indexed FROM tx WHERE txid = ?')
     this.getTransactionFailedStmt = this.connection.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
-    this.getTransactionDownloadedStmt = this.connection.prepare('SELECT downloaded FROM tx WHERE txid = ?')
+    // this.getTransactionDownloadedStmt = this.connection.prepare('SELECT downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.connection.prepare('DELETE FROM tx WHERE txid = ?')
     this.unconfirmTransactionStmt = this.connection.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
     this.getTransactionsAboveHeightStmt = this.connection.prepare('SELECT txid FROM tx WHERE height > ?')
@@ -99,6 +99,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
       WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
     `)
 
+    this.setJigMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location)  VALUES (?)')
     this.setJigClassStmt = this.connection.prepare('UPDATE jig SET class = ? WHERE location = ?')
     this.setJigLockStmt = this.connection.prepare('UPDATE jig SET lock = ? WHERE location = ?')
     this.setJigScripthashStmt = this.connection.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
@@ -119,6 +120,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
     this.getNumUnspentStmt = this.connection.prepare('SELECT COUNT(*) as unspent FROM spends JOIN jig ON spends.location = jig.location WHERE spends.spend_txid IS NULL')
 
     this.deleteBerryStatesStmt = this.connection.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
+    this.setBerryMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO berry (location) VALUES (?)')
 
     this.setTrustedStmt = this.connection.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
     this.getTrustlistStmt = this.connection.prepare('SELECT txid FROM trust WHERE value = 1')
@@ -201,8 +203,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
   // jig
 
   async getJigState (location) {
-    const state = await this._pullJigState(location)
-    return state
+    return this._pullJigState(location)
   }
 
   async setJigState (location, stateObject) {

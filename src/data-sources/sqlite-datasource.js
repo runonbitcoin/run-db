@@ -5,6 +5,7 @@
  */
 const Sqlite3Database = require('better-sqlite3')
 const { HEIGHT_MEMPOOL } = require('../constants')
+const fastq = require('fastq')
 
 // The + in the following 2 queries before downloaded improves performance by NOT using the
 // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
@@ -60,6 +61,21 @@ class SqliteDatasource {
     this.logger = logger
     this.readonly = readonly
     this.connection = null
+
+    const worker = async (fn, cb) => {
+      try {
+        this.connection.exec('begin;')
+        const result = await fn()
+        this.connection.exec('commit;')
+        cb(result)
+      } catch (e) {
+        this.connection.exec('rollback;')
+        console.error(e)
+        throw e
+      }
+    }
+
+    this.txQueue = fastq(worker, 1)
   }
 
   async migrateSchema () {
@@ -116,6 +132,7 @@ class SqliteDatasource {
     `)
     //
     this.setJigStateStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
+    this.setJigMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location)  VALUES (?)')
     this.setJigClassStmt = this.connection.prepare('UPDATE jig SET class = ? WHERE location = ?')
     this.setJigLockStmt = this.connection.prepare('UPDATE jig SET lock = ? WHERE location = ?')
     this.setJigScripthashStmt = this.connection.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
@@ -137,6 +154,7 @@ class SqliteDatasource {
     this.getNumUnspentStmt = this.connection.prepare('SELECT COUNT(*) as unspent FROM spends JOIN jig ON spends.location = jig.location WHERE spends.spend_txid IS NULL')
 
     this.setBerryStateStmt = this.connection.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
+    this.setBerryMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO berry (location) VALUES (?)')
     this.getBerryStateStmt = this.connection.prepare('SELECT state FROM berry WHERE location = ?')
     this.deleteBerryStatesStmt = this.connection.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
 
@@ -349,7 +367,6 @@ class SqliteDatasource {
 
     await this.performOnTransaction(() => {
       this.connection.pragma('user_version = 4')
-
       this.connection.prepare('ALTER TABLE tx ADD COLUMN downloaded INTEGER GENERATED ALWAYS AS (bytes IS NOT NULL) VIRTUAL').run()
 
       this.connection.prepare('CREATE INDEX IF NOT EXISTS tx_downloaded_index ON tx (downloaded)').run()
@@ -449,28 +466,25 @@ class SqliteDatasource {
 
   async performOnTransaction (fn) {
     if (!this.connection) return
-    try {
-      this.connection.exec('begin;')
-      await fn()
-      this.connection.exec('commit;')
-    } catch (e) {
-      this.connection.exec('rollback;')
-      console.error(e)
-      throw e
-    }
-  }
-
-  async transaction (f) {
-    if (!this.connection) return
-    try {
-      this.connection.exec('begin;')
-      await f()
-      this.connection.exec('commit;')
-    } catch (e) {
-      this.connection.exec('rollback;')
-      console.error(e)
-      throw e
-    }
+    return new Promise((resolve, reject) => {
+      this.txQueue.push(fn, (err, result) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(result)
+        }
+      })
+    })
+    // if (!this.connection) return
+    // try {
+    //   this.connection.exec('begin;')
+    //   await fn()
+    //   this.connection.exec('commit;')
+    // } catch (e) {
+    //   this.connection.exec('rollback;')
+    //   console.error(e)
+    //   throw e
+    // }
   }
 
   async txExists (txid) {
@@ -630,6 +644,10 @@ class SqliteDatasource {
 
   // jig
 
+  async setJigMetadata (location) {
+    this.setJigMetadataStmt.run(location)
+  }
+
   async getJigState (location) {
     const row = this.getJigStateStmt.raw(true).get(location)
     if (row && row[0]) {
@@ -645,6 +663,10 @@ class SqliteDatasource {
 
   async setBerryState (location, stateObject) {
     this.setBerryStateStmt.run(location, JSON.stringify(stateObject))
+  }
+
+  async setBerryMetadata (location) {
+    this.setBerryMetadataStmt.run(location)
   }
 
   async getBerryState (location) {

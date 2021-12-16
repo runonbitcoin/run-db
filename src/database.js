@@ -69,7 +69,7 @@ class Database {
     // const downloaded = await this.isTransactionIn(txid)
     // if (downloaded) return
     if (!txhex) {
-      txhex = await this.ds.getTxHex()
+      txhex = await this.ds.getTxHex(txid)
     }
     await this.parseAndStoreTransaction(txid, txhex)
     // if (txhex) {
@@ -222,6 +222,7 @@ class Database {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           await this.ds.setJigState(location, cache[key])
+          await this.ds.setJigMetadata(location)
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
           await this.ds.setBerryState(location, cache[key])
@@ -233,7 +234,7 @@ class Database {
       }
 
       for (const [location, lock] of locks) {
-        await this.ds.setJigLockStmt(location, lock)
+        await this.ds.setJigLock(location, lock)
       }
 
       for (const [location, scripthash] of scripthashes) {
