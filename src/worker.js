@@ -9,6 +9,10 @@ const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
 const Bus = require('./bus')
+const config = require('./config')
+const Database = require('./database')
+const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
+const { DEBUG } = require('./config')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
@@ -47,6 +51,39 @@ class Cache {
   }
 }
 
+class DirectCache {
+  constructor (db) {
+    this.db = db
+    this.state = new Map()
+  }
+
+  async get (key) {
+    const value = this.state[key]
+    if (value) { return value }
+
+    const [type, identifier] = key.split('://')
+    if (type === 'jig') {
+      const jig = await this.db.getJigState(identifier)
+      this.state[key] = jig
+      return jig
+    } else if (type === 'tx') {
+      const txHex = await this.db.getTxHex(identifier)
+      this.state[key] = txHex
+      return txHex
+    } else if (type === 'berry') {
+      const berry = await this.db.getBerryState(identifier)
+      this.state[key] = berry
+      return berry
+    } else {
+      return null
+    }
+  }
+
+  async set () {
+
+  }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Blockchain
 // ------------------------------------------------------------------------------------------------
@@ -54,11 +91,11 @@ class Cache {
 class Blockchain {
   constructor (txid) { this.txid = txid }
   get network () { return network }
-  async broadcast (hex) { return this.txid }
+  async broadcast (_hex) { return this.txid }
   async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', txid) }
-  async utxos (script) { throw new Error('not implemented: utxos') }
-  async spends (txid, vout) { throw new Error('not implemented: spends') }
-  async time (txid) { throw new Error('not implemented: time') }
+  async utxos (_script) { throw new Error('not implemented: utxos') }
+  async spends (_txid, _vout) { throw new Error('not implemented: spends') }
+  async time (_txid) { throw new Error('not implemented: time') }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -73,14 +110,32 @@ const scripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')
 
 const run = new Run({ network, logger: null })
 
+const logger = {}
+logger.info = console.info.bind(console)
+logger.warn = console.warn.bind(console)
+logger.error = console.error.bind(console)
+logger.debug = DEBUG ? console.debug.bind(console) : () => {}
+
 async function execute (txid, hex, trustlist) {
-  run.cache = new Cache()
+  if (config.DATA_SOURCE === 'mixed') {
+    const ds = new SqliteMixedDatasource(config.DB, logger, false, config.DATA_API_ROOT)
+    const db = new Database(ds, logger)
+    run.cache = new DirectCache(db)
+  } else {
+    run.cache = new Cache()
+  }
+
   run.state = new Run.plugins.LocalState()
   run.blockchain = new Blockchain(txid)
   run.timeout = 300000
   run.client = false
   run.preverify = false
-  trustlist.forEach(txid => run.trust(txid))
+
+  if (config.DATA_SOURCE === 'mixed') {
+    run.trust('*')
+  } else {
+    trustlist.forEach(txid => run.trust(txid))
+  }
   run.trust('cache')
 
   const tx = await run.import(hex, { txid })

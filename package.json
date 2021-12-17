@@ -24,7 +24,7 @@
   "main": "src/index.js",
   "scripts": {
     "lint": "standard --fix",
-    "start": "node --experimental-worker .",
+    "start": "node --experimental-worker src/start.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
     "bump": "npm version patch && git push --follow-tags && npm publish"
