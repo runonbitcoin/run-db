@@ -19,6 +19,8 @@ const { DEBUG } = require('./config')
 // ------------------------------------------------------------------------------------------------
 
 const network = workerData.network
+const cacheType = workerData.cacheType
+const trustSource = workerData.trustSource
 
 Bus.listen(parentPort, { execute })
 
@@ -54,7 +56,7 @@ class Cache {
 class DirectCache {
   constructor (db) {
     this.db = db
-    this.state = new Map()
+    this.state = {}
   }
 
   async get (key) {
@@ -67,7 +69,7 @@ class DirectCache {
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const txHex = await this.db.getTxHex(identifier)
+      const txHex = await this.db.getTransactionHex(identifier)
       this.state[key] = txHex
       return txHex
     } else if (type === 'berry') {
@@ -79,8 +81,8 @@ class DirectCache {
     }
   }
 
-  async set () {
-
+  async set (key, value) {
+    this.state[key] = value
   }
 }
 
@@ -117,7 +119,7 @@ logger.error = console.error.bind(console)
 logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
 async function execute (txid, hex, trustlist) {
-  if (config.DATA_SOURCE === 'mixed') {
+  if (cacheType === 'direct') {
     const ds = new SqliteMixedDatasource(config.DB, logger, false, config.DATA_API_ROOT)
     const db = new Database(ds, logger)
     run.cache = new DirectCache(db)
@@ -131,7 +133,7 @@ async function execute (txid, hex, trustlist) {
   run.client = false
   run.preverify = false
 
-  if (config.DATA_SOURCE === 'mixed') {
+  if (trustSource === 'all') {
     run.trust('*')
   } else {
     trustlist.forEach(txid => run.trust(txid))
@@ -140,7 +142,12 @@ async function execute (txid, hex, trustlist) {
 
   const tx = await run.import(hex, { txid })
 
-  await tx.cache()
+  try {
+    await tx.cache()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
 
   const cache = run.cache.state
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)

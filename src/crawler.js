@@ -1,5 +1,5 @@
 /**
- * crawler.js
+ * crawler.test.js
  *
  * Generic blockchain crawler that adds and removes transactions to the db
  */

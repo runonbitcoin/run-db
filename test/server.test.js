@@ -1,7 +1,7 @@
 /**
- * server.js
+ * server.test.js
  *
- * Tests for src/server.js
+ * Tests for src/server.test.js
  */
 
 const { describe, it, beforeEach, afterEach } = require('mocha')
@@ -19,7 +19,9 @@ const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = async txid => { return { hex: require('./txns.json')[txid] } }
+const fetch = async txid => {
+  return { hex: require('./txns.json')[txid] }
+}
 const api = { fetch }
 const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })

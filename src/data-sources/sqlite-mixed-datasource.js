@@ -16,7 +16,6 @@ const IS_READY_TO_EXECUTE_SQL = `
         downloaded = 1
         AND executable = 1
         AND executed = 0
-        AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
         AND txid NOT IN ban
         AND (
           SELECT COUNT(*)
@@ -207,6 +206,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async setJigState (location, stateObject) {
+    // this.setJigMetadataStmt(location)
     await this._pushJigState(location, stateObject)
   }
 

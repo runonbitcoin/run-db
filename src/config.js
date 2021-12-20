@@ -27,6 +27,8 @@ const DEBUG = process.env.DEBUG || false
 const SERVE_ONLY = process.env.SERVE_ONLY || false
 const DATA_SOURCE = process.env.DATA_SOURCE || 'sqlite'
 const DATA_API_ROOT = process.env.DATA_API_ROOT || null
+const WORKER_TRUST_SOURCE = process.env.WORKER_TRUST_SOURCE || 'db'
+const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -119,5 +121,7 @@ module.exports = {
   DEBUG,
   SERVE_ONLY,
   DATA_SOURCE,
-  DATA_API_ROOT
+  DATA_API_ROOT,
+  WORKER_TRUST_SOURCE,
+  WORKER_CACHE_TYPE
 }

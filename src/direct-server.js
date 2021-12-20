@@ -1,5 +1,5 @@
 /**
- * direct-server.js
+ * direct-server.test.js
  *
  * Serves GET requets directly from the database and proxies other requests to the normal server
  */

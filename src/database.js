@@ -66,21 +66,20 @@ class Database {
       if (time) { await this.setTransactionTime(txid, time) }
     })
 
-    // const downloaded = await this.isTransactionIn(txid)
-    // if (downloaded) return
+    const downloaded = await this.isTransactionIndexed(txid)
+    if (downloaded) return
     if (!txhex) {
       txhex = await this.ds.getTxHex(txid)
     }
-    await this.parseAndStoreTransaction(txid, txhex)
-    // if (txhex) {
-    //
-    // } else {
-    //   if (this.onRequestDownload) { await this.onRequestDownload(txid) }
-    // }
+    if (txhex) {
+      await this.parseAndStoreTransaction(txid, txhex)
+    } else {
+      if (this.onRequestDownload) { await this.onRequestDownload(txid) }
+    }
   }
 
   async parseAndStoreTransaction (txid, hex) {
-    // if (await this.isTransactionDownloaded(txid)) return
+    if (await this.isTransactionIndexed(txid)) return
 
     let metadata = null
     let bsvtx = null
@@ -221,8 +220,8 @@ class Database {
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
-          await this.ds.setJigState(location, cache[key])
           await this.ds.setJigMetadata(location)
+          await this.ds.setJigState(location, cache[key])
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
           await this.ds.setBerryState(location, cache[key])
@@ -345,6 +344,10 @@ class Database {
 
   async isTransactionDownloaded (txid) {
     return this.ds.checkTxIsDownloaded(txid)
+  }
+
+  async isTransactionIndexed (txid) {
+    return this.ds.txIsIndexed(txid)
   }
 
   async getTransactionsAboveHeight (height) {

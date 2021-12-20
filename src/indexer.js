@@ -1,5 +1,5 @@
 /**
- * indexer.js
+ * indexer.test.js
  *
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
@@ -14,7 +14,7 @@ const Crawler = require('./crawler')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
+  constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist, workerOpts = {}) {
     this.onDownload = null
     this.onFailToDownload = null
     this.onIndex = null
@@ -33,7 +33,7 @@ class Indexer {
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
-    this.executor = new Executor(network, numParallelExecutes, this.database, this.logger)
+    this.executor = new Executor(network, numParallelExecutes, this.database, this.logger, workerOpts)
     this.crawler = new Crawler(api, this.logger)
 
     this.database.onReadyToExecute = this._onReadyToExecute.bind(this)

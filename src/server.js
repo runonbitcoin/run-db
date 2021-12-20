@@ -1,5 +1,5 @@
 /**
- * server.js
+ * server.test.js
  *
  * Express server that exposes the Indexer
  */
@@ -76,6 +76,7 @@ class Server {
     app.use((err, req, res, next) => {
       if (this.logger) this.logger.error(err.stack)
       res.status(500).send('Something broke!')
+      next()
     })
 
     this.listener = app.listen(this.port, () => {

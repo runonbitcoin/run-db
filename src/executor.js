@@ -12,11 +12,15 @@ const Bus = require('./bus')
 // ------------------------------------------------------------------------------------------------
 
 class Executor {
-  constructor (network, numWorkers, database, logger) {
+  constructor (network, numWorkers, database, logger, opts = {}) {
     this.network = network
     this.numWorkers = numWorkers
     this.database = database
     this.logger = logger
+    this.workerOpts = {
+      cacheType: opts.cacheType || 'parentConnection',
+      trustSource: opts.trustSource || 'db'
+    }
 
     this.onIndexed = null
     this.onExecuteFailed = null
@@ -33,7 +37,7 @@ class Executor {
 
       const path = require.resolve('./worker.js')
 
-      const worker = new Worker(path, { workerData: { id: i, network: this.network } })
+      const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 
       worker.id = i
       worker.available = true

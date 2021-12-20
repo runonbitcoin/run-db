@@ -8,7 +8,8 @@ const Indexer = require('./indexer')
 const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
+  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -64,7 +65,10 @@ if (DATA_SOURCE === 'sqlite') {
 const database = new Database(dataSource, logger)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
-  START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
+  START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST, {
+    trustSource: WORKER_TRUST_SOURCE,
+    cacheType: WORKER_CACHE_TYPE
+  })
 
 const server = SERVE_ONLY
   ? new Server(database, logger, PORT)
