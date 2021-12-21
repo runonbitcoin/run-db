@@ -106,7 +106,8 @@ class Indexer {
   async _onIndexed (txid, result) {
     if (!await this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid}`)
-    await this.database.storeExecutedTransaction(txid, result)
+    this.database.storeExecutedTransaction(txid, result)
+      .catch(console.error)
     if (this.onIndex) {
       await this.onIndex(txid)
     }
@@ -119,7 +120,10 @@ class Indexer {
   }
 
   async _onReadyToExecute (txid) {
-    await this.executor.execute(txid)
+    this.executor.execute(txid)
+      .catch((e) =>
+        console.warn(`error executing tx ${txid}: ${e.message}`)
+      )
   }
 
   async _onAddTransaction (txid) {

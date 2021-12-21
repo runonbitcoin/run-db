@@ -7,7 +7,6 @@
 const Run = require('run-sdk')
 const bsv = require('bsv')
 const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
-
 // ------------------------------------------------------------------------------------------------
 // Database
 // ------------------------------------------------------------------------------------------------
@@ -174,6 +173,10 @@ class Database {
     // Non-executable might be berry data. We execute once we receive them.
     const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
     for (const downtxid of downstreamReadyToExecute) {
+      const executed = await this.ds.txIsIndexed(downtxid)
+      if (executed) {
+        continue
+      }
       await this.ds.markTxAsExecuting(downtxid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
     }
@@ -243,8 +246,12 @@ class Database {
 
     const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
     for (const downtxid of downstreamReadyToExecute) {
+      const executed = await this.ds.txIsIndexed(downtxid)
+      if (executed) {
+        continue
+      }
       await this.ds.markTxAsExecuting(downtxid)
-      if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
+      if (this.onReadyToExecute) { this.onReadyToExecute(downtxid) }
     }
   }
 
@@ -565,7 +572,8 @@ class Database {
 
   async loadTransactionsToExecute () {
     this.logger.debug('Loading transactions to execute')
-    const txids = this.db.prepare('SELECT txid FROM executing').raw(true).all().map(x => x[0])
+
+    const txids = await this.ds.findAllExecutingTxids()
     for (const txid of txids) {
       await this._checkExecutability(txid)
     }
@@ -576,6 +584,8 @@ class Database {
     if (row && row.ready) {
       await this.ds.markTxAsExecuting(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
+    } else {
+      await this.ds.removeTxFromExecuting(txid)
     }
   }
 }
