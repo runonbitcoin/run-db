@@ -103,6 +103,7 @@ class SqliteDatasource {
     this.getTransactionHeightStmt = this.connection.prepare('SELECT height FROM tx WHERE txid = ?')
     this.getTransactionHasCodeStmt = this.connection.prepare('SELECT has_code FROM tx WHERE txid = ?')
     this.getTransactionIndexedStmt = this.connection.prepare('SELECT indexed FROM tx WHERE txid = ?')
+    this.getTransactionWasExecutedStmt = this.connection.prepare('SELECT executed FROM tx WHERE txid = ?')
     this.getTransactionFailedStmt = this.connection.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
     this.getTransactionDownloadedStmt = this.connection.prepare('SELECT downloaded FROM tx WHERE txid = ?')
     this.deleteTransactionStmt = this.connection.prepare('DELETE FROM tx WHERE txid = ?')
@@ -129,6 +130,14 @@ class SqliteDatasource {
       FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
       JOIN tx ON tx.txid = txdeps.txid
       WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
+    `)
+    this.hasFailedDepStmt = this.connection.prepare(`
+      SELECT count(*) > 0 FROM tx
+      JOIN deps ON deps.up = tx.txid
+      WHERE
+          tx.txid = ? AND
+          tx.executed = 1 AND
+          tx.indexed = 0;
     `)
     //
     this.setJigStateStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
@@ -554,6 +563,14 @@ class SqliteDatasource {
 
   async txIsIndexed (txid) {
     return this.getTransactionIndexedStmt.raw(true).get(txid)[0]
+  }
+
+  async hasFailedDep (txid) {
+    return this.hasFailedDepStmt.raw(true).get(txid)[0]
+  }
+
+  async checkTxWasExecuted (txid) {
+    return this.getTransactionWasExecutedStmt.raw(true).get(txid)[0]
   }
 
   async getTxHex (txid) {

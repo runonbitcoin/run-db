@@ -13,21 +13,20 @@ const { HEIGHT_MEMPOOL } = require('../constants')
 
 const IS_READY_TO_EXECUTE_SQL = `
       SELECT (
-        downloaded = 1
-        AND executable = 1
-        AND executed = 0
-        AND txid NOT IN ban
-        AND (
-          SELECT COUNT(*)
-          FROM tx AS tx2
+        executable = 1 AND 
+        executed = 0 AND 
+        (
+          SELECT count(*)
+          FROM tx AS txInner
           JOIN deps
-          ON deps.up = tx2.txid
-          WHERE deps.down = tx.txid
-          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+          ON deps.up = txInner.txid
+          WHERE deps.down = txOuter.txid AND 
+                txInner.executable = 1 AND 
+                txInner.indexed = 0
         ) = 0
       ) AS ready 
-      FROM tx
-      WHERE txid = ?
+      FROM tx as txOuter
+      WHERE txOuter.txid = ?;
     `
 
 const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
@@ -52,9 +51,9 @@ const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
     `
 
 class SqliteMixedDatasource extends SqliteDatasource {
-  constructor (path, logger, readonly, baseApiUrl) {
+  constructor (path, logger, readonly, blobStorage) {
     super(path, logger, readonly)
-    this.baseApiUrl = baseApiUrl
+    this.blobStorage = blobStorage
   }
 
   prepareStatements () {
@@ -65,6 +64,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
     this.setTransactionHasCodeStmt = this.connection.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
     this.setTransactionExecutedStmt = this.connection.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
     this.setTransactionIndexedStmt = this.connection.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
+    this.getTransactionWasExecutedStmt = this.connection.prepare('SELECT executed FROM tx WHERE txid = ?')
     this.txExistsStmt = this.connection.prepare('SELECT txid FROM tx WHERE txid = ?')
     this.getTransactionTimeStmt = this.connection.prepare('SELECT time FROM tx WHERE txid = ?')
     this.getTransactionHeightStmt = this.connection.prepare('SELECT height FROM tx WHERE txid = ?')
@@ -96,6 +96,14 @@ class SqliteMixedDatasource extends SqliteDatasource {
       FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
       JOIN tx ON tx.txid = txdeps.txid
       WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
+    `)
+    this.hasFailedDepStmt = this.connection.prepare(`
+      SELECT count(*) > 0 FROM tx
+      JOIN deps ON deps.up = tx.txid
+      WHERE
+          tx.txid = ? AND
+          tx.executed = 1 AND
+          tx.indexed = 0;
     `)
 
     this.setJigMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location)  VALUES (?)')
@@ -191,7 +199,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async getTxHex (txid) {
-    const buff = await this.fetchTx(txid)
+    const buff = await this.blobStorage.fetchTx(txid)
     return buff.toString('hex')
   }
 
@@ -202,56 +210,24 @@ class SqliteMixedDatasource extends SqliteDatasource {
   // jig
 
   async getJigState (location) {
-    return this._pullJigState(location)
+    return this.blobStorage.pullJigState(location)
   }
 
   async setJigState (location, stateObject) {
     // this.setJigMetadataStmt(location)
-    await this._pushJigState(location, stateObject)
+    await this.blobStorage.pushJigState(location, stateObject)
   }
 
   async getBerryState (location) {
-    return this._pullJigState(location)
+    return this.blobStorage.pullJigState(location)
+  }
+
+  async setBerryMetadata (location) {
+    this.setBerryMetadataStmt.run(location)
   }
 
   async setBerryState (location, stateObject) {
-    return this._pushJigState(location, stateObject)
-  }
-
-  async _pullJigState (location) {
-    const result = await fetch(`${this.baseApiUrl}/state/${location}`)
-    if (result.status === 404) {
-      return null
-    }
-
-    if (!result.ok) {
-      throw new Error(`error fetching jig state ${location}`)
-    }
-
-    const json = await result.json()
-    return json.state
-  }
-
-  async fetchTx (txid) {
-    const result = await fetch(`${this.baseApiUrl}/rawtx/${txid}`)
-    return result.buffer()
-  }
-
-  async _pushJigState (location, stateObject) {
-    const result = await fetch(`${this.baseApiUrl}/state`, {
-      method: 'POST',
-      body: JSON.stringify({
-        location,
-        state: stateObject
-      }),
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!result.ok) {
-      throw new Error(`Error saving jig state: ${location}`)
-    }
+    return this.blobStorage.pushJigState(location, stateObject)
   }
 
   // tx

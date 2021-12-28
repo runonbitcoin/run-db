@@ -13,6 +13,7 @@ const config = require('./config')
 const Database = require('./database')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 const { DEBUG } = require('./config')
+const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
@@ -21,6 +22,7 @@ const { DEBUG } = require('./config')
 const network = workerData.network
 const cacheType = workerData.cacheType
 const trustSource = workerData.trustSource
+const id = workerData.id
 
 Bus.listen(parentPort, { execute })
 
@@ -54,8 +56,8 @@ class Cache {
 }
 
 class DirectCache {
-  constructor (db) {
-    this.db = db
+  constructor (blobStorage) {
+    this.blobs = blobStorage
     this.state = {}
   }
 
@@ -65,15 +67,16 @@ class DirectCache {
 
     const [type, identifier] = key.split('://')
     if (type === 'jig') {
-      const jig = await this.db.getJigState(identifier)
+      const jig = await this.blobs.getJigState(identifier)
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const txHex = await this.db.getTransactionHex(identifier)
+      const rawTx = await this.blobs.fetchTx(identifier)
+      const txHex = rawTx.toString('hex')
       this.state[key] = txHex
       return txHex
     } else if (type === 'berry') {
-      const berry = await this.db.getBerryState(identifier)
+      const berry = await this.blobs.getBerryState(identifier)
       this.state[key] = berry
       return berry
     } else {
@@ -82,7 +85,16 @@ class DirectCache {
   }
 
   async set (key, value) {
+    const existedBefore = !!this.state[key]
     this.state[key] = value
+    if (existedBefore) {
+      return null
+    }
+
+    const [type, identifier] = key.split('://')
+    if (type === 'jig' || type === 'berry') {
+      await this.blobs.pushJigState(identifier, value)
+    }
   }
 }
 
@@ -119,8 +131,11 @@ logger.error = console.error.bind(console)
 logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
 async function execute (txid, hex, trustlist) {
+  const back = console.log
+  console.log = function () {}
+  console.log()
   if (cacheType === 'direct') {
-    const ds = new SqliteMixedDatasource(config.DB, logger, false, config.DATA_API_ROOT)
+    const ds = new ApiBlobStorage(config.DATA_API_ROOT)
     const db = new Database(ds, logger)
     run.cache = new DirectCache(db)
   } else {
@@ -162,6 +177,7 @@ async function execute (txid, hex, trustlist) {
   const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
   const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
 
+  console.log = back
   return { cache, classes, locks, scripthashes }
 }
 

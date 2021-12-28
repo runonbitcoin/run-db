@@ -78,7 +78,7 @@ class Database {
   }
 
   async parseAndStoreTransaction (txid, hex) {
-    if (await this.isTransactionIndexed(txid)) return
+    if (await this.ds.checkTxWasExecuted(txid)) return
 
     let metadata = null
     let bsvtx = null
@@ -141,8 +141,6 @@ class Database {
     if (await this.hasTransaction(txid)) return
 
     const time = Math.round(Date.now() / 1000)
-
-    // this.addNewTransactionStmt.run(txid, time)
     await this.ds.addNewTx(txid, time)
 
     if (this.onAddTransaction) { await this.onAddTransaction(txid) }
@@ -173,12 +171,7 @@ class Database {
     // Non-executable might be berry data. We execute once we receive them.
     const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
     for (const downtxid of downstreamReadyToExecute) {
-      const executed = await this.ds.txIsIndexed(downtxid)
-      if (executed) {
-        continue
-      }
-      await this.ds.markTxAsExecuting(downtxid)
-      if (this.onReadyToExecute) { await this.onReadyToExecute(downtxid) }
+      await this._checkExecutability(downtxid)
     }
   }
 
@@ -224,10 +217,11 @@ class Database {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           await this.ds.setJigMetadata(location)
-          await this.ds.setJigState(location, cache[key])
+          // await this.ds.setJigState(location, cache[key])
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
-          await this.ds.setBerryState(location, cache[key])
+          await this.ds.setBerryMetadata(location)
+          // await this.ds.setBerryState(location, cache[key])
         }
       }
 
@@ -246,12 +240,7 @@ class Database {
 
     const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
     for (const downtxid of downstreamReadyToExecute) {
-      const executed = await this.ds.txIsIndexed(downtxid)
-      if (executed) {
-        continue
-      }
-      await this.ds.markTxAsExecuting(downtxid)
-      if (this.onReadyToExecute) { this.onReadyToExecute(downtxid) }
+      await this._checkExecutability(downtxid)
     }
   }
 
@@ -264,19 +253,19 @@ class Database {
     // We try executing downstream transactions if this was marked executable but it wasn't.
     // This allows an admin to manually change executable status in the database.
 
-    let executable = false
-    try {
-      const rawTx = await this.getTransactionHex(txid)
-      Run.util.metadata(rawTx)
-      executable = true
-    } catch (e) { }
+    // let executable = false
+    // try {
+    //   const rawTx = await this.getTransactionHex(txid)
+    //   Run.util.metadata(rawTx)
+    //   executable = true
+    // } catch (e) { }
 
-    if (!executable) {
-      const downstream = await this.ds.searchDownstreamForTxid(txid)
-      for (const downtxid of downstream) {
-        await this._checkExecutability(downtxid)
-      }
+    // if (!executable) {
+    const downstream = await this.ds.searchDownstreamForTxid(txid)
+    for (const downtxid of downstream) {
+      await this._checkExecutability(downtxid)
     }
+    // }
   }
 
   async getTransactionHex (txid) {
@@ -580,12 +569,28 @@ class Database {
   }
 
   async _checkExecutability (txid) {
+    const executed = await this.ds.checkTxWasExecuted(txid)
+    if (executed) {
+      await this.ds.removeTxFromExecuting(txid)
+      return
+    }
+    const someDepFailed = await this.ds.hasFailedDep(txid)
+    if (someDepFailed) {
+      await this.ds.setExecutedForTx(txid, 1)
+      await this.ds.setIndexedForTx(txid, 0)
+      await this.ds.removeTxFromExecuting(txid)
+      const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+      for (const downtxid of downstreamReadyToExecute) {
+        await this._checkExecutability(downtxid)
+      }
+      return
+    }
+
     const row = await this.ds.txidReadyToExecute(txid)
+
     if (row && row.ready) {
       await this.ds.markTxAsExecuting(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
-    } else {
-      await this.ds.removeTxFromExecuting(txid)
     }
   }
 }
