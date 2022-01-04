@@ -755,7 +755,7 @@ class Database {
   }
 
   hasTransaction (txid) { return !!this.hasTransactionStmt.get(txid) }
-  isTransactionDownloaded (txid) { 
+  isTransactionDownloaded (txid) {
     const result = this.getTransactionDownloadedStmt.raw(true).get(txid)
     return result && !!result[0]
   }
