@@ -67,8 +67,8 @@ class Server {
 
     app.post('/trust/:txid?', this.postTrust.bind(this))
     app.post('/ban/:txid', this.postBan.bind(this))
-    app.post('/tx/:txid', this.postTxWithCheck.bind(this))
     app.post('/tx', this.postTx.bind(this))
+    app.post('/tx/:txid', this.postTx.bind(this)) // Keeping this for retro compatibility.
 
     app.delete('/trust/:txid', this.deleteTrust.bind(this))
     app.delete('/ban/:txid', this.deleteBan.bind(this))
@@ -244,10 +244,6 @@ class Server {
       this.database.addTransaction(bsvtx.hash, hex)
       res.send(`Added ${bsvtx.hash}\n`)
     } catch (e) { next(e) }
-  }
-
-  async postTxWithCheck (req, res, next) {
-    return this.postTx(req, res, next)
   }
 
   async deleteTrust (req, res, next) {
