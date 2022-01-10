@@ -67,7 +67,8 @@ class Server {
 
     app.post('/trust/:txid?', this.postTrust.bind(this))
     app.post('/ban/:txid', this.postBan.bind(this))
-    app.post('/tx/:txid', this.postTx.bind(this))
+    app.post('/tx', this.postTx.bind(this))
+    app.post('/tx/:txid', this.postTx.bind(this)) // Keeping this for retro compatibility.
 
     app.delete('/trust/:txid', this.deleteTrust.bind(this))
     app.delete('/ban/:txid', this.deleteBan.bind(this))
@@ -234,17 +235,14 @@ class Server {
 
   async postTx (req, res, next) {
     try {
-      let txid = this._parseTxid(req.params.txid)
-      let hex = null
-      if (typeof req.body === 'string') {
-        hex = req.body
-        const bsvtx = new bsv.Transaction(hex)
-        if (!txid) txid = bsvtx.hash
-        if (txid && txid !== bsvtx.hash) throw new Error('txid does not match rawtx')
+      if (typeof req.body !== 'string') {
+        throw new Error('missing rawtx')
       }
-      if (!txid) throw new Error('Invalid request parameters')
-      this.database.addTransaction(txid, hex)
-      res.send(`Added ${txid}\n`)
+      const hex = req.body
+      const bsvtx = new bsv.Transaction(hex)
+
+      this.database.addTransaction(bsvtx.hash, hex)
+      res.send(`Added ${bsvtx.hash}\n`)
     } catch (e) { next(e) }
   }
 

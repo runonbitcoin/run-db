@@ -56,7 +56,9 @@ describe('Server', () => {
 
     // ------------------------------------------------------------------------
 
-    it('throws if add with rawtx mismatch', async () => {
+    it('does not throw if add with rawtx mismatch', async () => {
+      // Because the "POST /tx/:txid" endpoint is being deprecated we are not doing this
+      // checking anymore. The txid of the url is ignored.
       const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
       const server = new Server(database, logger, null)
       await indexer.start()
@@ -65,7 +67,7 @@ describe('Server', () => {
       const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
       const otherTxid = 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d'
       const options = { headers: { 'Content-Type': 'text/plain' } }
-      await expect(axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[otherTxid], options)).to.be.rejected
+      await expect(axios.post(`http://localhost:${server.port}/tx/${txid}`, txns[otherTxid], options)).to.be.fulfilled
       server.stop()
       await indexer.stop()
     })
