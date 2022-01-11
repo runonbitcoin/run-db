@@ -216,12 +216,10 @@ class Database {
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
-          await this.ds.setJigMetadata(location)
-          // await this.ds.setJigState(location, cache[key])
+          await this.ds.setJigState(location, cache[key])
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
-          await this.ds.setBerryMetadata(location)
-          // await this.ds.setBerryState(location, cache[key])
+          await this.ds.setBerryState(location, cache[key])
         }
       }
 

@@ -5,4 +5,5 @@ node_modules
 coverage
 run.db*
 .idea
-*.sqlite3
+*.sqlite3*
+.runcache

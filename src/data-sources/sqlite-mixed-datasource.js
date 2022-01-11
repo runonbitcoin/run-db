@@ -4,7 +4,6 @@
  * Layer between the database and the application
  */
 const { SqliteDatasource } = require('./sqlite-datasource')
-const fetch = require('node-fetch')
 const { HEIGHT_MEMPOOL } = require('../constants')
 
 // ------------------------------------------------------------------------------------------------
@@ -214,7 +213,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async setJigState (location, stateObject) {
-    // this.setJigMetadataStmt(location)
+    this.setJigMetadataStmt(location)
     await this.blobStorage.pushJigState(location, stateObject)
   }
 
@@ -227,6 +226,7 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async setBerryState (location, stateObject) {
+    await this.setBerryMetadata(location)
     return this.blobStorage.pushJigState(location, stateObject)
   }
 

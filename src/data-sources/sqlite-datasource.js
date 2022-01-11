@@ -570,7 +570,8 @@ class SqliteDatasource {
   }
 
   async checkTxWasExecuted (txid) {
-    return this.getTransactionWasExecutedStmt.raw(true).get(txid)[0]
+    const queryResult = this.getTransactionWasExecutedStmt.raw(true).get(txid)
+    return queryResult && !!queryResult[0]
   }
 
   async getTxHex (txid) {

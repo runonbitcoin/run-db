@@ -145,6 +145,7 @@ describe('Crawler', () => {
     await indexer.start()
     await database.trust(txid)
     await reorged(indexer)
+    await indexed(indexer, txid)
     await indexer.stop()
     expect(await database.getTransactionHex(txid)).not.to.equal(undefined)
     const state = await database.getJigState(txid + '_o1')
@@ -153,5 +154,3 @@ describe('Crawler', () => {
     expect(await database.getTransactionHeight(txid)).to.equal(-1)
   })
 })
-
-// ------------------------------------------------------------------------------------------------
