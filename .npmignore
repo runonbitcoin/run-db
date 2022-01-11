@@ -4,5 +4,5 @@ test
 .nyc_output
 coverage
 run.db*
-*.sqlite-3
+*.sqlite3
 .idea
