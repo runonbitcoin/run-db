@@ -198,7 +198,10 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async getTxHex (txid) {
-    const buff = await this.blobStorage.fetchTx(txid)
+    const buff = await this.blobStorage.pullTx(txid, () => null)
+    if (buff === null) {
+      return null
+    }
     return buff.toString('hex')
   }
 
@@ -213,21 +216,15 @@ class SqliteMixedDatasource extends SqliteDatasource {
   }
 
   async setJigState (location, stateObject) {
-    this.setJigMetadataStmt(location)
-    await this.blobStorage.pushJigState(location, stateObject)
+    this.setJigMetadataStmt.run(location)
   }
 
   async getBerryState (location) {
     return this.blobStorage.pullJigState(location)
   }
 
-  async setBerryMetadata (location) {
-    this.setBerryMetadataStmt.run(location)
-  }
-
   async setBerryState (location, stateObject) {
-    await this.setBerryMetadata(location)
-    return this.blobStorage.pushJigState(location, stateObject)
+    this.setBerryMetadataStmt.run(location)
   }
 
   // tx

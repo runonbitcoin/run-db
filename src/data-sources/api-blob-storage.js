@@ -2,7 +2,7 @@ const fetch = require('node-fetch')
 
 class ApiBlobStorage {
   constructor (baseUri) {
-    this.baseUri = baseUri
+    this.baseApiUrl = baseUri
   }
 
   async pushJigState (location, stateObject) {
@@ -36,9 +36,13 @@ class ApiBlobStorage {
     return json.state
   }
 
-  async fetchTx (txid) {
+  async pullTx (txid) {
     const result = await fetch(`${this.baseApiUrl}/rawtx/${txid}`)
     return result.buffer()
+  }
+
+  async pushTx (_rawTx) {
+    // do nothing
   }
 }
 

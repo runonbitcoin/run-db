@@ -21,6 +21,7 @@ const Database = require('./database')
 const DirectServer = require('./direct-server')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
+const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -57,7 +58,8 @@ let dataSource
 if (DATA_SOURCE === 'sqlite') {
   dataSource = new SqliteDatasource(DB, logger, readonly)
 } else if (DATA_SOURCE === 'mixed') {
-  dataSource = new SqliteMixedDatasource(DB, logger, readonly, DATA_API_ROOT)
+  const blobStorage = new ApiBlobStorage(DATA_API_ROOT)
+  dataSource = new SqliteMixedDatasource(DB, logger, readonly, blobStorage)
 } else {
   throw new Error(`unknown datasource: ${DATA_SOURCE}. Please check "DATA_SOURCE" configuration.`)
 }

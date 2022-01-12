@@ -10,8 +10,6 @@ const Run = require('run-sdk')
 const bsv = require('bsv')
 const Bus = require('./bus')
 const config = require('./config')
-const Database = require('./database')
-const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 const { DEBUG } = require('./config')
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
@@ -22,7 +20,7 @@ const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 const network = workerData.network
 const cacheType = workerData.cacheType
 const trustSource = workerData.trustSource
-const id = workerData.id
+// const id = workerData.id
 
 Bus.listen(parentPort, { execute })
 
@@ -66,19 +64,15 @@ class DirectCache {
     if (value) { return value }
 
     const [type, identifier] = key.split('://')
-    if (type === 'jig') {
-      const jig = await this.blobs.getJigState(identifier)
+    if (type === 'jig' || type === 'berry') {
+      const jig = await this.blobs.pullJigState(identifier)
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const rawTx = await this.blobs.fetchTx(identifier)
+      const rawTx = await this.blobs.pullTx(identifier)
       const txHex = rawTx.toString('hex')
       this.state[key] = txHex
       return txHex
-    } else if (type === 'berry') {
-      const berry = await this.blobs.getBerryState(identifier)
-      this.state[key] = berry
-      return berry
     } else {
       return null
     }
@@ -135,9 +129,8 @@ async function execute (txid, hex, trustlist) {
   console.log = function () {}
   console.log()
   if (cacheType === 'direct') {
-    const ds = new ApiBlobStorage(config.DATA_API_ROOT)
-    const db = new Database(ds, logger)
-    run.cache = new DirectCache(db)
+    const bs = new ApiBlobStorage(config.DATA_API_ROOT)
+    run.cache = new DirectCache(bs)
   } else {
     run.cache = new Cache()
   }
