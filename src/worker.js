@@ -19,7 +19,6 @@ const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 const network = workerData.network
 const cacheType = workerData.cacheType
-const trustSource = workerData.trustSource
 // const id = workerData.id
 
 Bus.listen(parentPort, { execute })
@@ -141,11 +140,7 @@ async function execute (txid, hex, trustlist) {
   run.client = false
   run.preverify = false
 
-  if (trustSource === 'all') {
-    run.trust('*')
-  } else {
-    trustlist.forEach(txid => run.trust(txid))
-  }
+  trustlist.forEach(txid => run.trust(txid))
   run.trust('cache')
 
   const tx = await run.import(hex, { txid })

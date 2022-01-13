@@ -29,6 +29,7 @@ const DATA_SOURCE = process.env.DATA_SOURCE || 'sqlite'
 const DATA_API_ROOT = process.env.DATA_API_ROOT || null
 const WORKER_TRUST_SOURCE = process.env.WORKER_TRUST_SOURCE || 'db'
 const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
+const TRUST_LIST = process.env.TRUST_LIST || 'db'
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -123,5 +124,6 @@ module.exports = {
   DATA_SOURCE,
   DATA_API_ROOT,
   WORKER_TRUST_SOURCE,
-  WORKER_CACHE_TYPE
+  WORKER_CACHE_TYPE,
+  TRUST_LIST
 }

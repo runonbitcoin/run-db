@@ -9,7 +9,7 @@ const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
-  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE
+  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -22,6 +22,8 @@ const DirectServer = require('./direct-server')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
+const { DbTrustList } = require('./trust-list/db-trust-list')
+const { TrustAllTrustList } = require('./trust-list/trust-all-trust-list')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -64,7 +66,14 @@ if (DATA_SOURCE === 'sqlite') {
   throw new Error(`unknown datasource: ${DATA_SOURCE}. Please check "DATA_SOURCE" configuration.`)
 }
 
-const database = new Database(dataSource, logger)
+let trustList
+if (TRUST_LIST === 'db') {
+  trustList = new DbTrustList(dataSource)
+} else if (TRUST_LIST === 'all') {
+  trustList = new TrustAllTrustList(dataSource)
+}
+
+const database = new Database(dataSource, trustList, logger)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST, {

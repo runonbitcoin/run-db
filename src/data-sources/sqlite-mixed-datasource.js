@@ -10,23 +10,44 @@ const { HEIGHT_MEMPOOL } = require('../constants')
 // Database
 // ------------------------------------------------------------------------------------------------
 
-const IS_READY_TO_EXECUTE_SQL = `
-      SELECT (
-        executable = 1 AND 
-        executed = 0 AND 
-        (
-          SELECT count(*)
-          FROM tx AS txInner
-          JOIN deps
-          ON deps.up = txInner.txid
-          WHERE deps.down = txOuter.txid AND 
-                txInner.executable = 1 AND 
-                txInner.indexed = 0
-        ) = 0
-      ) AS ready 
-      FROM tx as txOuter
-      WHERE txOuter.txid = ?;
-    `
+const TRUSTED_AND_READY_TO_EXECUTE_SQL = `
+  SELECT (
+    executable = 1
+    AND executed = 0
+    AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = txOuter.txid AND trust.value = 1) = 1)
+    AND txid NOT IN ban
+    AND (
+      SELECT count(*)
+      FROM tx AS txDeps
+      JOIN deps
+      ON deps.up = txDeps.txid
+      WHERE deps.down = txOuter.txid AND 
+            txDeps.executable = 1 AND 
+            txDeps.indexed = 0
+    ) = 0
+  ) AS ready 
+  FROM tx as txOuter
+  WHERE txid = ?
+`
+
+const READY_TO_EXECUTE_SQL = `
+  SELECT (
+    executable = 1
+    AND executed = 0
+    AND (
+      SELECT count(*)
+      FROM tx AS txDeps
+      JOIN deps
+      ON deps.up = txDeps.txid
+      WHERE deps
+      .down = txOuter.txid AND 
+            txDeps.executable = 1 AND 
+            txDeps.indexed = 0
+    ) = 0
+  ) AS ready 
+  FROM tx as txOuter
+  WHERE txid = ?
+`
 
 const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
       SELECT down
@@ -78,8 +99,10 @@ class SqliteMixedDatasource extends SqliteDatasource {
     this.getTransactionsToDownloadStmt = this.connection.prepare('SELECT txid FROM tx WHERE downloaded = 0')
     this.getTransactionsDownloadedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    this.isReadyToExecuteStmt = this.connection.prepare(IS_READY_TO_EXECUTE_SQL)
+    this.isTrustedAndReadyToExecuteStmt = this.connection.prepare(TRUSTED_AND_READY_TO_EXECUTE_SQL)
+    this.isReadyToExecuteStmt = this.connection.prepare(READY_TO_EXECUTE_SQL)
     this.getDownstreamReadyToExecuteStmt = this.connection.prepare(GET_DOWNSTREAM_READY_TO_EXECUTE_SQL)
+    this.getTxMetadataStmt = this.connection.prepare('SELECT * FROM tx WHERE txid = ?')
 
     this.setSpendStmt = this.connection.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
     this.setUnspentStmt = this.connection.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')

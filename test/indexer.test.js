@@ -13,6 +13,7 @@ const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
 const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
+const { DbTrustList } = require('../src/trust-list/db-trust-list')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -24,7 +25,8 @@ const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = 
 const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const ds = new SqliteDatasource(':memory:', logger, false)
-const database = new Database(ds, logger)
+const trustList = new DbTrustList(ds)
+const database = new Database(ds, trustList, logger)
 
 beforeEach(() => database.open())
 afterEach(() => database.close())
@@ -194,6 +196,44 @@ describe('Indexer', () => {
     await database.trust(txid1)
     await promise
     expect(await indexer.database.getNumUnspent()).to.equal(0)
+    await indexer.stop()
+  })
+
+  it('mark a transaction as failed when a dependency already failed', async () => {
+    const run = new Run({ network: 'mock' })
+    class Counter extends Run.Jig {
+      init () { this.count = 0 }
+      inc () { this.count += 1 }
+    }
+    run.deploy(Counter)
+    await run.sync()
+    const instance = new Counter()
+    await run.sync()
+    instance.inc()
+    await run.sync()
+
+    const txid1 = Counter.location.split('_')[0]
+    const txid2 = instance.origin.split('_')[0]
+    const txid3 = instance.location.split('_')[0]
+
+    const txHex1 = await run.blockchain.fetch(txid1)
+    const txHex2 = await run.blockchain.fetch(txid2)
+    const txHex3 = await run.blockchain.fetch(txid3)
+
+    const indexer = new IndexerTest(database, run.blockchain, 'test', 1, 1, logger, 0, Infinity, [])
+    await indexer.start()
+    const promise = indexed(indexer, txid2)
+    await database.trust(txid1)
+    await database.addTransaction(txid1, txHex1)
+    await database.addTransaction(txid2, txHex2)
+    await promise
+    await database.setTransactionExecutionFailed(txid2)
+
+    await database.addTransaction(txid3, txHex3)
+
+    const metadata = await database.getTxMetadata(txid3)
+    expect(metadata.executable).to.eql(0)
+
     await indexer.stop()
   })
 })

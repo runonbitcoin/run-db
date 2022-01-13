@@ -12,8 +12,9 @@ const { HEIGHT_MEMPOOL, HEIGHT_UNKNOWN } = require('./constants')
 // ------------------------------------------------------------------------------------------------
 
 class Database {
-  constructor (datasource, logger) {
+  constructor (datasource, trustList, logger) {
     this.ds = datasource
+    this.trustList = trustList
     this.logger = logger
 
     this.onReadyToExecute = null
@@ -356,6 +357,10 @@ class Database {
     return this.ds.searchTxsToDownload()
   }
 
+  async getTxMetadata (txid) {
+    return this.ds.getTxMetadata(txid)
+  }
+
   async getDownloadedCount () {
     return this.ds.countDownloadedTxs()
   }
@@ -462,26 +467,7 @@ class Database {
   }
 
   async trust (txid) {
-    if (await this.isTrusted(txid)) return
-
-    const trusted = [txid]
-
-    // Recursively trust code parents
-    const queue = await this.ds.getNonExecutedUpstreamTxIds(txid)
-    const visited = new Set()
-    while (queue.length) {
-      const uptxid = queue.shift()
-      if (visited.has(uptxid)) continue
-      if (await this.isTrusted(uptxid)) continue
-      visited.add(uptxid)
-      trusted.push(txid)
-      const nextTxids = await this.ds.getNonExecutedUpstreamTxIds(uptxid)
-      nextTxids.forEach(txid => queue.push(txid))
-    }
-
-    for (const trustedTxid of trusted) {
-      await this.ds.setTrust(trustedTxid, 1)
-    }
+    const trusted = await this.trustList.trust(txid)
 
     for (const txid of trusted) {
       await this._checkExecutability(txid)
@@ -495,16 +481,15 @@ class Database {
   }
 
   async untrust (txid) {
-    if (!await this.isTrusted(txid)) return
     await this.ds.performOnTransaction(async () => {
       await this.unindexTransaction(txid)
-      await this.ds.setTrust(txid, 0)
+      await this.trustList.untrust(txid)
     })
     if (this.onUntrustTransaction) await this.onUntrustTransaction(txid)
   }
 
   async getTrustlist () {
-    return this.ds.searchAllTrust()
+    return this.trustList.executionTrustList()
   }
 
   // --------------------------------------------------------------------------
@@ -567,26 +552,9 @@ class Database {
   }
 
   async _checkExecutability (txid) {
-    const executed = await this.ds.checkTxWasExecuted(txid)
-    if (executed) {
-      await this.ds.removeTxFromExecuting(txid)
-      return
-    }
-    const someDepFailed = await this.ds.hasFailedDep(txid)
-    if (someDepFailed) {
-      await this.ds.setExecutedForTx(txid, 1)
-      await this.ds.setIndexedForTx(txid, 0)
-      await this.ds.removeTxFromExecuting(txid)
-      const downstreamReadyToExecute = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
-      for (const downtxid of downstreamReadyToExecute) {
-        await this._checkExecutability(downtxid)
-      }
-      return
-    }
+    const executable = await this.trustList.checkExecutability(txid)
 
-    const row = await this.ds.txidReadyToExecute(txid)
-
-    if (row && row.ready) {
+    if (executable) {
       await this.ds.markTxAsExecuting(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
     }

@@ -10,7 +10,7 @@ const fastq = require('fastq')
 // The + in the following 2 queries before downloaded improves performance by NOT using the
 // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
 // See: https://www.sqlite.org/optoverview.html
-const IS_READY_TO_EXECUTE_SQL = `
+const TRUSTED_AND_READY_TO_EXECUTE_SQL = `
       SELECT (
         downloaded = 1
         AND executable = 1
@@ -29,6 +29,24 @@ const IS_READY_TO_EXECUTE_SQL = `
       FROM tx
       WHERE txid = ?
     `
+
+const READY_TO_EXECUTE_SQL = `
+      SELECT (
+              downloaded = 1
+              AND executable = 1
+              AND executed = 0
+              AND (
+                SELECT COUNT(*)
+                FROM tx AS tx2
+                JOIN deps
+                ON deps.up = tx2.txid
+                WHERE deps.down = tx.txid
+                AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+              ) = 0
+            ) AS ready 
+            FROM tx
+            WHERE txid = ?
+`
 
 const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
       SELECT down
@@ -113,8 +131,17 @@ class SqliteDatasource {
     this.getTransactionsToDownloadStmt = this.connection.prepare('SELECT txid FROM tx WHERE downloaded = 0')
     this.getTransactionsDownloadedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
     this.getTransactionsIndexedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-    this.isReadyToExecuteStmt = this.connection.prepare(IS_READY_TO_EXECUTE_SQL)
+    this.isTrustedAndReadyToExecuteStmt = this.connection.prepare(TRUSTED_AND_READY_TO_EXECUTE_SQL)
+    this.isReadyToExecuteStmt = this.connection.prepare(READY_TO_EXECUTE_SQL)
+    this.depsExecutedOkStmt = this.connection.prepare(`
+        SELECT COUNT(*) = 0 as ok
+        FROM tx
+        JOIN deps ON deps.up = tx.txid
+        WHERE deps.down = ?
+        AND (+tx.downloaded = 0 OR (tx.executable = 1 AND tx.executed = 0))
+    `)
     this.getDownstreamReadyToExecuteStmt = this.connection.prepare(GET_DOWNSTREAM_READY_TO_EXECUTE_SQL)
+    this.getTxMetadataStmt = this.connection.prepare('SELECT * FROM tx WHERE txid = ?')
 
     this.setSpendStmt = this.connection.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
     this.setUnspentStmt = this.connection.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
@@ -446,7 +473,7 @@ class SqliteDatasource {
         `)
       const txids = stmt.raw(true).all().map(x => x[0])
 
-      const isReadyToExecuteStmt = this.connection.prepare(IS_READY_TO_EXECUTE_SQL)
+      const isReadyToExecuteStmt = this.connection.prepare(TRUSTED_AND_READY_TO_EXECUTE_SQL)
 
       const ready = []
       for (let i = 0; i < txids.length; i++) {
@@ -597,6 +624,10 @@ class SqliteDatasource {
     this.unconfirmTransactionStmt.run(txid)
   }
 
+  async getTxMetadata (txid) {
+    return this.getTxMetadataStmt.get(txid)
+  }
+
   // executing
 
   async markTxAsExecuting (txid) {
@@ -611,8 +642,19 @@ class SqliteDatasource {
     return this.findAllExecutingTxidsStmt.raw(true).all().map(x => x[0])
   }
 
-  async txidReadyToExecute (txid) {
-    return this.isReadyToExecuteStmt.get(txid)
+  async txidTrustedAndReadyToExecute (txid) {
+    const row = this.isTrustedAndReadyToExecuteStmt.get(txid)
+    return row && row.ready
+  }
+
+  async txidIsReadyToExecute (txid) {
+    const row = this.isReadyToExecuteStmt.get(txid)
+    return row && row.ready
+  }
+
+  async checkDependenciesWereExecutedOk (txid) {
+    const row = this.depsExecutedOkStmt.get(txid)
+    return row && row.ok
   }
 
   // spends

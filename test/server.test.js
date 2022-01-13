@@ -14,6 +14,7 @@ const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
 const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
+const { DbTrustList } = require('../src/trust-list/db-trust-list')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -28,7 +29,8 @@ const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = 
 const listening = (server) => new Promise((resolve) => { server.onListening = () => resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const ds = new SqliteDatasource(':memory:', logger, false)
-const database = new Database(ds, logger)
+const trustList = new DbTrustList(ds)
+const database = new Database(ds, trustList, logger)
 
 beforeEach(() => database.open())
 afterEach(() => database.close())

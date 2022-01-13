@@ -18,8 +18,7 @@ class Executor {
     this.database = database
     this.logger = logger
     this.workerOpts = {
-      cacheType: opts.cacheType || 'parentConnection',
-      trustSource: opts.trustSource || 'db'
+      cacheType: opts.cacheType || 'parentConnection'
     }
 
     this.onIndexed = null
@@ -137,10 +136,6 @@ class Executor {
     if (hex) return hex
     worker.missingDeps.add(txid)
     throw new Error(`Not found: ${txid}`)
-  }
-
-  _onTrustlistGet () {
-    return this.database.getTrustlist()
   }
 }
 
