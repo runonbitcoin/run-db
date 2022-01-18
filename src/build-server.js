@@ -25,7 +25,7 @@ const parseTxid = (txid) => {
 // Server
 // ------------------------------------------------------------------------------------------------
 
-const buildServer = (database, logger) => {
+const buildServer = (database, logger, readonly = false) => {
   const server = new ApiServer(logger)
 
   server.get('/jig/:location', async (req, res) => {
@@ -126,6 +126,10 @@ const buildServer = (database, logger) => {
     }
     res.json(status)
   })
+
+  if (readonly) {
+    return server
+  }
 
   server.post('/trust/:txid?', async (req, res) => {
     if (Array.isArray(req.body)) {

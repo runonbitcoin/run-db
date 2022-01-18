@@ -8,7 +8,6 @@ const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
 const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
-const DirectServer = require('./direct-server')
 const Indexer = require('./indexer')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
@@ -24,7 +23,6 @@ module.exports = {
   BitcoinRpc,
   BitcoinZmq,
   Database,
-  DirectServer,
   Indexer,
   MatterCloud,
   Planaria,

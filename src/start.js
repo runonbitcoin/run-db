@@ -17,7 +17,6 @@ const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
 const BitcoinZmq = require('./bitcoin-zmq')
 const Database = require('./database')
-const DirectServer = require('./direct-server')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
@@ -81,10 +80,7 @@ const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger
     cacheType: WORKER_CACHE_TYPE
   })
 
-// const server = SERVE_ONLY
-//   ? buildServer(database, logger)
-//   : new DirectServer(DB, PORT, logger, database)
-const server = buildServer(database, logger)
+const server = buildServer(database, logger, readonly)
 
 let started = false
 

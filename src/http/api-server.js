@@ -45,6 +45,7 @@ class ApiServer {
 
     this.port = port
     this.listener = this.app.listen(port, () => {
+      this.port = this.listener.address().port
       if (this.logger) this.logger.info(`Listening at http://localhost:${port}`)
       if (this.onListening) this.onListening()
     })
