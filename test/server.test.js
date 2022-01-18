@@ -300,7 +300,7 @@ describe('Server', () => {
       const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
       const server = buildServer(database, logger)
       await indexer.start()
-      server.start()
+      await server.start()
       await listening(server)
       const opts = { headers: { Origin: 'https://www.google.com' } }
       const resp = (await axios.get(`http://localhost:${server.port}/status`, opts))
