@@ -1,0 +1,72 @@
+const express = require('express')
+const morgan = require('morgan')
+const bodyParser = require('body-parser')
+const cors = require('cors')
+const { Writable } = require('stream')
+const asyncHandler = require('express-async-handler')
+const helmet = require('helmet')
+
+class ApiServer {
+  constructor (logger) {
+    this.logger = logger
+    this.logger.debug('Starting server')
+    this.listener = null
+    this.onListening = null
+
+    const app = express()
+    this.app = app
+
+    this.app.use(helmet())
+    let buffer = ''
+    const write = (chunk, encoding, callback) => {
+      buffer = buffer + chunk.toString()
+      const lines = buffer.split(/\r\n|\n\r|\n|\r/)
+      for (let i = 0; i < lines.length - 1; i++) {
+        this.logger.info(lines[i])
+      }
+      buffer = lines[lines.length - 1]
+      callback()
+      return true
+    }
+    app.use(morgan('tiny', { stream: new Writable({ write }) }))
+
+    app.use(bodyParser.text({ limit: '25mb' }))
+    app.use(bodyParser.json({ limit: '10mb' }))
+
+    app.use(cors())
+  }
+
+  async start (port = null) {
+    this.app.use((err, req, res, next) => {
+      if (this.logger) this.logger.error(err.stack)
+      res.status(500).send('Something broke!')
+      next()
+    })
+
+    this.port = port
+    this.listener = this.app.listen(port, () => {
+      if (this.logger) this.logger.info(`Listening at http://localhost:${port}`)
+      if (this.onListening) this.onListening()
+    })
+  }
+
+  stop () {
+    if (!this.listener) return
+    this.listener.close()
+    this.listener = null
+  }
+
+  get (url, handler) {
+    this.app.get(url, asyncHandler(handler))
+  }
+
+  post (url, handler) {
+    this.app.post(url, asyncHandler(handler))
+  }
+
+  delete (url, handler) {
+    this.app.delete(url, asyncHandler(handler))
+  }
+}
+
+module.exports = { ApiServer }

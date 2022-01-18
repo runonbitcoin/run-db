@@ -5,7 +5,6 @@
  */
 
 const Indexer = require('./indexer')
-const Server = require('./server')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
@@ -24,6 +23,7 @@ const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasourc
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 const { DbTrustList } = require('./trust-list/db-trust-list')
 const { TrustAllTrustList } = require('./trust-list/trust-all-trust-list')
+const { buildServer } = require('./build-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -81,9 +81,10 @@ const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger
     cacheType: WORKER_CACHE_TYPE
   })
 
-const server = SERVE_ONLY
-  ? new Server(database, logger, PORT)
-  : new DirectServer(DB, PORT, logger, database)
+// const server = SERVE_ONLY
+//   ? buildServer(database, logger)
+//   : new DirectServer(DB, PORT, logger, database)
+const server = buildServer(database, logger)
 
 let started = false
 
@@ -98,7 +99,7 @@ async function main () {
     await indexer.start()
   }
 
-  await server.start()
+  await server.start(PORT)
 
   started = true
 }
