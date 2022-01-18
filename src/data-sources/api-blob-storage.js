@@ -23,7 +23,7 @@ class ApiBlobStorage {
   }
 
   async pullJigState (location) {
-    const result = await fetch(`${this.baseApiUrl}/state/${location}`)
+    const result = await fetch(`${this.baseApiUrl}/state/${encodeURIComponent(location)}`)
     if (result.status === 404) {
       return null
     }
