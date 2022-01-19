@@ -7,8 +7,9 @@ const asyncHandler = require('express-async-handler')
 const helmet = require('helmet')
 
 class ApiServer {
-  constructor (logger) {
+  constructor (logger, opts = {}) {
     this.logger = logger
+    this.onStop = opts.onStop || function () {}
     this.logger.debug('Starting server')
     this.listener = null
     this.onListening = null
@@ -44,15 +45,19 @@ class ApiServer {
     })
 
     this.port = port
-    this.listener = this.app.listen(port, () => {
-      this.port = this.listener.address().port
-      if (this.logger) this.logger.info(`Listening at http://localhost:${port}`)
-      if (this.onListening) this.onListening()
+    return new Promise(resolve => {
+      this.listener = this.app.listen(port, () => {
+        this.port = this.listener.address().port
+        if (this.logger) this.logger.info(`Listening at http://localhost:${this.port}`)
+        if (this.onListening) this.onListening()
+        resolve()
+      })
     })
   }
 
-  stop () {
+  async stop () {
     if (!this.listener) return
+    await this.onStop()
     this.listener.close()
     this.listener = null
   }

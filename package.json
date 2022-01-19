@@ -41,6 +41,7 @@
     "express": "^4.17.1",
     "express-async-handler": "^1.2.0",
     "fastq": "^1.13.0",
+    "generic-pool": "^3.8.2",
     "helmet": "^5.0.1",
     "knex": "^0.95.14",
     "morgan": "^1.10.0",

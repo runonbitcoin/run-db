@@ -19,7 +19,6 @@ const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 const network = workerData.network
 const cacheType = workerData.cacheType
-// const id = workerData.id
 
 Bus.listen(parentPort, { execute })
 
