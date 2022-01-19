@@ -4,6 +4,7 @@ const { Worker } = require('worker_threads')
 const Bus = require('../bus')
 const { ApiError } = require('../http/api-error')
 const { parseTxid } = require('../util/parse-txid')
+const { ExecutionError } = require('./execution-error')
 
 const buildExecutionServer = (logger, count, blobStorage, workerPath, network, workerOpts = {}) => {
   const factory = {
@@ -32,26 +33,47 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
   })
 
   server.post('/execute', async (req, res) => {
+    const { txid: rawTxid, trustList } = req.body
+    if (!Array.isArray(trustList)) {
+      throw new ApiError('wrong parameter: trustList', 'wrong-arguments', 400, { trustList })
+    }
+    const txid = parseTxid(rawTxid, () => {
+      throw new ApiError(
+        'wrong parameter: txid',
+        'wrong-arguments',
+        400,
+        { txid: rawTxid }
+      )
+    })
+    const buff = await blobStorage.pullTx(txid, () => { throw new Error('not found') })
+    const hex = buff.toString('hex')
+
     const worker = await pool.acquire()
     try {
-      const { txid: rawTxid, trustList } = req.body
-      if (!Array.isArray(trustList)) {
-        throw new ApiError('wrong parameter: trustList', 'wrong-arguments', 400, { trustList })
-      }
-      const txid = parseTxid(rawTxid, () => {
-        throw new ApiError(
-          'wrong parameter: txid',
-          'wrong-arguments',
-          400,
-          { txid: rawTxid }
-        )
+      const response = await Bus.sendRequest(worker, 'execute', ExecutionError, [txid, hex, trustList])
+      pool.release(worker).catch(logger.error)
+      res.json({
+        ok: true,
+        error: null,
+        response
       })
-      const buff = await blobStorage.pullTx(txid, () => { throw new Error('not found') })
-      const hex = buff.toString('hex')
-      const response = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
-      res.json(response)
-    } finally {
-      pool.release(worker).catch(() => {})
+    } catch (e) {
+      pool.destroy(worker).catch(logger.error)
+      const error = e instanceof ExecutionError
+        ? {
+            type: e.constructor.name,
+            message: e.message
+          }
+        : {
+            type: 'Error',
+            message: 'unexpected error'
+          }
+
+      res.json({
+        ok: false,
+        error,
+        result: null
+      })
     }
   })
 

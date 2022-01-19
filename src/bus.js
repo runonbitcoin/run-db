@@ -15,9 +15,9 @@ const messageCallbacks = {}
 // sendRequest
 // ------------------------------------------------------------------------------------------------
 
-async function sendRequest (port, func, ...args) {
+async function sendRequest (port, func, errorClass = Error, args = []) {
   return await new Promise((resolve, reject) => {
-    messageCallbacks[messageId] = { resolve, reject }
+    messageCallbacks[messageId] = { resolve, reject, ErrorClass: errorClass }
     port.postMessage({ id: messageId, func, args })
     messageId++
   })
@@ -30,10 +30,11 @@ async function sendRequest (port, func, ...args) {
 function listen (port, handlers) {
   port.on('message', async msg => {
     if (msg.response) {
+      const { resolve, reject, ErrorClass } = messageCallbacks[msg.id]
       if (msg.err) {
-        messageCallbacks[msg.id].reject(msg.err)
+        reject(new ErrorClass(msg.err))
       } else {
-        messageCallbacks[msg.id].resolve(msg.ret)
+        resolve(msg.ret)
       }
       delete messageCallbacks[msg.id]
       return

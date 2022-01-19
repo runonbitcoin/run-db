@@ -44,7 +44,9 @@ describe('execution-server', () => {
 
     expect(response.status).to.eql(200)
     const jsonResponse = await response.json()
-    expect(jsonResponse.solution).to.eql(42)
+    expect(jsonResponse.ok).to.eql(true)
+    expect(jsonResponse.response.solution).to.eql(42)
+    expect(jsonResponse.error).to.eql(null)
   })
 
   it('sends the right parameters to the worker', async () => {
@@ -55,10 +57,11 @@ describe('execution-server', () => {
     const response = await fetchExecution(server, txid, { txid, trustList: ['*'] })
 
     const jsonResponse = await response.json()
-    expect(jsonResponse.params).to.have.length(3)
-    expect(jsonResponse.params[0]).to.eql(txid)
-    expect(jsonResponse.params[1]).to.eql(txHex)
-    expect(jsonResponse.params[2]).to.eql(['*'])
+    const params = jsonResponse.response.params
+    expect(params).to.have.length(3)
+    expect(params[0]).to.eql(txid)
+    expect(params[1]).to.eql(txHex)
+    expect(params[2]).to.eql(['*'])
   })
 
   it('returns 400 when trustlist is not a list', async () => {
@@ -81,5 +84,21 @@ describe('execution-server', () => {
     expect(jsonResponse.code).to.eql('wrong-arguments')
     expect(jsonResponse.message).to.eql('wrong parameter: txid')
     expect(jsonResponse.data).to.eql({ txid })
+  })
+
+  it('returns 200 and fail details when execution fails', async () => {
+    const txid = Buffer.alloc(32).fill(1).toString('hex')
+    const txHex = 'sometxhex'
+    await bs.pushTx(txid, Buffer.from(txHex, 'hex'))
+
+    const response = await fetchExecution(server, txid, { txid, trustList: ['*'] })
+    expect(response.status).to.eql(200)
+    const jsonResponse = await response.json()
+    expect(jsonResponse.ok).to.eql(false)
+    expect(jsonResponse.error).to.eql({
+      type: 'ExecutionError',
+      message: 'execution failed'
+    })
+    expect(jsonResponse.result).to.eql(null)
   })
 })
