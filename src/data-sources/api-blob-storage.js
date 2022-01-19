@@ -36,7 +36,7 @@ class ApiBlobStorage {
     return json.state
   }
 
-  async pullTx (txid) {
+  async pullTx (txid, _ifNone) {
     const result = await fetch(`${this.baseApiUrl}/rawtx/${txid}`)
     return result.buffer()
   }

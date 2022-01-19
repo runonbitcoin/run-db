@@ -5,6 +5,7 @@ const cors = require('cors')
 const { Writable } = require('stream')
 const asyncHandler = require('express-async-handler')
 const helmet = require('helmet')
+const { ApiError } = require('./api-error')
 
 class ApiServer {
   constructor (logger, opts = {}) {
@@ -39,8 +40,12 @@ class ApiServer {
 
   async start (port = null) {
     this.app.use((err, req, res, next) => {
-      if (this.logger) this.logger.error(err.stack)
-      res.status(500).send('Something broke!')
+      if (this.logger) { this.logger.error(err.stack) }
+      if (err instanceof ApiError) {
+        res.status(err.httpCode).json({ code: err.errorCode, message: err.message, data: err.extraData })
+      } else {
+        res.status(500).send('Something broke!')
+      }
       next()
     })
 
