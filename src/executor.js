@@ -82,12 +82,12 @@ class Executor {
 
     let result = null
     try {
-      result = await Bus.sendRequest(worker, 'execute', txid, hex, trustList)
+      result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
     } catch (e) {
       if (worker.missingDeps.size) {
         if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
       } else {
-        if (this.onExecuteFailed) await this.onExecuteFailed(txid, e)
+        if (this.onExecuteFailed) await this.onExecuteFailed(txid, e.message)
       }
     } finally {
       this.executing.delete(txid)

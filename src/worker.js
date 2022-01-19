@@ -43,7 +43,7 @@ class Cache {
       return this.state[key]
     }
 
-    return await Bus.sendRequest(parentPort, 'cacheGet', key)
+    return await Bus.sendRequest(parentPort, 'cacheGet', [key])
   }
 
   async set (key, value) {
@@ -98,7 +98,7 @@ class Blockchain {
   constructor (txid) { this.txid = txid }
   get network () { return network }
   async broadcast (_hex) { return this.txid }
-  async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', txid) }
+  async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', [txid]) }
   async utxos (_script) { throw new Error('not implemented: utxos') }
   async spends (_txid, _vout) { throw new Error('not implemented: spends') }
   async time (_txid) { throw new Error('not implemented: time') }

@@ -15,7 +15,7 @@ const messageCallbacks = {}
 // sendRequest
 // ------------------------------------------------------------------------------------------------
 
-async function sendRequest (port, func, errorClass = Error, args = []) {
+async function sendRequest (port, func, args = [], errorClass = Error) {
   return await new Promise((resolve, reject) => {
     messageCallbacks[messageId] = { resolve, reject, ErrorClass: errorClass }
     port.postMessage({ id: messageId, func, args })

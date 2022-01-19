@@ -50,7 +50,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
 
     const worker = await pool.acquire()
     try {
-      const response = await Bus.sendRequest(worker, 'execute', ExecutionError, [txid, hex, trustList])
+      const response = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList], ExecutionError)
       pool.release(worker).catch(logger.error)
       res.json({
         ok: true,
