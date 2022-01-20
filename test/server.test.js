@@ -15,6 +15,7 @@ const Database = require('../src/database')
 const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { buildMainServer } = require('../src/http/build-main-server')
+const Executor = require('../src/execution/executor')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -45,7 +46,8 @@ describe('Server', () => {
 
   describe('post tx', () => {
     it('add with body', async () => {
-      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, {}, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       const port = 52521
@@ -63,7 +65,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('does not throw if add with rawtx mismatch', async () => {
-      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, {}, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -82,7 +85,8 @@ describe('Server', () => {
 
   describe('post trust', () => {
     it('trust multiple', async () => {
-      const indexer = new Indexer(database, {}, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, {}, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -106,7 +110,8 @@ describe('Server', () => {
 
   describe('get jig', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -124,7 +129,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -146,7 +152,8 @@ describe('Server', () => {
 
   describe('get berry', () => {
     it('returns state if exists', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -163,7 +170,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -185,7 +193,8 @@ describe('Server', () => {
 
   describe('get tx', () => {
     it('returns rawtx if downloaded', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -203,7 +212,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if missing', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -221,7 +231,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('returns 404 if not downloaded', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -244,7 +255,8 @@ describe('Server', () => {
 
   describe('get unspent', () => {
     it('query all unspent', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -263,7 +275,8 @@ describe('Server', () => {
     // ------------------------------------------------------------------------
 
     it('query unspent by address', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()
@@ -284,7 +297,8 @@ describe('Server', () => {
 
   describe('misc', () => {
     it('cors', async () => {
-      const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+      const executor = new Executor('main', 1, database, logger)
+      const indexer = new Indexer(database, api, executor, 'main', 1, logger, 0, Infinity, [])
       const server = buildMainServer(database, logger)
       await indexer.start()
       await server.start()

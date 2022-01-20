@@ -12,6 +12,7 @@ const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
 const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
+const Executor = require('../src/execution/executor')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -40,7 +41,8 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid] }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+    const executor = new Executor('main', 1, database, logger)
+    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, [])
     const promise = indexed(indexer, txid)
     await indexer.start()
     await database.trust(txid)
@@ -58,7 +60,8 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids: [txid], txhexs: [txns[txid]] }
     }
     const api = { getNextBlock }
-    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+    const executor = new Executor('main', 1, database, logger)
+    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await database.trust(txid)
     await indexed(indexer, txid)
@@ -82,7 +85,8 @@ describe('Crawler', () => {
       return { height: 1, hash: 'abc', txids, txhexs: txids.map(txid => txns[txid]) }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+    const executor = new Executor('main', 1, database, logger)
+    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
     await database.addTransaction(txids[1])
@@ -113,7 +117,8 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+    const executor = new Executor('main', 1, database, logger)
+    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, [])
     indexer.crawler.pollForNewBlocksInterval = 10
     await indexer.start()
     database.trust(txid)
@@ -143,7 +148,8 @@ describe('Crawler', () => {
       if (height === 12) { didReorg = true; return { reorg: true } }
     }
     const api = { getNextBlock, fetch }
-    const indexer = new Indexer(database, api, 'main', 1, 1, logger, 0, Infinity, [])
+    const executor = new Executor('main', 1, database, logger)
+    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     await database.trust(txid)
     await reorged(indexer)
