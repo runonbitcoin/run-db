@@ -30,6 +30,7 @@ const DATA_API_ROOT = process.env.DATA_API_ROOT || null
 const WORKER_TRUST_SOURCE = process.env.WORKER_TRUST_SOURCE || 'db'
 const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 const TRUST_LIST = process.env.TRUST_LIST || 'db'
+const EXECUTOR = process.env.EXECUTOR || 'local'
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -125,5 +126,6 @@ module.exports = {
   DATA_API_ROOT,
   WORKER_TRUST_SOURCE,
   WORKER_CACHE_TYPE,
-  TRUST_LIST
+  TRUST_LIST,
+  EXECUTOR
 }

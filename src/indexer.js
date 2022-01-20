@@ -6,7 +6,6 @@
 
 const Database = require('./database')
 const Downloader = require('./downloader')
-const Executor = require('./execution/executor')
 const Crawler = require('./crawler')
 
 // ------------------------------------------------------------------------------------------------
@@ -14,7 +13,7 @@ const Crawler = require('./crawler')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist, workerOpts = {}) {
+  constructor (database, api, executor, network, numParallelDownloads, logger, startHeight, mempoolExpiration, defaultTrustlist) {
     this.onDownload = null
     this.onFailToDownload = null
     this.onIndex = null
@@ -33,7 +32,7 @@ class Indexer {
     const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
 
     this.downloader = new Downloader(fetchFunction, numParallelDownloads)
-    this.executor = new Executor(network, numParallelExecutes, this.database, this.logger, workerOpts)
+    this.executor = executor
     this.crawler = new Crawler(api, this.logger)
 
     this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
