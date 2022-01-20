@@ -20,6 +20,7 @@ class Indexer {
     this.onFailToIndex = null
     this.onBlock = null
     this.onReorg = null
+    this.pendingRetries = new Map()
 
     this.logger = logger
     this.database = database
@@ -79,6 +80,9 @@ class Indexer {
 
   async stop () {
     this.crawler.stop()
+    for (const entry of this.pendingRetries.entries()) {
+      clearTimeout(entry[1])
+    }
     if (this.api.disconnect) await this.api.disconnect()
     this.downloader.stop()
     await this.executor.stop()
@@ -112,9 +116,14 @@ class Indexer {
     }
   }
 
-  async _onExecuteFailed (txid, e) {
-    this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-    await this.database.setTransactionExecutionFailed(txid)
+  async _onExecuteFailed (txid, e, shouldRetry = false) {
+    if (shouldRetry) {
+      const timeout = setTimeout(() => { this._onReadyToExecute(txid) }, 10000)
+      this.pendingRetries.set(txid, timeout)
+    } else {
+      this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
+      await this.database.setTransactionExecutionFailed(txid)
+    }
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 

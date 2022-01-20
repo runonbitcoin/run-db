@@ -53,15 +53,19 @@ class ApiExecutor {
         })
       })
       if (!httpResponse.ok) {
-        await this.onExecuteFailed(txid, 'execution error') // TOOD: this should actually be a retry.
+        await this.onExecuteFailed(txid, 'execution error', true)
         this.executing.delete(txid)
         return
       }
       const json = await httpResponse.json()
-      const { response } = json
-      await this.onIndexed(txid, response)
+      if (json.ok) {
+        const { response } = json
+        await this.onIndexed(txid, response)
+      } else {
+        await this.onExecuteFailed(txid, json.errors, false)
+      }
     } catch (e) {
-      await this.onExecuteFailed(txid, 'execution error') // TOOD: this should actually be a retry.
+      await this.onExecuteFailed(txid, 'execution error', true)
     } finally {
       this.executing.delete(txid)
       await this.pool.release(token)
