@@ -29,18 +29,9 @@ class ApiExecutor {
     this.pool = genericPool.createPool(factory, opts)
   }
 
-  start () {
+  async start () {}
 
-  }
-
-  async stop () {
-    this.logger.debug('Stopping all workers')
-
-    await Promise.all(this.workers.map(worker => worker.terminate()))
-
-    this.workers = []
-    this.workerRequests = []
-  }
+  async stop () {}
 
   async execute (txid) {
     if (this.executing.has(txid)) return
