@@ -31,6 +31,7 @@ const WORKER_TRUST_SOURCE = process.env.WORKER_TRUST_SOURCE || 'db'
 const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 const TRUST_LIST = process.env.TRUST_LIST || 'db'
 const EXECUTOR = process.env.EXECUTOR || 'local'
+const EXECUTE_ENDPOINT = process.env.EXECUTE_ENDPOINT || null
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -127,5 +128,6 @@ module.exports = {
   WORKER_TRUST_SOURCE,
   WORKER_CACHE_TYPE,
   TRUST_LIST,
-  EXECUTOR
+  EXECUTOR,
+  EXECUTE_ENDPOINT
 }

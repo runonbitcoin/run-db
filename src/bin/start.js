@@ -8,7 +8,7 @@ const Indexer = require('../indexer')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
-  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST, EXECUTOR
+  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST, EXECUTOR, EXECUTE_ENDPOINT
 } = require('../config')
 const MatterCloud = require('../mattercloud')
 const Planaria = require('../planaria')
@@ -87,7 +87,7 @@ const database = new Database(dataSource, trustList, logger)
 
 const executor = EXECUTOR === 'local'
   ? new Executor(NETWORK, WORKERS, database, logger, { trustSource: WORKER_TRUST_SOURCE, cacheType: WORKER_CACHE_TYPE, dataApiRoot: DATA_API_ROOT })
-  : new ApiExecutor('http://localhost:3200/execute', trustList, NETWORK, WORKERS, logger)
+  : new ApiExecutor(EXECUTE_ENDPOINT, trustList, NETWORK, WORKERS, logger)
 
 const indexer = new Indexer(
   database,
