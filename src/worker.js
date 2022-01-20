@@ -9,7 +9,6 @@ const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
 const Bus = require('./bus')
-const config = require('./config')
 const { DEBUG } = require('./config')
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
@@ -19,6 +18,11 @@ const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 const network = workerData.network
 const cacheType = workerData.cacheType
+const blobApiRoot = workerData.dataApiRoot
+
+if (cacheType === 'direct' && !blobApiRoot) {
+  throw new Error('missing api root for direct cache')
+}
 
 Bus.listen(parentPort, { execute })
 
@@ -127,7 +131,7 @@ async function execute (txid, hex, trustlist) {
   console.log = function () {}
   console.log()
   if (cacheType === 'direct') {
-    const bs = new ApiBlobStorage(config.DATA_API_ROOT)
+    const bs = new ApiBlobStorage(blobApiRoot)
     run.cache = new DirectCache(bs)
   } else {
     run.cache = new Cache()

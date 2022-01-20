@@ -18,7 +18,8 @@ class Executor {
     this.database = database
     this.logger = logger
     this.workerOpts = {
-      cacheType: opts.cacheType || 'parentConnection'
+      cacheType: opts.cacheType || 'parentConnection',
+      dataApiRoot: opts.dataApiRoot || null
     }
 
     this.onIndexed = null

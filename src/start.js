@@ -77,7 +77,8 @@ const database = new Database(dataSource, trustList, logger)
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST, {
     trustSource: WORKER_TRUST_SOURCE,
-    cacheType: WORKER_CACHE_TYPE
+    cacheType: WORKER_CACHE_TYPE,
+    dataApiRoot: DATA_API_ROOT
   })
 
 const server = buildServer(database, logger, readonly)
