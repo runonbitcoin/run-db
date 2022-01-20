@@ -22,7 +22,7 @@ const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasourc
 const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 const { DbTrustList } = require('./trust-list/db-trust-list')
 const { TrustAllTrustList } = require('./trust-list/trust-all-trust-list')
-const { buildServer } = require('./build-server')
+const { buildMainServer } = require('./http/build-main-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -81,7 +81,7 @@ const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger
     dataApiRoot: DATA_API_ROOT
   })
 
-const server = buildServer(database, logger, readonly)
+const server = buildMainServer(database, logger, readonly)
 
 let started = false
 

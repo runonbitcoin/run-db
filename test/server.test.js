@@ -14,7 +14,7 @@ const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
 const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
-const { buildServer } = require('../src/build-server')
+const { buildServer } = require('../src/http/build-main-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals

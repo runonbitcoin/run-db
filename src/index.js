@@ -12,7 +12,6 @@ const Indexer = require('./indexer')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
 const RunConnectFetcher = require('./run-connect')
-const Server = require('./server')
 const config = require('./config')
 const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
 const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
@@ -27,7 +26,6 @@ module.exports = {
   MatterCloud,
   Planaria,
   RunConnectFetcher,
-  Server,
   SqliteDatasource,
   SqliteMixedDatasource
 }

@@ -7,7 +7,7 @@
 const bsv = require('bsv')
 const crypto = require('crypto')
 const Run = require('run-sdk')
-const { ApiServer } = require('./http/api-server')
+const { ApiServer } = require('./api-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -25,7 +25,7 @@ const parseTxid = (txid) => {
 // Server
 // ------------------------------------------------------------------------------------------------
 
-const buildServer = (database, logger, readonly = false) => {
+const buildMainServer = (database, logger, readonly = false) => {
   const server = new ApiServer(logger)
 
   server.get('/jig/:location', async (req, res) => {
@@ -68,7 +68,7 @@ const buildServer = (database, logger, readonly = false) => {
     }
   })
 
-  server.get('/spends/:location', async (req, res, next) => {
+  server.get('/spends/:location', async (req, res) => {
     const txid = await database.getSpend(req.params.location)
     if (txid) {
       res.send(txid)
@@ -103,7 +103,7 @@ const buildServer = (database, logger, readonly = false) => {
     }
   })
 
-  server.get('/trust/:txid?', async (req, res, next) => {
+  server.get('/trust/:txid?', async (req, res) => {
     if (req.params.txid) {
       res.json(await database.isTrusted(req.params.txid))
     } else {
@@ -111,7 +111,7 @@ const buildServer = (database, logger, readonly = false) => {
     }
   })
 
-  server.get('/ban/:txid?', async (req, res, next) => {
+  server.get('/ban/:txid?', async (req, res) => {
     if (req.params.txid) {
       res.json(await database.isBanned(req.params.txid))
     } else {
@@ -183,4 +183,4 @@ const buildServer = (database, logger, readonly = false) => {
   return server
 }
 
-module.exports = { buildServer }
+module.exports = { buildMainServer }
