@@ -1,4 +1,4 @@
-const { buildExecutionServer } = require('../src/execution/build-execution-server')
+const { buildExecutionServer } = require('../src/http/build-execution-server')
 const { MemoryBlobStorage } = require('../src/data-sources/memory-blob-storage')
 const txs = require('./txns.json')
 const fetch = require('node-fetch')

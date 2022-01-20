@@ -66,8 +66,8 @@ class Database {
       if (time) { await this.setTransactionTime(txid, time) }
     })
 
-    const downloaded = await this.isTransactionIndexed(txid)
-    if (downloaded) return
+    const indexed = await this.isTransactionIndexed(txid)
+    if (indexed) return
     if (!txhex) {
       txhex = await this.ds.getTxHex(txid)
     }

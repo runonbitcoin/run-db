@@ -6,7 +6,7 @@
 
 const Database = require('./database')
 const Downloader = require('./downloader')
-const Executor = require('./executor')
+const Executor = require('./execution/executor')
 const Crawler = require('./crawler')
 
 // ------------------------------------------------------------------------------------------------

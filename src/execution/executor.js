@@ -5,7 +5,7 @@
  */
 
 const { Worker } = require('worker_threads')
-const Bus = require('./bus')
+const Bus = require('../bus')
 
 // ------------------------------------------------------------------------------------------------
 // Executor
@@ -35,7 +35,7 @@ class Executor {
     for (let i = 0; i < this.numWorkers; i++) {
       this.logger.debug('Starting worker', i)
 
-      const path = require.resolve('./worker.js')
+      const path = require.resolve('../worker.js')
 
       const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 

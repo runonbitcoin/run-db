@@ -1,10 +1,10 @@
-const { ApiServer } = require('../http/api-server')
+const { ApiServer } = require('./api-server')
 const genericPool = require('generic-pool')
 const { Worker } = require('worker_threads')
 const Bus = require('../bus')
-const { ApiError } = require('../http/api-error')
+const { ApiError } = require('./api-error')
 const { parseTxid } = require('../util/parse-txid')
-const { ExecutionError } = require('./execution-error')
+const { ExecutionError } = require('../execution/execution-error')
 
 const buildExecutionServer = (logger, count, blobStorage, workerPath, network, workerOpts = {}) => {
   const factory = {

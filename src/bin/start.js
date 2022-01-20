@@ -4,25 +4,25 @@
  * Entry point
  */
 
-const Indexer = require('./indexer')
+const Indexer = require('../indexer')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
   WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST
-} = require('./config')
-const MatterCloud = require('./mattercloud')
-const Planaria = require('./planaria')
-const RunConnectFetcher = require('./run-connect')
-const BitcoinNodeConnection = require('./bitcoin-node-connection')
-const BitcoinRpc = require('./bitcoin-rpc')
-const BitcoinZmq = require('./bitcoin-zmq')
-const Database = require('./database')
-const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
-const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
-const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
-const { DbTrustList } = require('./trust-list/db-trust-list')
-const { TrustAllTrustList } = require('./trust-list/trust-all-trust-list')
-const { buildMainServer } = require('./http/build-main-server')
+} = require('../config')
+const MatterCloud = require('../mattercloud')
+const Planaria = require('../planaria')
+const RunConnectFetcher = require('../run-connect')
+const BitcoinNodeConnection = require('../bitcoin-node-connection')
+const BitcoinRpc = require('../bitcoin-rpc')
+const BitcoinZmq = require('../bitcoin-zmq')
+const Database = require('../database')
+const { SqliteDatasource } = require('../data-sources/sqlite-datasource')
+const { SqliteMixedDatasource } = require('../data-sources/sqlite-mixed-datasource')
+const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
+const { DbTrustList } = require('../trust-list/db-trust-list')
+const { TrustAllTrustList } = require('../trust-list/trust-all-trust-list')
+const { buildMainServer } = require('../http/build-main-server')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
