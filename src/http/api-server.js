@@ -63,7 +63,7 @@ class ApiServer {
   async stop () {
     if (!this.listener) return
     await this.onStop()
-    this.listener.close()
+    await this.listener.close()
     this.listener = null
   }
 
