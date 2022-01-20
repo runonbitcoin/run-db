@@ -78,6 +78,10 @@ class ApiServer {
   delete (url, handler) {
     this.app.delete(url, asyncHandler(handler))
   }
+
+  param (name, fn) {
+    this.app.param(name, fn)
+  }
 }
 
 module.exports = { ApiServer }

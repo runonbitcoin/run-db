@@ -8,6 +8,8 @@ const bsv = require('bsv')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const { ApiServer } = require('./api-server')
+const { parseTxid } = require('../util/parse-txid')
+const { ApiError } = require('./api-error')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -15,11 +17,12 @@ const { ApiServer } = require('./api-server')
 
 const calculateScripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
 
-const parseTxid = (txid) => {
-  txid = txid.trim().toLowerCase()
-  if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a txid: ' + txid)
-  return txid
-}
+const validateTxid = (aString) => parseTxid(
+  aString,
+  () => {
+    throw new ApiError('wrong argument: txid', 'wrong-arguments', 400, { txid: aString })
+  }
+)
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -27,6 +30,11 @@ const parseTxid = (txid) => {
 
 const buildMainServer = (database, logger, readonly = false) => {
   const server = new ApiServer(logger)
+
+  server.param('txid', (req, res, next, value) => {
+    req.params.txid = validateTxid(value)
+    next()
+  })
 
   server.get('/jig/:location', async (req, res) => {
     const state = await database.getJigState(req.params.location)
@@ -49,7 +57,7 @@ const buildMainServer = (database, logger, readonly = false) => {
   })
 
   server.get('/tx/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     const rawTx = await database.getTransactionHex(txid)
     if (rawTx) {
       res.send(rawTx)
@@ -59,7 +67,7 @@ const buildMainServer = (database, logger, readonly = false) => {
   })
 
   server.get('/time/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     const time = await database.getTransactionTime(txid)
     if (time) {
       res.json(time)
@@ -134,19 +142,19 @@ const buildMainServer = (database, logger, readonly = false) => {
   server.post('/trust/:txid?', async (req, res) => {
     if (Array.isArray(req.body)) {
       for (const maybeTxid of req.body) {
-        const txid = parseTxid(maybeTxid)
+        const txid = validateTxid(maybeTxid)
         await database.trust(txid)
       }
       res.send(`Trusted ${req.body.length} transactions\n`)
     } else {
-      const txid = parseTxid(req.params.txid)
+      const txid = req.params.txid
       await database.trust(txid)
       res.send(`Trusted ${req.params.txid}\n`)
     }
   })
 
   server.post('/ban/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     await database.ban(txid)
     res.send(`Banned ${req.params.txid}\n`)
   })
@@ -163,19 +171,19 @@ const buildMainServer = (database, logger, readonly = false) => {
   })
 
   server.delete('/trust/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     await database.untrust(txid)
     res.send(`Untrusted ${req.params.txid}\n`)
   })
 
   server.delete('/ban/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     await database.unban(txid)
     res.send(`Unbanned ${req.params.txid}\n`)
   })
 
   server.delete('/tx/:txid', async (req, res) => {
-    const txid = parseTxid(req.params.txid)
+    const txid = req.params.txid
     await database.deleteTransaction(txid)
     res.send(`Removed ${req.params.txid}\n`)
   })
