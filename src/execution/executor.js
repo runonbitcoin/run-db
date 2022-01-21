@@ -19,7 +19,9 @@ class Executor {
     this.logger = logger
     this.workerOpts = {
       cacheType: opts.cacheType || 'parentConnection',
-      dataApiRoot: opts.dataApiRoot || null
+      dataApiRoot: opts.dataApiRoot || null,
+      txApiRoot: opts.txApiRoot || null,
+      stateApiRoot: opts.stateApiRoot || null
     }
 
     this.onIndexed = null
@@ -36,7 +38,7 @@ class Executor {
       this.logger.debug('Starting worker', i)
 
       const path = require.resolve('../worker.js')
-
+      console.log(this.workerOpts)
       const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 
       worker.id = i

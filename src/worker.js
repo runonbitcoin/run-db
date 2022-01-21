@@ -18,9 +18,11 @@ const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
 
 const network = workerData.network
 const cacheType = workerData.cacheType
-const blobApiRoot = workerData.dataApiRoot
+const txApiRoot = workerData.txApiRoot
+const stateApiRoot = workerData.stateApiRoot
 
-if (cacheType === 'direct' && !blobApiRoot) {
+if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
+  console.log(txApiRoot, stateApiRoot)
   throw new Error('missing api root for direct cache')
 }
 
@@ -131,7 +133,7 @@ async function execute (txid, hex, trustlist) {
   console.log = function () {}
   console.log()
   if (cacheType === 'direct') {
-    const bs = new ApiBlobStorage(blobApiRoot)
+    const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
     run.cache = new DirectCache(bs)
   } else {
     run.cache = new Cache()

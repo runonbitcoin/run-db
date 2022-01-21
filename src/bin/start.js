@@ -7,8 +7,8 @@
 const Indexer = require('../indexer')
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE, DATA_API_ROOT,
-  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST, EXECUTOR, EXECUTE_ENDPOINT
+  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE,
+  WORKER_TRUST_SOURCE, WORKER_CACHE_TYPE, TRUST_LIST, EXECUTOR, EXECUTE_ENDPOINT, DATA_API_TX_ROOT, DATA_API_STATE_ROOT
 } = require('../config')
 const MatterCloud = require('../mattercloud')
 const Planaria = require('../planaria')
@@ -70,7 +70,7 @@ let dataSource
 if (DATA_SOURCE === 'sqlite') {
   dataSource = new SqliteDatasource(DB, logger, readonly)
 } else if (DATA_SOURCE === 'mixed') {
-  const blobStorage = new ApiBlobStorage(DATA_API_ROOT)
+  const blobStorage = new ApiBlobStorage(DATA_API_TX_ROOT, DATA_API_STATE_ROOT)
   dataSource = new SqliteMixedDatasource(DB, logger, readonly, blobStorage)
 } else {
   throw new Error(`unknown datasource: ${DATA_SOURCE}. Please check "DATA_SOURCE" configuration.`)
@@ -86,7 +86,7 @@ if (TRUST_LIST === 'db') {
 const database = new Database(dataSource, trustList, logger)
 
 const executor = EXECUTOR === 'local'
-  ? new Executor(NETWORK, WORKERS, database, logger, { trustSource: WORKER_TRUST_SOURCE, cacheType: WORKER_CACHE_TYPE, dataApiRoot: DATA_API_ROOT })
+  ? new Executor(NETWORK, WORKERS, database, logger, { trustSource: WORKER_TRUST_SOURCE, cacheType: WORKER_CACHE_TYPE, txApiRoot: DATA_API_TX_ROOT, stateApiRoot: DATA_API_STATE_ROOT })
   : new ApiExecutor(EXECUTE_ENDPOINT, trustList, NETWORK, WORKERS, logger)
 
 const indexer = new Indexer(
