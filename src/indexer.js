@@ -107,6 +107,7 @@ class Indexer {
   }
 
   async _onIndexed (txid, result) {
+    this.pendingRetries.delete(txid)
     if (!await this.database.hasTransaction(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid}`)
     this.database.storeExecutedTransaction(txid, result)
@@ -121,6 +122,7 @@ class Indexer {
       const timeout = setTimeout(() => { this._onReadyToExecute(txid) }, 10000)
       this.pendingRetries.set(txid, timeout)
     } else {
+      this.pendingRetries.delete(txid)
       this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
       await this.database.setTransactionExecutionFailed(txid)
     }
