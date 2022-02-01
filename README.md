@@ -192,79 +192,79 @@ There are currently 8 tables updated by Run-DB.
 
 Stores jig and code states at output locations or destroyed locations.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| location | TEXT | Jig or code location |
-| state | TEXT | JSON string describing the object state |
-| class | TEXT | Contract origin if this state is a jig |
+| Column     | Type | Description                                           |
+|------------| ---- |-------------------------------------------------------|
+| location   | TEXT | Jig or code location                                  |
+| state      | TEXT | JSON string describing the object state               |
+| class      | TEXT | Contract origin if this state is a jig                |
 | scripthash | TEXT | Hex string of the reversed sha256 of the owner script |
-| lock | TEXT | Lock class origin if this state has a custom lock |
+| lock       | TEXT | Lock class origin if this state has a custom lock     |
 
 #### tx
 
 Stores all transactions known by Run-DB and their indexing state.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| txid | TEXT | Hex string for the transaction hash |
-| height | INTEGER | Block height for this transaction, or `-1` for mempool, or `NULL` for unknown |
-| time | INTEGER | Transaction or bock time in seconds since the unix epoch |
-| bytes | BLOB | Raw transaction data, or `NULL` if not downloaded |
-| has_code | INTEGER | `1` if this transaction deployed or upgraded code and requires trust, `0` otherwise |
-| executable | INTEGER | `1` if this transaction is a valid RUN transaction, `0` otherwise |
-| executed | INTEGER | `1` if this transaction was executed, even if it failed, `0` otherwise |
-| indexed | INTEGER | `1` if this transaction's jig states were calculated successfully, `0` otherwise |
+| Column     | Type     | Description                                                                         |
+|------------|----------|-------------------------------------------------------------------------------------|
+| txid       | TEXT     | Hex string for the transaction hash                                                 |
+| height     | INTEGER  | Block height for this transaction, or `-1` for mempool, or `NULL` for unknown       |
+| time       | INTEGER  | Transaction or bock time in seconds since the unix epoch                            |
+| bytes      | BLOB     | Raw transaction data, or `NULL` if not downloaded                                   |
+| has_code   | INTEGER  | `1` if this transaction deployed or upgraded code and requires trust, `0` otherwise |
+| executable | INTEGER  | `1` if this transaction is a valid RUN transaction, `0` otherwise                   |
+| executed   | INTEGER  | `1` if this transaction was executed, even if it failed, `0` otherwise              |
+| indexed    | INTEGER  | `1` if this transaction's jig states were calculated successfully, `0` otherwise    |
 
 #### spends
 
 Stores spend information about transaction outputs.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| location | TEXT | \<txid\>_o\<output-index\> string describing an output|
-| spend_txid| TXID | Hex txid that spent this output, or `NULL` if unspent|
+| Column     | Type | Description                                            |
+|------------| ---- |--------------------------------------------------------|
+| location   | TEXT | \<txid\>_o\<output-index\> string describing an output |
+| spend_txid | TXID | Hex txid that spent this output, or `NULL` if unspent  |
 
 #### deps
 
 Stores the transaction needed to load a RUN transaction.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| up | TEXT | A transaction ID in hex |
-| down | TEXT | Hex txid for a transaction that depends on `up` |
+| Column | Type | Description                                     |
+|--------| ---- |-------------------------------------------------|
+| up     | TEXT | A transaction ID in hex                         |
+| down   | TEXT | Hex txid for a transaction that depends on `up` |
 
 #### berry
 
 Stores berry states for third-party protocol data.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| location | TEXT | Berry location without the &hash query param |
-| state | TEXT | JSON string describing the object state |
+| Column    | Type | Description                                  |
+|-----------| ---- |----------------------------------------------|
+| location  | TEXT | Berry location without the &hash query param |
+| state     | TEXT | JSON string describing the object state      |
 
 #### trust
 
 Stores the transactions which have been trusted and whose code will be executed.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| txid | TEXT | Hex string txid |
-| value | INTEGER | `1` if trusted, `0` if untrusted |
+| Column | Type    | Description                      |
+|--------|---------|----------------------------------|
+| txid   | TEXT    | Hex string txid                  |
+| value  | INTEGER | `1` if trusted, `0` if untrusted |
 
 #### ban
 
 Stores the transactions which have been blacklisted.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| txid | TEXT | Hex string txid |
-| value | INTEGER | `1` if blacklisted, `0` otherwise |
+| Column  | Type    | Description                       |
+|---------|---------|-----------------------------------|
+| txid    | TEXT    | Hex string txid                   |
+| value   | INTEGER | `1` if blacklisted, `0` otherwise |
 
 #### crawl
 
 Stores the crawled block tip height and hash for data in the database.
 
-| Column | Type | Description |
-| ------ | ---- | ----------- |
-| key | TEXT | 'height' or 'hash'|
-| value | TEXT | String value for the key |
+| Column | Type  | Description              |
+|--------|-------|--------------------------|
+| key    | TEXT  | 'height' or 'hash'       |
+| value  | TEXT  | String value for the key |
