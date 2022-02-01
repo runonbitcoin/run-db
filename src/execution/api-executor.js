@@ -62,7 +62,7 @@ class ApiExecutor {
         const { response } = json
         await this.onIndexed(txid, response)
       } else {
-        await this.onExecuteFailed(txid, json.errors, false)
+        await this.onExecuteFailed(txid, json.error && json.error.message, false)
       }
     } catch (e) {
       await this.onExecuteFailed(txid, 'execution error', true)
