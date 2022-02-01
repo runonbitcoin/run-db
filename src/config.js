@@ -32,7 +32,6 @@ const TIMEOUT = typeof process.env.TIMEOUT !== 'undefined' ? parseInt(process.en
 const TRUST_LIST = process.env.TRUST_LIST || 'db'
 const WORKERS = typeof process.env.WORKERS !== 'undefined' ? parseInt(process.env.WORKERS) : 4
 const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
-const WORKER_TRUST_SOURCE = process.env.WORKER_TRUST_SOURCE || 'db'
 const ZMQ_URL = process.env.ZMQ_URL || null
 
 if (!DATA_API_TX_ROOT && !DATA_API_STATE_ROOT && DATA_API_ROOT) {
@@ -137,6 +136,5 @@ module.exports = {
   TRUST_LIST,
   WORKERS,
   WORKER_CACHE_TYPE,
-  WORKER_TRUST_SOURCE,
   ZMQ_URL
 }

@@ -52,28 +52,52 @@ You may also want to run additional instance of Run-DB in `SERVE_ONLY` mode. Tha
 
 The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your Run-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
 
+## Blob storage
+
+Run-db needs to handle multiple kinds of raw data in order to work. There is 2 ways to manage that data
+at the moment:
+- Save them inside the main db.
+- Save them externally using a data api.
+
+The blob storage implementation can be configured using env variables.
+
+## Use execution server
+
+Run-db allows to separate the execution of run transactions into different machines. The way to do that is trough
+execution servers. The execution server is a standalone process used to execute run transactions.
+The main process communicates with the execution server using http.
+
+In order to run the execution server it's required to use an external blob storage.
+
 ## Configuration
 
 Create a .env file or set the following environment variables before running to configure the DB.
 
-| Name | Description | Default |
-| ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, bitcoin-node, run, or none | mattercloud
-| **MATTERCLOUD_KEY** | Mattercloud API key | undefined
-| **PLANARIA_TOKEN** | Planaria API key | undefined
-| **ZMQ_URL** | Only for bitcoin-node. ZMQ tcp url | null
-| **RPC_URL** | Only for bitcoin-node. bitcoin RPC http url | null
-| **NETWORK** | Bitcoin network (main or test) | main
-| **DB** | Database file | run.db
-| **PORT** | Port used for the REST server | randomly generated
-| **WORKERS** | Number of threads used to index | 4
-| **FETCH_LIMIT** | Number of parallel downloads | 20
-| **START_HEIGHT** | Block height to start indexing | block shortly before sep 2020
-| **TIMEOUT** | Network timeout in milliseconds | 10000
-| **MEMPOOL_EXPIRATION** | Seconds until transactions are removed from the mempool | 86400
-| **DEFAULT_TRUSTLIST** | Comma-separated values of trusted txids | predefined trustlist
-| **SERVE_ONLY** | Whether to only serve data and not index transactions | false
-
+| Name                    | Description                                                             | Default                       |
+|-------------------------|-------------------------------------------------------------------------|-------------------------------|
+| **API**                 | mattercloud, planaria, bitcoin-node, run, or none                       | mattercloud                   |
+| **MATTERCLOUD_KEY**     | Mattercloud API key                                                     | undefined                     |
+| **PLANARIA_TOKEN**      | Planaria API key                                                        | undefined                     |
+| **ZMQ_URL**             | Only for bitcoin-node. ZMQ tcp url                                      | null                          |
+| **RPC_URL**             | Only for bitcoin-node. bitcoin RPC http url                             | null                          |
+| **NETWORK**             | Bitcoin network (main or test)                                          | main                          |
+| **DB**                  | Database file                                                           | run.db                        |
+| **PORT**                | Port used for the REST server                                           | randomly generated            |
+| **WORKERS**             | Number of threads used to index                                         | 4                             |
+| **FETCH_LIMIT**         | Number of parallel downloads                                            | 20                            |
+| **START_HEIGHT**        | Block height to start indexing                                          | block shortly before sep 2020 |
+| **TIMEOUT**             | Network timeout in milliseconds                                         | 10000                         |
+| **MEMPOOL_EXPIRATION**  | Seconds until transactions are removed from the mempool                 | 86400                         |
+| **DEFAULT_TRUSTLIST**   | Comma-separated values of trusted txids                                 | predefined trustlist          |
+| **SERVE_ONLY**          | Whether to only serve data and not index transactions                   | false                         |
+| **DATA_SOURCE**         | Blob storage implementaiton. Either `sqlite` or `mixed`                 | sqlite                        |
+| **DATA_API_ROOT**       | If present this value is used as based for all blob storage requests    | null                          |
+| **DATA_API_TX_ROOT**    | Base path for tx api for blob storage                                   | null                          |
+| **DATA_API_STATE_ROOT** | Base path for state api for blob storage                                | null                          |
+| **EXECUTE_ENDPOINT**    | Endpoint where external execution servers can be reached                | null                          |
+| **EXECUTOR**            | Executor implementation. Valid values: `local` or `api`                 | 'local'                       |
+| **WORKER_CACHE_TYPE**   | 'parent' or 'direct'. Defines how workers get and save generated state. | 'parent'                      |                      
+| **TRUST_LIST**          | Trust list implementation. `all` or `db`                                | `db`                          |
 ### Connecting with a bitcoin node
 
 During development is useful to connect to a local node. In order
@@ -197,8 +221,8 @@ Stores spend information about transaction outputs.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
-| location | TEXT | \<txid\>_o\<output-index\> string describing an output
-| spend_txid| TXID | Hex txid that spent this output, or `NULL` if unspent
+| location | TEXT | \<txid\>_o\<output-index\> string describing an output|
+| spend_txid| TXID | Hex txid that spent this output, or `NULL` if unspent|
 
 #### deps
 
@@ -242,5 +266,5 @@ Stores the crawled block tip height and hash for data in the database.
 
 | Column | Type | Description |
 | ------ | ---- | ----------- |
-| key | TEXT | 'height' or 'hash'
+| key | TEXT | 'height' or 'hash'|
 | value | TEXT | String value for the key |
