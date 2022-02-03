@@ -38,7 +38,6 @@ class Executor {
       this.logger.debug('Starting worker', i)
 
       const path = require.resolve('../worker.js')
-      console.log(this.workerOpts)
       const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 
       worker.id = i

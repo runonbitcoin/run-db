@@ -35,7 +35,6 @@ const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 const ZMQ_URL = process.env.ZMQ_URL || null
 
 if (!DATA_API_TX_ROOT && !DATA_API_STATE_ROOT && DATA_API_ROOT) {
-  console.log()
   DATA_API_TX_ROOT = `${DATA_API_ROOT}/tx`
   DATA_API_STATE_ROOT = `${DATA_API_ROOT}/state`
 }

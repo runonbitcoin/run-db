@@ -22,7 +22,6 @@ const txApiRoot = workerData.txApiRoot
 const stateApiRoot = workerData.stateApiRoot
 
 if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
-  console.log(txApiRoot, stateApiRoot)
   throw new Error('missing api root for direct cache')
 }
 

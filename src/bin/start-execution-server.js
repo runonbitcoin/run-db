@@ -10,7 +10,6 @@ logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
 const blobStorage = new ApiBlobStorage(DATA_API_TX_ROOT, DATA_API_STATE_ROOT)
 
-console.log(DATA_API_TX_ROOT, DATA_API_STATE_ROOT)
 const server = buildExecutionServer(
   logger,
   WORKERS,
