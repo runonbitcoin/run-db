@@ -1,4 +1,4 @@
-const { PORT, DEBUG, WORKERS, DATA_API_ROOT, NETWORK, DATA_API_STATE_ROOT, DATA_API_TX_ROOT } = require('../config')
+const { PORT, DEBUG, WORKERS, NETWORK, DATA_API_STATE_ROOT, DATA_API_TX_ROOT } = require('../config')
 const { buildExecutionServer } = require('../http/build-execution-server')
 const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
 
