@@ -75,4 +75,4 @@ class ApiExecutor {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = ApiExecutor
+module.exports = { ApiExecutor }

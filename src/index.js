@@ -22,6 +22,7 @@ const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasourc
 const dataSources = require('./data-sources')
 const execution = require('./execution')
 const http = require('./http')
+const trustList = require('./trust-list')
 
 module.exports = {
   BitcoinNodeConnection,
@@ -41,5 +42,6 @@ module.exports = {
   config,
   dataSources,
   execution,
-  http
+  http,
+  trustList
 }

@@ -24,7 +24,7 @@ const { DbTrustList } = require('../trust-list/db-trust-list')
 const { TrustAllTrustList } = require('../trust-list/trust-all-trust-list')
 const { buildMainServer } = require('../http/build-main-server')
 const Executor = require('../execution/executor')
-const ApiExecutor = require('../execution/api-executor')
+const { ApiExecutor } = require('../execution/api-executor')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
