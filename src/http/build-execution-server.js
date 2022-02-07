@@ -32,6 +32,15 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
     }
   })
 
+  server.get('/status', async (req, res) => {
+    res.status(200).json({
+      ok: true,
+      available: pool.spareResourceCapacity,
+      active: pool.borrowed,
+      pending: pool.pending
+    })
+  })
+
   server.post('/execute', async (req, res) => {
     const { txid: rawTxid, trustList } = req.body
     if (!Array.isArray(trustList)) {
