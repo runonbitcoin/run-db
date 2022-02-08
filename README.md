@@ -58,9 +58,10 @@ Create a .env file or set the following environment variables before running to 
 
 | Name | Description | Default |
 | ---- | ----------- | ------- |
-| **API**| mattercloud, planaria, bitcoin-node, run, or none | mattercloud
+| **API**| mattercloud, planaria, whatsonchain, bitcoin-node, run, or none | mattercloud
 | **MATTERCLOUD_KEY** | Mattercloud API key | undefined
 | **PLANARIA_TOKEN** | Planaria API key | undefined
+| **WHATSONCHAIN_KEY** | WhatsOnChain API key | undefined
 | **ZMQ_URL** | Only for bitcoin-node. ZMQ tcp url | null
 | **RPC_URL** | Only for bitcoin-node. bitcoin RPC http url | null
 | **NETWORK** | Bitcoin network (main or test) | main

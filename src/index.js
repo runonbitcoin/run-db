@@ -7,11 +7,12 @@
 const Indexer = require('./indexer')
 const Server = require('./server')
 const {
-  API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
+  API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, WHATSONCHAIN_KEY, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
 } = require('./config')
 const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
+const WhatsOnChain = require('./whatsonchain')
 const RunConnectFetcher = require('./run-connect')
 const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
@@ -33,6 +34,7 @@ let api = null
 switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
+  case 'whatsonchain': api = new WhatsOnChain(WHATSONCHAIN_KEY, logger); break;
   case 'bitcoin-node':
     if (ZMQ_URL === null) {
       throw new Error('please specify ZQM_URL when using bitcoin-node API')
