@@ -9,7 +9,14 @@ const { ExecutionError } = require('../execution/execution-error')
 const buildExecutionServer = (logger, count, blobStorage, workerPath, network, workerOpts = {}) => {
   const factory = {
     create: () => {
-      const worker = new Worker(workerPath, { workerData: { network: network, ...workerOpts, cacheType: 'direct' } })
+      const worker = new Worker(workerPath, {
+        workerData: {
+          network: network,
+          directCachePath: require.resolve('../direct-cache.js'),
+          ...workerOpts,
+          cacheType: 'direct'
+        }
+      })
       Bus.listen(worker, {})
       return worker
     },
@@ -43,6 +50,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
 
   server.post('/execute', async (req, res) => {
     const { txid: rawTxid, trustList } = req.body
+    console.log(`Received tx to execute: ${rawTxid}`)
     if (!Array.isArray(trustList)) {
       throw new ApiError('wrong parameter: trustList', 'wrong-arguments', 400, { trustList })
     }
@@ -59,7 +67,11 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
 
     const worker = await pool.acquire()
     try {
+      console.log(`executing: ${txid}`)
+      const start = process.hrtime.bigint()
       const response = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList], ExecutionError)
+      const end = process.hrtime.bigint()
+      console.log(`finished: ${txid}. ${Number((end - start) / 1000n) / 1000}ms`)
       pool.release(worker).catch(logger.error)
       res.json({
         ok: true,

@@ -20,6 +20,8 @@ const network = workerData.network
 const cacheType = workerData.cacheType
 const txApiRoot = workerData.txApiRoot
 const stateApiRoot = workerData.stateApiRoot
+const originalConsole = console.log
+const { DirectCache } = require(workerData.directCachePath || './direct-cache')
 
 if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
   throw new Error('missing api root for direct cache')
@@ -53,45 +55,6 @@ class Cache {
 
   async set (key, value) {
     this.state[key] = value
-  }
-}
-
-class DirectCache {
-  constructor (blobStorage) {
-    this.blobs = blobStorage
-    this.state = {}
-  }
-
-  async get (key) {
-    const value = this.state[key]
-    if (value) { return value }
-
-    const [type, identifier] = key.split('://')
-    if (type === 'jig' || type === 'berry') {
-      const jig = await this.blobs.pullJigState(identifier)
-      this.state[key] = jig
-      return jig
-    } else if (type === 'tx') {
-      const rawTx = await this.blobs.pullTx(identifier)
-      const txHex = rawTx.toString('hex')
-      this.state[key] = txHex
-      return txHex
-    } else {
-      return null
-    }
-  }
-
-  async set (key, value) {
-    const existedBefore = !!this.state[key]
-    this.state[key] = value
-    if (existedBefore) {
-      return null
-    }
-
-    const [type, identifier] = key.split('://')
-    if (type === 'jig' || type === 'berry') {
-      await this.blobs.pushJigState(identifier, value)
-    }
   }
 }
 
@@ -133,7 +96,7 @@ async function execute (txid, hex, trustlist) {
   console.log()
   if (cacheType === 'direct') {
     const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
-    run.cache = new DirectCache(bs)
+    run.cache = new DirectCache(bs, originalConsole)
   } else {
     run.cache = new Cache()
   }
