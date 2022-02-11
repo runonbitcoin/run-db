@@ -12,9 +12,8 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
       const worker = new Worker(workerPath, {
         workerData: {
           network: network,
-          directCachePath: require.resolve('../direct-cache.js'),
-          ...workerOpts,
-          cacheType: 'direct'
+          cacheProviderPath: require.resolve('../worker/direct-cache-provider.js'),
+          ...workerOpts
         }
       })
       Bus.listen(worker, {})

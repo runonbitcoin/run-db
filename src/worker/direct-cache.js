@@ -4,7 +4,7 @@ const withTimeMeasure = async (label, fn, logger) => {
   const result = await fn()
   const end = process.hrtime.bigint()
   const diff = end - start
-  logger.log(`[time] ${label}: ${Number(diff / 1000n) / 1000}ms`)
+  logger(`[time] ${label}: ${Number(diff / 1000n) / 1000}ms`)
   return result
 }
 

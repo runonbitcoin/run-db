@@ -8,9 +8,9 @@ const { parentPort, workerData } = require('worker_threads')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
-const Bus = require('./bus')
-const { DEBUG } = require('./config')
-const { ApiBlobStorage } = require('./data-sources/api-blob-storage')
+const Bus = require('../bus')
+const { DEBUG } = require('../config')
+const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
@@ -20,8 +20,8 @@ const network = workerData.network
 const cacheType = workerData.cacheType
 const txApiRoot = workerData.txApiRoot
 const stateApiRoot = workerData.stateApiRoot
-const originalConsole = console.log
-const { DirectCache } = require(workerData.directCachePath || './direct-cache')
+const originalLog = console.log
+const CacheProvider = require(workerData.cacheProviderPath || './parent-port-cache-provider.js')
 
 if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
   throw new Error('missing api root for direct cache')
@@ -35,28 +35,6 @@ Bus.listen(parentPort, { execute })
 process.on('unhandledRejection', (e) => {
   console.warn('Unhandled promise rejection', e)
 })
-
-// ------------------------------------------------------------------------------------------------
-// Cache
-// ------------------------------------------------------------------------------------------------
-
-class Cache {
-  constructor () {
-    this.state = {}
-  }
-
-  async get (key) {
-    if (key in this.state) {
-      return this.state[key]
-    }
-
-    return await Bus.sendRequest(parentPort, 'cacheGet', [key])
-  }
-
-  async set (key, value) {
-    this.state[key] = value
-  }
-}
 
 // ------------------------------------------------------------------------------------------------
 // Blockchain
@@ -90,16 +68,14 @@ logger.warn = console.warn.bind(console)
 logger.error = console.error.bind(console)
 logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
+const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
+const cacheProvider = new CacheProvider(bs, originalLog)
+
 async function execute (txid, hex, trustlist) {
   const back = console.log
   console.log = function () {}
   console.log()
-  if (cacheType === 'direct') {
-    const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
-    run.cache = new DirectCache(bs, originalConsole)
-  } else {
-    run.cache = new Cache()
-  }
+  run.cache = await cacheProvider.get()
 
   run.state = new Run.plugins.LocalState()
   run.blockchain = new Blockchain(txid)

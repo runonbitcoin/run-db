@@ -16,19 +16,21 @@ const MatterCloud = require('./mattercloud')
 const Planaria = require('./planaria')
 const RunConnectFetcher = require('./run-connect')
 const config = require('./config')
-const { Clock } = require('./clock')
-const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
-const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 const dataSources = require('./data-sources')
 const execution = require('./execution')
 const http = require('./http')
 const trustList = require('./trust-list')
+const { CacheProvider } = require('./worker/cache-provider')
+const { Clock } = require('./clock')
+const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
+const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 
 module.exports = {
   BitcoinNodeConnection,
   BitcoinRpc,
   BitcoinZmq,
   Bus,
+  CacheProvider,
   Clock,
   Crawler,
   Database,

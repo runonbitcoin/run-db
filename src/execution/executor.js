@@ -18,10 +18,10 @@ class Executor {
     this.database = database
     this.logger = logger
     this.workerOpts = {
-      cacheType: opts.cacheType || 'parentConnection',
       dataApiRoot: opts.dataApiRoot || null,
       txApiRoot: opts.txApiRoot || null,
-      stateApiRoot: opts.stateApiRoot || null
+      stateApiRoot: opts.stateApiRoot || null,
+      cacheProviderPath: opts.cacheProviderPath || null
     }
 
     this.onIndexed = null

@@ -14,7 +14,7 @@ const server = buildExecutionServer(
   logger,
   WORKERS,
   blobStorage,
-  require.resolve('../worker.js'),
+  require.resolve('../worker/worker.js'),
   NETWORK,
   {
     txApiRoot: DATA_API_TX_ROOT,
