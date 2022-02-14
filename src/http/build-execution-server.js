@@ -8,7 +8,7 @@ const { ExecutionError } = require('../execution/execution-error')
 
 const buildExecutionServer = (logger, count, blobStorage, workerPath, network, workerOpts = {}) => {
   const factory = {
-    create: () => {
+    create: async () => {
       const worker = new Worker(workerPath, {
         workerData: {
           network: network,
