@@ -49,7 +49,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
 
   server.post('/execute', async (req, res) => {
     const { txid: rawTxid, trustList } = req.body
-    console.log(`Received tx to execute: ${rawTxid}`)
+    logger.info(`Received tx to execute: ${rawTxid}`)
     if (!Array.isArray(trustList)) {
       throw new ApiError('wrong parameter: trustList', 'wrong-arguments', 400, { trustList })
     }
@@ -66,11 +66,11 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
 
     const worker = await pool.acquire()
     try {
-      console.log(`executing: ${txid}`)
+      logger.info(`executing: ${txid}`)
       const start = process.hrtime.bigint()
       const response = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList], ExecutionError)
       const end = process.hrtime.bigint()
-      console.log(`finished: ${txid}. ${Number((end - start) / 1000n) / 1000}ms`)
+      logger.info(`finished: ${txid}. ${Number((end - start) / 1000n) / 1000}ms`)
       pool.release(worker).catch(logger.error)
       res.json({
         ok: true,
@@ -78,6 +78,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
         response
       })
     } catch (e) {
+      logger.info(`failure executing tx ${txid}: ${e.message}`)
       pool.destroy(worker).catch(logger.error)
       const error = e instanceof ExecutionError
         ? {
