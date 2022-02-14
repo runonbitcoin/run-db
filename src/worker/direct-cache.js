@@ -25,7 +25,7 @@ class DirectCache {
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const rawTx = await withTimeMeasure(`fetch rawtx ${identifier}`, async () => this.blobs.pullTx(identifier))
+      const rawTx = await withTimeMeasure(`fetch rawtx ${identifier}`, async () => this.blobs.pullTx(identifier), this.logger)
       const txHex = rawTx.toString('hex')
       this.state[key] = txHex
       return txHex
