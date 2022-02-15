@@ -80,21 +80,21 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
     } catch (e) {
       logger.info(`failure executing tx ${txid}: ${e.message}`)
       pool.destroy(worker).catch(logger.error)
-      const error = e instanceof ExecutionError
-        ? {
+      if (e instanceof ExecutionError) {
+        return res.status(200).json({
+          ok: false,
+          error: {
             type: e.constructor.name,
             message: e.message
-          }
-        : {
-            type: 'Error',
-            message: 'unexpected error'
-          }
-
-      res.json({
-        ok: false,
-        error,
-        result: null
-      })
+          },
+          result: null
+        })
+      } else {
+        res.status(500).send({
+          type: 'Error',
+          message: 'unexpected error'
+        })
+      }
     }
   })
 

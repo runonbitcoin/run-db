@@ -37,7 +37,7 @@ class Executor {
     for (let i = 0; i < this.numWorkers; i++) {
       this.logger.debug('Starting worker', i)
 
-      const path = require.resolve('../worker.js')
+      const path = require.resolve('../worker/worker.js')
       const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 
       worker.id = i
