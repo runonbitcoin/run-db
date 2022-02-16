@@ -21,9 +21,14 @@ const TRUSTED_AND_READY_TO_EXECUTE_SQL = `
       FROM tx AS txDeps
       JOIN deps
       ON deps.up = txDeps.txid
-      WHERE deps.down = txOuter.txid AND 
-            txDeps.executable = 1 AND 
-            txDeps.indexed = 0
+      WHERE deps.down = txOuter.txid AND  
+            ((
+              txDeps.executable = 1 AND
+              txDeps.indexed = 0
+            ) OR (
+              txDeps.executed = 1 AND
+              txDeps.indexed = 0
+            ))
     ) = 0
   ) AS ready 
   FROM tx as txOuter
@@ -39,10 +44,14 @@ const READY_TO_EXECUTE_SQL = `
       FROM tx AS txDeps
       JOIN deps
       ON deps.up = txDeps.txid
-      WHERE deps
-      .down = txOuter.txid AND 
-            txDeps.executable = 1 AND 
-            txDeps.indexed = 0
+      WHERE deps.down = txOuter.txid AND  
+            ((
+              txDeps.executable = 1 AND
+              txDeps.indexed = 0
+            ) OR (
+              txDeps.executed = 1 AND
+              txDeps.indexed = 0
+            ))
     ) = 0
   ) AS ready 
   FROM tx as txOuter
@@ -65,8 +74,14 @@ const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
         FROM tx AS tx2
         JOIN deps
         ON deps.up = tx2.txid
-        WHERE deps.down = tx.txid
-        AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+        WHERE deps.down = tx.txid AND  
+          ((
+            tx2.executable = 1 AND
+            tx2.indexed = 0
+          ) OR (
+            tx2.executed = 1 AND
+            tx2.indexed = 0
+          ))
       ) = 0
     `
 

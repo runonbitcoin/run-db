@@ -72,4 +72,167 @@ describe('SqliteMixedDataSource', () => {
       expect(await blobStorage.pullJigState(location, () => null)).to.eql(null)
     })
   })
+
+  describe('#txidIsReadyToExecute', () => {
+    it('returns false when tx does not exists', async () => {
+      const result = await ds.txidIsReadyToExecute('doesnotexists')
+      expect(result).to.eql(false)
+    })
+
+    it('returns true when tx exists and has no deps when tx does not exists', async () => {
+      const txid = 'sometxid'
+      await ds.addNewTx(txid, new Date().valueOf())
+      await ds.setExecutableForTx(txid, 1)
+      const result = await ds.txidIsReadyToExecute(txid)
+      expect(result).to.eql(true)
+    })
+
+    it('returns false when tx exists has no dependencies but is not executable', async () => {
+      const txid = 'sometxid'
+      await ds.addNewTx(txid, new Date().valueOf())
+      await ds.setExecutableForTx(txid, 0)
+      const result = await ds.txidIsReadyToExecute(txid)
+      expect(result).to.eql(false)
+    })
+
+    it('returns true when tx exists has has dependencies and the where executed ok', async () => {
+      const dep = 'deptxid'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep, main)
+
+      await ds.setExecutableForTx(dep, 1)
+      await ds.setExecutableForTx(dep, 1)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(false)
+    })
+
+    it('returns false when tx exists has has a dependency but the dependency was not executed yet', async () => {
+      const dep = 'deptxid'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep, main)
+
+      await ds.setExecutableForTx(dep, 1)
+      await ds.setExecutableForTx(dep, 1)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(false)
+    })
+
+    it('returns false when tx exists has has a dependency but the dependency failed on the execution', async () => {
+      const dep = 'deptxid'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep, main)
+
+      // Mark as failed
+      await ds.setExecutableForTx(dep, 0)
+      await ds.setExecutedForTx(dep, 1)
+      await ds.setIndexedForTx(dep, 0)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(false)
+    })
+
+    it('returns true when tx exists and several has a dependencies all ok', async () => {
+      const dep1 = 'deptxid1'
+      const dep2 = 'deptxid2'
+      const dep3 = 'deptxid3'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep1, new Date().valueOf())
+      await ds.addNewTx(dep2, new Date().valueOf())
+      await ds.addNewTx(dep3, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep1, main)
+      await ds.addDep(dep2, main)
+      await ds.addDep(dep3, main)
+
+      // deps are ok
+      await ds.setExecutableForTx(dep1, 1)
+      await ds.setIndexedForTx(dep1, 1)
+      await ds.setExecutableForTx(dep2, 1)
+      await ds.setIndexedForTx(dep2, 1)
+      await ds.setExecutableForTx(dep3, 1)
+      await ds.setIndexedForTx(dep3, 1)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(true)
+    })
+
+    it('returns false when tx exists and one was not indexed', async () => {
+      const dep1 = 'deptxid1'
+      const dep2 = 'deptxid2'
+      const dep3 = 'deptxid3'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep1, new Date().valueOf())
+      await ds.addNewTx(dep2, new Date().valueOf())
+      await ds.addNewTx(dep3, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep1, main)
+      await ds.addDep(dep2, main)
+      await ds.addDep(dep3, main)
+
+      // deps are ok
+      await ds.setExecutableForTx(dep1, 1)
+      await ds.setIndexedForTx(dep1, 1)
+      await ds.setExecutableForTx(dep2, 1)
+      await ds.setIndexedForTx(dep2, 1)
+      await ds.setExecutableForTx(dep3, 1)
+      await ds.setIndexedForTx(dep3, 0)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(false)
+    })
+
+    it('returns false when tx exists and one failed', async () => {
+      const dep1 = 'deptxid1'
+      const dep2 = 'deptxid2'
+      const dep3 = 'deptxid3'
+      const main = 'sometxid'
+
+      await ds.addNewTx(dep1, new Date().valueOf())
+      await ds.addNewTx(dep2, new Date().valueOf())
+      await ds.addNewTx(dep3, new Date().valueOf())
+      await ds.addNewTx(main, new Date().valueOf())
+      await ds.addDep(dep1, main)
+      await ds.addDep(dep2, main)
+      await ds.addDep(dep3, main)
+
+      // deps are ok
+      await ds.setExecutableForTx(dep1, 1)
+      await ds.setIndexedForTx(dep1, 1)
+      await ds.setExecutableForTx(dep2, 1)
+      await ds.setIndexedForTx(dep2, 1)
+
+      // one dep failed
+      await ds.setExecutableForTx(dep3, 0)
+      await ds.setExecutedForTx(dep3, 1)
+      await ds.setIndexedForTx(dep3, 0)
+
+      await ds.setExecutableForTx(main, 1)
+
+      const result = await ds.txidIsReadyToExecute(main)
+      expect(result).to.eql(false)
+    })
+  })
 })

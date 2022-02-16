@@ -40,8 +40,12 @@ const READY_TO_EXECUTE_SQL = `
                 FROM tx AS tx2
                 JOIN deps
                 ON deps.up = tx2.txid
-                WHERE deps.down = tx.txid
-                AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+                WHERE deps.down = tx.txid AND 
+                (
+                  +tx2.downloaded = 0 OR
+                  (tx2.executable = 1 AND tx2.executed = 0) OR
+                  (tx2.executed = 1 AND tx2.indexed = 0)
+                )
               ) = 0
             ) AS ready 
             FROM tx
@@ -649,7 +653,7 @@ class SqliteDatasource {
 
   async txidIsReadyToExecute (txid) {
     const row = this.isReadyToExecuteStmt.get(txid)
-    return row && row.ready
+    return !!(row && row.ready)
   }
 
   async checkDependenciesWereExecutedOk (txid) {
