@@ -11,6 +11,7 @@ const bsv = require('bsv')
 const Bus = require('../bus')
 const { DEBUG } = require('../config')
 const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
+const stream = require('stream')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
@@ -20,8 +21,22 @@ const network = workerData.network
 const cacheType = workerData.cacheType
 const txApiRoot = workerData.txApiRoot
 const stateApiRoot = workerData.stateApiRoot
+const preserveStdout = workerData.preserveStdout || false
+const preserveStdErr = workerData.preserveStdErr || false
 const originalLog = console.log
 const CacheProvider = require(workerData.cacheProviderPath || './parent-port-cache-provider.js')
+
+// Prepare console
+
+const outConsole = global.console
+const executorStdout = preserveStdout
+  ? process.stdout
+  : new stream.Writable({ write: (_a, _b, cb) => cb() })
+const executorStdErr = preserveStdErr
+  ? process.stderr
+  : new stream.Writable({ write: (_a, _b, cb) => cb() })
+const nullConsole = new console.Console(executorStdout, executorStdErr)
+global.console = nullConsole
 
 if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
   throw new Error('missing api root for direct cache')
@@ -33,7 +48,7 @@ Bus.listen(parentPort, { execute })
 // and unhandled promise rejection error. However, it can't reproduce outside of Run-DB.
 // This needs investigation. Perhaps it's related to the worker thread. Perhaps something else.
 process.on('unhandledRejection', (e) => {
-  console.warn('Unhandled promise rejection', e)
+  outConsole.warn('Unhandled promise rejection', e)
 })
 
 // ------------------------------------------------------------------------------------------------
@@ -72,9 +87,6 @@ const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
 const cacheProvider = new CacheProvider(bs, originalLog)
 
 async function execute (txid, hex, trustlist) {
-  const back = console.log
-  console.log = function () {}
-  console.log()
   run.cache = await cacheProvider.get()
 
   run.state = new Run.plugins.LocalState()
@@ -107,8 +119,6 @@ async function execute (txid, hex, trustlist) {
   const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
   const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
   const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
-
-  console.log = back
   return { cache, classes, locks, scripthashes }
 }
 

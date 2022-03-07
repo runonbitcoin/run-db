@@ -6,9 +6,30 @@
 
 const Indexer = require('../indexer')
 const {
-  API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
-  MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY, DATA_SOURCE,
-  WORKER_CACHE_TYPE, TRUST_LIST, EXECUTOR, EXECUTE_ENDPOINT, DATA_API_TX_ROOT, DATA_API_STATE_ROOT
+  API,
+  DB,
+  NETWORK,
+  PORT,
+  FETCH_LIMIT,
+  WORKERS,
+  MATTERCLOUD_KEY,
+  PLANARIA_TOKEN,
+  START_HEIGHT,
+  MEMPOOL_EXPIRATION,
+  ZMQ_URL,
+  RPC_URL,
+  DEFAULT_TRUSTLIST,
+  DEBUG,
+  SERVE_ONLY,
+  DATA_SOURCE,
+  WORKER_CACHE_TYPE,
+  TRUST_LIST,
+  EXECUTOR,
+  EXECUTE_ENDPOINT,
+  DATA_API_TX_ROOT,
+  DATA_API_STATE_ROOT,
+  PRESERVE_STDOUT,
+  PRESERVE_STDERR
 } = require('../config')
 const MatterCloud = require('../mattercloud')
 const Planaria = require('../planaria')
@@ -86,7 +107,13 @@ if (TRUST_LIST === 'db') {
 const database = new Database(dataSource, trustList, logger)
 
 const executor = EXECUTOR === 'local'
-  ? new Executor(NETWORK, WORKERS, database, logger, { cacheType: WORKER_CACHE_TYPE, txApiRoot: DATA_API_TX_ROOT, stateApiRoot: DATA_API_STATE_ROOT })
+  ? new Executor(NETWORK, WORKERS, database, logger, {
+      cacheType: WORKER_CACHE_TYPE,
+      txApiRoot: DATA_API_TX_ROOT,
+      stateApiRoot: DATA_API_STATE_ROOT,
+      preserveStdout: PRESERVE_STDOUT,
+      preserveStdErr: PRESERVE_STDERR
+    })
   : new ApiExecutor(EXECUTE_ENDPOINT, trustList, NETWORK, WORKERS, logger)
 
 const indexer = new Indexer(

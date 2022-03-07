@@ -9,6 +9,7 @@ Crawls the blockchain and indexes RUN state.
 Using Run-DB, you can self-host the State APIs that Run uses to work well.
 
 Use Run-DB to:
+
 - Operate a State Server to improve RUN performance by pre-loading jigs
 - Query balances, volume, history, and other information across many users and contracts
 - Blacklist individual transactions and their descendants in your app
@@ -23,7 +24,9 @@ Node 10+
 1. Install `npm run install`
 2. Download a db snapshot: `wget https://run.network/run-db-snapshots/main/latest -O run.db` (*optional*)
 3. Run `npm run start`
-4. Install a trustlist: `curl -s https://api.run.network/v1/main/trust | curl -H "Content-Type: application/json" -X POST -d @- http://localhost:8000/trust` (*optional*)
+4. Install a
+   trustlist: `curl -s https://api.run.network/v1/main/trust | curl -H "Content-Type: application/json" -X POST -d @- http://localhost:8000/trust` (*
+   optional*)
 
 **Note**: For testnet, you may use `test` in place of `main` in the above commands.
 
@@ -38,24 +41,30 @@ const trust = ['state']
 const run = new Run({ client, state, trust })
 ```
 
-Client mode makes Run-DB the source of truth for your server for all jig information. RUN will not load jigs that are not in your database, and your inventory will only be populated by jig UTXOs known to your database.
+Client mode makes Run-DB the source of truth for your server for all jig information. RUN will not load jigs that are
+not in your database, and your inventory will only be populated by jig UTXOs known to your database.
 
-Setting trust to `'state'` makes Run use your database for its trustlist too. This means you only have to setup trust in one place using:
+Setting trust to `'state'` makes Run use your database for its trustlist too. This means you only have to setup trust in
+one place using:
 
 ```
 curl -X POST localhost:8000/trust/<txid>
 ```
 
-You may also want to run additional instance of Run-DB in `SERVE_ONLY` mode. That allows you to have an writer that crawls transactions and puts data into the database, and multiple readers that serve your application servers.
+You may also want to run additional instance of Run-DB in `SERVE_ONLY` mode. That allows you to have an writer that
+crawls transactions and puts data into the database, and multiple readers that serve your application servers.
 
 ## Use with a Browser or Mobile Client
 
-The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your Run-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent MITM attacks.
+The same approach taken for servers can be used to improve performance of client `Run` instances. You should expose your
+Run-DB endpoints on a public or private domain rather than connect to `localhost`. If your client connections are not
+authenticated, be sure to only expose the GET endpoints and never the POST or DELETE endpoints, and use HTTPS to prevent
+MITM attacks.
 
 ## Blob storage
 
-Run-db needs to handle multiple kinds of raw data in order to work. There is 2 ways to manage that data
-at the moment:
+Run-db needs to handle multiple kinds of raw data in order to work. There is 2 ways to manage that data at the moment:
+
 - Save them inside the main db.
 - Save them externally using a data api.
 
@@ -64,8 +73,8 @@ The blob storage implementation can be configured using env variables.
 ## Use execution server
 
 Run-db allows to separate the execution of run transactions into different machines. The way to do that is trough
-execution servers. The execution server is a standalone process used to execute run transactions.
-The main process communicates with the execution server using http.
+execution servers. The execution server is a standalone process used to execute run transactions. The main process
+communicates with the execution server using http.
 
 In order to run the execution server it's required to use an external blob storage.
 
@@ -98,11 +107,13 @@ Create a .env file or set the following environment variables before running to 
 | **EXECUTOR**            | Executor implementation. Valid values: `local` or `api`                 | 'local'                       |
 | **WORKER_CACHE_TYPE**   | 'parent' or 'direct'. Defines how workers get and save generated state. | 'parent'                      |                      
 | **TRUST_LIST**          | Trust list implementation. `all` or `db`                                | `db`                          |
+| **PRESERVE_STDERR**     | Actually preserve stdout on jig executions.                             | false                         |
+| **PRESERVE_STDOUT**     | Actually preserve stderr on jig executions.                             | false                         |
+
 ### Connecting with a bitcoin node
 
-During development is useful to connect to a local node. In order
-to do this you need to provide RUN-db with access to a bitcoin node
-trough RPC and ZMQ.
+During development is useful to connect to a local node. In order to do this you need to provide RUN-db with access to a
+bitcoin node trough RPC and ZMQ.
 
 ```
 export API="bitcoin-node"
@@ -110,11 +121,10 @@ export ZMQ_URL="tcp://your-node-uri:port"
 export RPC_URL="http://user:password@your-node-uri:port"
 ```
 
-The only zmq message is needed is `rawtx`. ZMQ is only used to get
-the new transactions in the mempool.
+The only zmq message is needed is `rawtx`. ZMQ is only used to get the new transactions in the mempool.
 
-Direct connection with the node is tested in regtest and testnet, but
-it's not recommeded for production environments in mainnet at the moment.
+Direct connection with the node is tested in regtest and testnet, but it's not recommeded for production environments in
+mainnet at the moment.
 
 ## Endpoints
 
@@ -123,14 +133,18 @@ it's not recommeded for production environments in mainnet at the moment.
 * `GET /tx/:txid` - Gets the raw transaction hex for an added transaction
 * `GET /time/:txid` - Gets the block or mempool time of a transaction in seconds since unix epoch
 * `GET /spends/:location` - Gets the spending txid for an output at a particular location
-* `GET /unspent` - Gets the locations of all unspent jigs that are trusted. You may optionally pass in the following query params: `class` to filter by contract origin, `address` to filter by owner address, `pubkey` to filter by owner pubkey, `scripthash` to filter by hash of the owner script, `lock` to filter by lock class origin.
+* `GET /unspent` - Gets the locations of all unspent jigs that are trusted. You may optionally pass in the following
+  query params: `class` to filter by contract origin, `address` to filter by owner address, `pubkey` to filter by owner
+  pubkey, `scripthash` to filter by hash of the owner script, `lock` to filter by lock class origin.
 * `GET /trust/:txid?` - Gets whether a particular txid is trusted, or the entire trust list
 * `GET /ban/:txid?` - Gets whether a particular txid is banned, or the entire ban list
 * `GET /status` - Prints status information
 
-* `POST /trust/:txid?` - Trusts a transaction to execute its code, as well as any untrusted ancestors. To trust multiple transactions at once, you may add an array of txids in the body as application/json.
+* `POST /trust/:txid?` - Trusts a transaction to execute its code, as well as any untrusted ancestors. To trust multiple
+  transactions at once, you may add an array of txids in the body as application/json.
 * `POST /ban/:txid` - Bans a transaction from being executed, and unindexes it and its descendents
-* `POST /tx/:txid?` - Indexes a transaction and any ancestors. You may optionally add the raw hex data for the transaction in the body as text/plain.
+* `POST /tx/:txid?` - Indexes a transaction and any ancestors. You may optionally add the raw hex data for the
+  transaction in the body as text/plain.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction, and unindexes it and its descendents
 * `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
@@ -138,7 +152,9 @@ it's not recommeded for production environments in mainnet at the moment.
 
 ## Performing Custom Queries
 
-Run-DB uses SQLite as its underlying database in [WAL](https://sqlite.org/wal.html) mode. SQLite and WAL allows multiple connections to the database so long as there is only one writer, which should be Run-DB. Alternatively, forking Run-DB to create new endpoints for your application may be simpler.
+Run-DB uses SQLite as its underlying database in [WAL](https://sqlite.org/wal.html) mode. SQLite and WAL allows multiple
+connections to the database so long as there is only one writer, which should be Run-DB. Alternatively, forking Run-DB
+to create new endpoints for your application may be simpler.
 
 ### Example Queries
 

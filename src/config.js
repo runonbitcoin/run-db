@@ -12,8 +12,6 @@ require('dotenv').config()
 
 const API = process.env.API || 'mattercloud'
 const DATA_API_ROOT = process.env.DATA_API_ROOT || null
-let DATA_API_STATE_ROOT = process.env.DATA_API_STATE_ROOT || null
-let DATA_API_TX_ROOT = process.env.DATA_API_TX_ROOT || null
 const DATA_SOURCE = process.env.DATA_SOURCE || 'sqlite'
 const DB = process.env.DB || 'run.db'
 const DEBUG = process.env.DEBUG || false
@@ -25,6 +23,8 @@ const MEMPOOL_EXPIRATION = typeof process.env.MEMPOOL_EXPIRATION !== 'undefined'
 const NETWORK = process.env.NETWORK || 'main'
 const PLANARIA_TOKEN = process.env.PLANARIA_TOKEN
 const PORT = typeof process.env.PORT !== 'undefined' ? parseInt(process.env.PORT) : 0
+const PRESERVE_STDERR = process.env.PRESERVE_STDERR || false
+const PRESERVE_STDOUT = process.env.PRESERVE_STDOUT || false
 const RPC_URL = process.env.RPC_URL || null
 const SERVE_ONLY = process.env.SERVE_ONLY || false
 const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
@@ -33,6 +33,8 @@ const TRUST_LIST = process.env.TRUST_LIST || 'db'
 const WORKERS = typeof process.env.WORKERS !== 'undefined' ? parseInt(process.env.WORKERS) : 4
 const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 const ZMQ_URL = process.env.ZMQ_URL || null
+let DATA_API_STATE_ROOT = process.env.DATA_API_STATE_ROOT || null
+let DATA_API_TX_ROOT = process.env.DATA_API_TX_ROOT || null
 
 if (!DATA_API_TX_ROOT && !DATA_API_STATE_ROOT && DATA_API_ROOT) {
   DATA_API_TX_ROOT = `${DATA_API_ROOT}/tx`
@@ -129,6 +131,8 @@ module.exports = {
   NETWORK,
   PLANARIA_TOKEN,
   PORT,
+  PRESERVE_STDERR,
+  PRESERVE_STDOUT,
   RPC_URL,
   SERVE_ONLY,
   START_HEIGHT,
