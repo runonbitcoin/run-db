@@ -8,13 +8,39 @@ const { parentPort, workerData } = require('worker_threads')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
-const Bus = require('./bus')
+const Bus = require('../bus')
+const { DEBUG } = require('../config')
+const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
+const stream = require('stream')
 
 // ------------------------------------------------------------------------------------------------
 // Startup
 // ------------------------------------------------------------------------------------------------
 
 const network = workerData.network
+const cacheType = workerData.cacheType
+const txApiRoot = workerData.txApiRoot
+const stateApiRoot = workerData.stateApiRoot
+const preserveStdout = workerData.preserveStdout || false
+const preserveStdErr = workerData.preserveStdErr || false
+const originalLog = console.log
+const CacheProvider = require(workerData.cacheProviderPath || './parent-port-cache-provider.js')
+
+// Prepare console
+
+const outConsole = global.console
+const executorStdout = preserveStdout
+  ? process.stdout
+  : new stream.Writable({ write: (_a, _b, cb) => cb() })
+const executorStdErr = preserveStdErr
+  ? process.stderr
+  : new stream.Writable({ write: (_a, _b, cb) => cb() })
+const nullConsole = new console.Console(executorStdout, executorStdErr)
+global.console = nullConsole
+
+if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
+  throw new Error('missing api root for direct cache')
+}
 
 Bus.listen(parentPort, { execute })
 
@@ -22,30 +48,8 @@ Bus.listen(parentPort, { execute })
 // and unhandled promise rejection error. However, it can't reproduce outside of Run-DB.
 // This needs investigation. Perhaps it's related to the worker thread. Perhaps something else.
 process.on('unhandledRejection', (e) => {
-  console.warn('Unhandled promise rejection', e)
+  outConsole.warn('Unhandled promise rejection', e)
 })
-
-// ------------------------------------------------------------------------------------------------
-// Cache
-// ------------------------------------------------------------------------------------------------
-
-class Cache {
-  constructor () {
-    this.state = {}
-  }
-
-  async get (key) {
-    if (key in this.state) {
-      return this.state[key]
-    }
-
-    return await Bus.sendRequest(parentPort, 'cacheGet', key)
-  }
-
-  async set (key, value) {
-    this.state[key] = value
-  }
-}
 
 // ------------------------------------------------------------------------------------------------
 // Blockchain
@@ -54,11 +58,11 @@ class Cache {
 class Blockchain {
   constructor (txid) { this.txid = txid }
   get network () { return network }
-  async broadcast (hex) { return this.txid }
-  async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', txid) }
-  async utxos (script) { throw new Error('not implemented: utxos') }
-  async spends (txid, vout) { throw new Error('not implemented: spends') }
-  async time (txid) { throw new Error('not implemented: time') }
+  async broadcast (_hex) { return this.txid }
+  async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', [txid]) }
+  async utxos (_script) { throw new Error('not implemented: utxos') }
+  async spends (_txid, _vout) { throw new Error('not implemented: spends') }
+  async time (_txid) { throw new Error('not implemented: time') }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -73,18 +77,35 @@ const scripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')
 
 const run = new Run({ network, logger: null })
 
+const logger = {}
+logger.info = console.info.bind(console)
+logger.warn = console.warn.bind(console)
+logger.error = console.error.bind(console)
+logger.debug = DEBUG ? console.debug.bind(console) : () => {}
+
+const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
+const cacheProvider = new CacheProvider(bs, originalLog)
+
 async function execute (txid, hex, trustlist) {
-  run.cache = new Cache()
+  run.cache = await cacheProvider.get()
+
+  run.state = new Run.plugins.LocalState()
   run.blockchain = new Blockchain(txid)
   run.timeout = 300000
   run.client = false
   run.preverify = false
+
   trustlist.forEach(txid => run.trust(txid))
   run.trust('cache')
 
   const tx = await run.import(hex, { txid })
 
-  await tx.cache()
+  try {
+    await tx.cache()
+  } catch (e) {
+    console.error(e)
+    throw e
+  }
 
   const cache = run.cache.state
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
@@ -98,7 +119,6 @@ async function execute (txid, hex, trustlist) {
   const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
   const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
   const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
-
   return { cache, classes, locks, scripthashes }
 }
 

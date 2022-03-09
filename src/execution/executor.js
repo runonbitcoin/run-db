@@ -5,18 +5,24 @@
  */
 
 const { Worker } = require('worker_threads')
-const Bus = require('./bus')
+const Bus = require('../bus')
 
 // ------------------------------------------------------------------------------------------------
 // Executor
 // ------------------------------------------------------------------------------------------------
 
 class Executor {
-  constructor (network, numWorkers, database, logger) {
+  constructor (network, numWorkers, database, logger, opts = {}) {
     this.network = network
     this.numWorkers = numWorkers
     this.database = database
     this.logger = logger
+    this.workerOpts = {
+      dataApiRoot: opts.dataApiRoot || null,
+      txApiRoot: opts.txApiRoot || null,
+      stateApiRoot: opts.stateApiRoot || null,
+      cacheProviderPath: opts.cacheProviderPath || null
+    }
 
     this.onIndexed = null
     this.onExecuteFailed = null
@@ -31,9 +37,8 @@ class Executor {
     for (let i = 0; i < this.numWorkers; i++) {
       this.logger.debug('Starting worker', i)
 
-      const path = require.resolve('./worker.js')
-
-      const worker = new Worker(path, { workerData: { id: i, network: this.network } })
+      const path = require.resolve('../worker/worker.js')
+      const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
 
       worker.id = i
       worker.available = true
@@ -74,18 +79,17 @@ class Executor {
 
     worker.missingDeps = new Set()
 
-    const hex = this.database.getTransactionHex(txid)
-    const trustlist = this.database.getTrustlist()
+    const hex = await this.database.getTransactionHex(txid)
+    const trustList = await this.database.getTrustlist()
 
+    let result = null
     try {
-      const result = await Bus.sendRequest(worker, 'execute', txid, hex, trustlist)
-
-      if (this.onIndexed) this.onIndexed(txid, result)
+      result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
     } catch (e) {
       if (worker.missingDeps.size) {
-        if (this.onMissingDeps) this.onMissingDeps(txid, Array.from(worker.missingDeps))
+        if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
       } else {
-        if (this.onExecuteFailed) this.onExecuteFailed(txid, e)
+        if (this.onExecuteFailed) await this.onExecuteFailed(txid, e.message)
       }
     } finally {
       this.executing.delete(txid)
@@ -97,6 +101,9 @@ class Executor {
         this.workerRequests.shift()(worker)
       }
     }
+    if (this.onIndexed && result !== null) {
+      await this.onIndexed(txid, result)
+    }
   }
 
   _requestWorker () {
@@ -107,34 +114,30 @@ class Executor {
       return worker
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.workerRequests.push(resolve)
     })
   }
 
-  _onCacheGet (key) {
+  async _onCacheGet (key) {
     if (key.startsWith('jig://')) {
-      const state = this.database.getJigState(key.slice('jig://'.length))
-      if (state) return JSON.parse(state)
+      const state = await this.database.getJigState(key.slice('jig://'.length))
+      if (state) return state
     }
     if (key.startsWith('berry://')) {
-      const state = this.database.getBerryState(key.slice('berry://'.length))
-      if (state) return JSON.parse(state)
+      const state = await this.database.getBerryState(key.slice('berry://'.length))
+      if (state) return state
     }
     if (key.startsWith('tx://')) {
-      return this.database.getTransactionHex(key.slice('tx://'.length))
+      return await this.database.getTransactionHex(key.slice('tx://'.length))
     }
   }
 
-  _onBlockchainFetch (worker, txid) {
-    const hex = this.database.getTransactionHex(txid)
+  async _onBlockchainFetch (worker, txid) {
+    const hex = await this.database.getTransactionHex(txid)
     if (hex) return hex
     worker.missingDeps.add(txid)
     throw new Error(`Not found: ${txid}`)
-  }
-
-  _onTrustlistGet () {
-    return this.database.getTrustlist()
   }
 }
 

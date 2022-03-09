@@ -1,4 +1,7 @@
-const zmq = require('zeromq')
+let zmq
+try {
+  zmq = require('zeromq')
+} catch (e) {}
 
 class BitcoinZmq {
   constructor (url) {
