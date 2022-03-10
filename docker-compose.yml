@@ -44,6 +44,10 @@ services:
       DATA_API_TX_ROOT: ${DATA_API_TX_ROOT}
       DATA_API_STATE_ROOT: ${DATA_API_STATE_ROOT}
 
+  db:
+    image: postgres:latest
+
+
 volumes:
   bitcoind-data:
 #  rabbitmq-data:
