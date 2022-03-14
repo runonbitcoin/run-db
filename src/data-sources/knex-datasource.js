@@ -5,7 +5,7 @@
  */
 const { HEIGHT_MEMPOOL } = require('../constants')
 const knex = require('knex')
-const { TX, DEPS, EXECUTING, TRUST } = require('./columns')
+const { TX, DEPS, EXECUTING, TRUST, BAN } = require('./columns')
 
 this.addNewTransactionStmt = this.connection.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
 // this.setTransactionBytesStmt = this.connection.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
@@ -397,25 +397,47 @@ class SqliteDatasource {
     //   FROM tx
     //   WHERE txid = ?
     // `
-    this.knex(TX.NAME)
-      .whereNotNull(TX.bytes)
-      .andWhere(TX.executable, true)
-      .andWhere(TX.executed, false)
-      .andWhere(qb => {
-        qb.where(TX.hasCode, false).orWhereExists(function () {
-          this.select(TRUST.txid).from(TRUST.NAME).whereRaw(`${TRUST.txid} = ${TX.NAME}.${TX.txid}`).andWhere(TRUST.value, true)
-        })
+  //   select tx.txid from tx
+  //   join trust t on t.txid = tx.txid
+  //   left join ban on tx.txid = ban.txid
+  //   where
+  //   tx.txid  = ? and
+  //     tx.executable = true and
+  //   tx.executed = false and
+  //   (
+  //     tx.has_code = false or t.value = true
+  // ) and
+  //   ban.txid is null and
+  //   not exists (
+  //     select txDep.txid from  tx as txDep
+  //   join deps on txDep.txid = deps.up
+  //   where
+  //   deps.down = tx.txid and
+  //   (txDep.bytes is null or (txDep.executable = true and txDep.executed = false))
+  // );
+    const mainTx = 'mainTx'
+    const knex = this.knex
+    knex(this.knex.ref(TX.NAME).as(mainTx))
+      .join(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
+      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+      .where(`${mainTx}.${TX.txid}`, txid)
+      .where(`${mainTx}.${TX.executable}`, true)
+      .where(`${mainTx}.${TX.executed}`, false)
+      .where(qb => {
+        qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.txid}`, true)
       })
-      .andWhere(qb => {
-        qb.not.exists(function () {
-          this.join(DEPS.NAME, `${DEPS.NAME}.${DEPS.down}`, `${TX.NAME}.${TX.txid}`)
-          this.join({ innerTx: TX.NAME }, `${DEPS.NAME}.${DEPS.up}`, `innerTx.${TX.txid}`)
-          this.whereNotNull(`innerTx.${TX.bytes}`)
-            .andWhere(`innerTX.${TX.executable}`, true)
-            .andWhereNot(qb2 => {
-              qb2.where(`innerTx.${TX.executable}`, true).andWhere(`innerTx.${TX.executed}`)
+      .whereNull(`${BAN.NAME}`)
+      .whereNotExists(function () {
+        const depTx = 'depTx'
+        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
+          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+          .where(DEPS.down, `${mainTx}.${TX.txid}`)
+          .where(qb => {
+            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+              qb.where(`${depTx}.${TX.executable}`, true)
+              qb.where(`${depTx}.${TX.executed}`, false)
             })
-        })
+          })
       })
 
     const row = this.isTrustedAndReadyToExecuteStmt.get(txid)

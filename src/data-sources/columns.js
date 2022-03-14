@@ -27,9 +27,15 @@ const TRUST = {
   value: 'value'
 }
 
+const BAN = {
+  NAME: 'ban',
+  txid: 'txid'
+}
+
 module.exports = {
   TX,
   DEPS,
   EXECUTING,
-  TRUST
+  TRUST,
+  BAN
 }

@@ -1,6 +1,6 @@
 const knex = require('knex')
 const { expect } = require('chai')
-const { TX, DEPS, TRUST } = require('../src/data-sources/columns')
+const { TX, DEPS, TRUST, BAN } = require('../src/data-sources/columns')
 
 describe('knex queries', () => {
   let db
@@ -100,29 +100,30 @@ describe('knex queries', () => {
 
   describe('trust and ready query', () => {
     it('compiles', async () => {
-      const query = db(TX.NAME)
-        .whereNotNull(TX.bytes)
-        .andWhere(TX.executable, true)
-        .andWhere(TX.executed, false)
-        .andWhere(qb => {
-          qb.where(TX.hasCode, false).orWhereExists(function () {
-            this.select(TRUST.txid).from(TRUST.NAME).whereRaw(`${TRUST.txid} = ${TX.NAME}.${TX.txid}`).andWhere(TRUST.value, true)
-          })
+      const mainTx = 'mainTx'
+      const txid = 'aTxid'
+      const query = db(db.ref(TX.NAME).as(mainTx))
+        .join(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
+        .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+        .where(`${mainTx}.${TX.txid}`, txid)
+        .where(`${mainTx}.${TX.executable}`, true)
+        .where(`${mainTx}.${TX.executed}`, false)
+        .where(qb => {
+          qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.txid}`, true)
         })
-        .andWhere(qb => {
-          qb.whereNotExists(function () {
-            this.select('txid')
-              .from({ otherTx: TX.NAME })
-              .join(DEPS.NAME, `${DEPS.NAME}.${DEPS.down}`, `${TX.NAME}.${TX.txid}`)
-              .join({ innerTx: TX.NAME }, `${DEPS.NAME}.${DEPS.up}`, `innerTx.${TX.txid}`)
-            this.whereNotNull(`innerTx.${TX.bytes}`)
-              .andWhere(`innerTX.${TX.executable}`, true)
-              .andWhereNot(qb2 => {
-                qb2.where(`innerTx.${TX.executable}`, true).andWhere(`innerTx.${TX.executed}`)
+        .whereNull(`${BAN.NAME}.${BAN.txid}`)
+        .whereNotExists(function () {
+          const depTx = 'depTx'
+          this.select(TX.txid).from(db.ref(TX.NAME).as(depTx))
+            .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+            .where(DEPS.down, `${mainTx}.${TX.txid}`)
+            .where(qb => {
+              qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+                qb.where(`${depTx}.${TX.executable}`, true)
+                qb.where(`${depTx}.${TX.executed}`, false)
               })
-          })
+            })
         })
-
       console.log(query.toString())
       await query
     })
