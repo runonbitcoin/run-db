@@ -46,9 +46,17 @@ services:
 
   db:
     image: postgres:latest
-
+    environment:
+      POSTGRES_USER: someuser
+      POSTGRES_PASSWORD: sosecret
+      POSTGRES_DB: rundb_regtest
+    ports:
+      - 5432:5432
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
 volumes:
   bitcoind-data:
 #  rabbitmq-data:
   run-db-data:
+  db-data:
