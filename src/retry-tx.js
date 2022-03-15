@@ -34,17 +34,23 @@ const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger
 // ------------------------------------------------------------------------------------------------
 
 async function main () {
+  const targetTxid = process.argv[2]
+  if (!targetTxid) {
+    console.log('please specify a txid: "npm run retryTx <txid>"')
+    process.exit(1)
+  }
+  console.log(`re executing tx: ${targetTxid}`)
   database.open()
 
   const promise = new Promise(resolve => {
-    indexer.onIndex = (txid) => txid === '283ca82d323afa49af33832cde37f7f804e316573ca048b145887ced9fae8159' && resolve()
+    indexer.onIndex = (txid) => txid === targetTxid && resolve()
   })
 
   if (!SERVE_ONLY) {
     await indexer.start()
   }
 
-  database.retryTx('283ca82d323afa49af33832cde37f7f804e316573ca048b145887ced9fae8159')
+  database.retryTx(targetTxid)
   await promise
   await indexer.stop()
   await database.close()
