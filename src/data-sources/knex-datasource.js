@@ -187,7 +187,9 @@ class KnexDatasource {
   }
 
   async deleteTx (txid) {
-    this.deleteTransactionStmt.run(txid)
+    await this.knex(TX.NAME)
+      .where(TX.txid, txid)
+      .del()
   }
 
   async unconfirmTx (txid) {
@@ -307,7 +309,7 @@ class KnexDatasource {
   }
 
   async deleteSpendsForTxid (txid) {
-    this.deleteSpendsStmt.run(txid)
+    this.knex(SPEND.NAME).whereLike(SPEND.location, `${txid}%`)
   }
 
   async unspendOutput (txid) {
@@ -369,9 +371,9 @@ class KnexDatasource {
       .where(TX.executable, true)
       .where(TX.executed, false)
       .where(TX.hasCode, true)
-      .select([DEPS.up])
+      .select(DEPS.up)
 
-    return rows.map(r => r.txid)
+    return rows.map(r => r.up)
   }
 
   // jig

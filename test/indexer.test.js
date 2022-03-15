@@ -12,9 +12,10 @@ const Run = require('run-sdk')
 const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
-const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const Executor = require('../src/execution/executor')
+const knex = require('knex')
+const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -25,18 +26,39 @@ const api = { fetch }
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const ds = new SqliteDatasource(':memory:', logger, false)
-const trustList = new DbTrustList(ds)
-const database = new Database(ds, trustList, logger)
-
-beforeEach(() => database.open())
-afterEach(() => database.close())
 
 // ------------------------------------------------------------------------------------------------
 // IndexerTest
 // ------------------------------------------------------------------------------------------------
 
 describe('Indexer', () => {
+  let knexInstance
+  let ds
+  let trustList
+  let database
+
+  beforeEach(async () => {
+    knexInstance = knex({
+      client: 'better-sqlite3',
+      connection: {
+        filename: ':memory:'
+      },
+      migrations: {
+        directory: 'db-migrations'
+      }
+    })
+    ds = new KnexDatasource(knexInstance, logger, false)
+    trustList = new DbTrustList(ds)
+    database = new Database(ds, trustList, logger)
+
+    await knexInstance.migrate.latest()
+    await database.open()
+  })
+
+  afterEach(async () => {
+    database.close()
+  })
+
   it('add and index', async () => {
     const executor = new Executor('main', 1, database, logger)
     const indexer = new IndexerTest(database, api, executor, 1, 1, logger, 0, Infinity, [])
@@ -144,8 +166,8 @@ describe('Indexer', () => {
     const indexer = new IndexerTest(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     await indexer.start()
     const promise = indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
-    await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
     await database.trust('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
+    await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d') // Class with berry image
     await promise
     expect(await database.getTransactionHex('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')).not.to.equal(undefined)
     await database.deleteTransaction('2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad') // Berry data
