@@ -844,6 +844,10 @@ class SqliteDatasource {
     this.setHashStmt.run(hash)
   }
 
+  async nullCrawlHash () {
+    this.setHashStmt.run(null)
+  }
+
   async getCrawlHeight () {
     const row = this.getHeightStmt.raw(true).all()[0]
     return row && parseInt(row[0])

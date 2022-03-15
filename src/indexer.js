@@ -191,7 +191,7 @@ class Indexer {
     }
 
     await this.database.setHeight(newHeight)
-    await this.database.setHash(null)
+    await this.database.ds.nullCrawlHash(null)
 
     if (this.onReorg) this.onReorg(newHeight)
   }

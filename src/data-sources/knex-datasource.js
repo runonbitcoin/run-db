@@ -59,7 +59,7 @@ class KnexDatasource {
   }
 
   async searchTxsAboveHeight (height) {
-    return this.knex(TX.NAME).where(TX.height, '>', height).select()
+    return this.knex(TX.NAME).where(TX.height, '>', height).pluck(TX.txid)
   }
 
   async mempoolTxsPreviousToTime (time) {
@@ -593,11 +593,19 @@ class KnexDatasource {
   async setCrawlHeight (heigth) {
     await this.knex(CRAWL.NAME)
       .insert({ [CRAWL.name]: CRAWL_HEIGHT, [CRAWL.value]: heigth.toString() })
+      .onConflict(CRAWL.name).merge()
   }
 
   async setCrawlHash (hash) {
     await this.knex(CRAWL.NAME)
       .insert({ [CRAWL.name]: CRAWL_HASH, [CRAWL.value]: hash.toString() })
+      .onConflict(CRAWL.name).merge()
+  }
+
+  async nullCrawlHash () {
+    await this.knex(CRAWL.NAME)
+      .where(CRAWL.name, CRAWL_HASH)
+      .del()
   }
 
   async getCrawlHeight () {
