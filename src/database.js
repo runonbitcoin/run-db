@@ -31,7 +31,7 @@ const IS_READY_TO_EXECUTE_SQL = `
           JOIN deps
           ON deps.up = tx2.txid
           WHERE deps.down = tx.txid
-          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
+          AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0) OR (tx2.executed = 1 and tx2.indexed = 0))
         ) = 0
       ) AS ready 
       FROM tx
@@ -112,6 +112,7 @@ class Database {
     this.addNewTransactionStmt = this.db.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
     this.setTransactionBytesStmt = this.db.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
     this.setTransactionExecutableStmt = this.db.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
+    this.getTransactionExecutableStmt = this.db.prepare('SELECT executable FROM tx WHERE txid = ?')
     this.setTransactionTimeStmt = this.db.prepare('UPDATE tx SET time = ? WHERE txid = ?')
     this.setTransactionHeightStmt = this.db.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
     this.setTransactionHasCodeStmt = this.db.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
@@ -149,6 +150,13 @@ class Database {
       FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
       JOIN tx ON tx.txid = txdeps.txid
       WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
+    `)
+
+    this.getUpstreamStmt = this.db.prepare(`
+      SELECT up as txid FROM tx
+      JOIN deps ON deps.up = tx.txid
+      WHERE
+        deps.down = ?
     `)
 
     this.setJigStateStmt = this.db.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
@@ -946,6 +954,39 @@ class Database {
 
   setHash (hash) {
     this.setHashStmt.run(hash)
+  }
+
+  retryTx (txid) {
+    const txids = [txid]
+    const missing = new Set(txids)
+    this.setTransactionExecutedStmt.run(0, txid)
+    this.setTransactionIndexedStmt.run(0, txid)
+
+    while (missing.size > 0) {
+      Array.from(missing).forEach(txid => {
+        const row = this.isReadyToExecuteStmt.get(txid)
+        if (row && row.ready) {
+          missing.delete(txid)
+          if (this.onReadyToExecute) this.onReadyToExecute(txid)
+        } else {
+          this.unmarkExecutingStmt.run(txid)
+          missing.delete(txid)
+          const depTxids = this.getUpstreamStmt.raw(true).all(txid).map(r => r[0])
+          depTxids.forEach(depTxid => {
+            // Because we are retrying, we execute again failed deps.
+            if (this.getTransactionFailedStmt.get(depTxid).failed) {
+              this.setTransactionExecutedStmt.run(0, depTxid)
+              this.setTransactionIndexedStmt.run(0, depTxid)
+              this.setTransactionExecutableStmt.run(1, depTxid)
+            }
+            if (this.getTransactionExecutableStmt.get(depTxid).executable) {
+              missing.add(depTxid)
+              this.markExecutingStmt.run(depTxid)
+            }
+          })
+        }
+      })
+    }
   }
 
   // --------------------------------------------------------------------------
