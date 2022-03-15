@@ -1,6 +1,6 @@
 const knex = require('knex')
 const { expect } = require('chai')
-const { TX, DEPS, TRUST, BAN } = require('../src/data-sources/columns')
+const { TX, DEPS, TRUST, BAN, CRAWL } = require('../src/data-sources/columns')
 
 describe('knex queries', () => {
   let db
@@ -8,7 +8,7 @@ describe('knex queries', () => {
     db = knex({
       client: 'better-sqlite3',
       connection: {
-        filename: ':memory:'
+        filename: 'coso.sqlite3'
       },
       migrations: {
         directory: 'db-migrations'
@@ -98,6 +98,22 @@ describe('knex queries', () => {
     })
   })
 
+  it('can pluck', async () => {
+    await db(TRUST.NAME).insert({ txid: 'a', value: true })
+    await db(TRUST.NAME).insert({ txid: 'b', value: true })
+
+    const txids = await db(TRUST.NAME).pluck(TX.txid)
+    expect(txids).to.have.members(['a', 'b'])
+  })
+
+  describe('deps queries', () => {
+    it('returns what expected', async () => {
+      await db(DEPS.NAME).insert({ up: 'up', down: 'down' })
+      const rows = await db(DEPS.NAME).where(DEPS.up, 'up').select([DEPS.down])
+      expect(rows.map(r => r.down)).to.eql(['down'])
+    })
+  })
+
   describe('trust and ready query', () => {
     it('compiles', async () => {
       const mainTx = 'mainTx'
@@ -127,5 +143,47 @@ describe('knex queries', () => {
       console.log(query.toString())
       await query
     })
+
+    it('compiles multiple', async () => {
+      const txid = 'aaa'
+      const knex = db
+      const mainTx = 'mainTx'
+      const rows = await knex(DEPS.NAME)
+        .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${DEPS.NAME}.${DEPS.down}`)
+        .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+        .leftJoin(TRUST.NAME, `${mainTx}.${TX.txid}`, `${TRUST.NAME}.${TRUST.txid}`)
+        .whereNotNull(`${mainTx}.${TX.bytes}`)
+        .where(`${mainTx}.${TX.txid}`, txid)
+        .where(`${mainTx}.${TX.executable}`, true)
+        .where(`${mainTx}.${TX.executed}`, false)
+        .whereNull(`${BAN.NAME}.${BAN.txid}`)
+        .where(qb => {
+          qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.txid}`, true)
+        })
+        .whereNotExists(function () {
+          const depTx = 'depTx'
+          this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
+            .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+            .where(DEPS.down, `${mainTx}.${TX.txid}`)
+            .where(qb => {
+              qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+                qb.where(`${depTx}.${TX.executable}`, true)
+                qb.where(`${depTx}.${TX.executed}`, false)
+              })
+            })
+        }).select([`${mainTx}.${TX.txid}`])
+      expect(rows).to.eql([])
+    })
+  })
+
+  it('coso', async () => {
+    const coso = await db(CRAWL.NAME)
+      .where(CRAWL.name, 'holu')
+      .first()
+    expect(coso).to.eql(undefined)
+    // const a = await db.schema.hasColumn('crawl', 'value')
+    // expect(a).to.eql(true)
+
+    // expect(coso).to.eql(undefined)
   })
 })

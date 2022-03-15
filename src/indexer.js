@@ -43,7 +43,6 @@ class Indexer {
     this.database.onUntrustTransaction = this._onUntrustTransaction.bind(this)
     this.database.onBanTransaction = this._onBanTransaction.bind(this)
     this.database.onUnbanTransaction = this._onUnbanTransaction.bind(this)
-    this.database.onUnindexTransaction = this._onUnindexTransaction.bind(this)
     this.database.onRequestDownload = this._onRequestDownload.bind(this)
     this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
     this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
@@ -90,9 +89,9 @@ class Indexer {
 
   async _onDownloadTransaction (txid, hex, height, time) {
     this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
-    if (!await this.database.hasTransaction(txid)) return
-    if (height) { await this.database.setTransactionHeight(txid, height) }
-    if (time) { await this.database.setTransactionTime(txid, time) }
+    if (await this.database.ds.checkTxIsDownloaded(txid)) return
+    if (height) { await this.database.ds.setTxHeight(txid, height) }
+    if (time) { await this.database.ds.setTxTime(txid, time) }
     await this.database.parseAndStoreTransaction(txid, hex)
     if (this.onDownload) await this.onDownload(txid)
   }
@@ -108,10 +107,9 @@ class Indexer {
 
   async _onIndexed (txid, result) {
     this.pendingRetries.delete(txid)
-    if (!await this.database.hasTransaction(txid)) return // Check not re-orged
+    if (!await this.database.ds.txExists(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid}`)
-    this.database.storeExecutedTransaction(txid, result)
-      .catch(console.error)
+    await this.database.storeExecutedTransaction(txid, result)
     if (this.onIndex) {
       await this.onIndex(txid)
     }
@@ -159,10 +157,6 @@ class Indexer {
 
   async _onUnbanTransaction (txid) {
     this.logger.info('Unbanned', txid)
-  }
-
-  async _onUnindexTransaction (txid) {
-    this.logger.info('Unindexed', txid)
   }
 
   async _onRequestDownload (txid) {

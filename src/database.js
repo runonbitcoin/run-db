@@ -40,10 +40,6 @@ class Database {
     await this.ds.tearDown()
   }
 
-  async transaction (f) {
-    await this.ds.performOnTransaction(f)
-  }
-
   // --------------------------------------------------------------------------
   // tx
   // --------------------------------------------------------------------------
@@ -60,13 +56,13 @@ class Database {
   }
 
   async addTransaction (txid, txhex, height, time) {
-    await this.ds.performOnTransaction(async () => {
-      await this.addNewTransaction(txid)
-      if (height) { await this.setTransactionHeight(txid, height) }
-      if (time) { await this.setTransactionTime(txid, time) }
+    await this.ds.performOnTransaction(async (ds) => {
+      await this.addNewTransaction(txid, ds)
+      if (height) { await ds.setTxHeight(txid, height) }
+      if (time) { await ds.setTxTime(txid, time) }
     })
 
-    const indexed = await this.isTransactionIndexed(txid)
+    const indexed = await this.ds.txIsIndexed(txid)
     if (indexed) return
     if (!txhex) {
       txhex = await this.ds.getTxHex(txid)
@@ -138,34 +134,27 @@ class Database {
     }
   }
 
-  async addNewTransaction (txid) {
-    if (await this.hasTransaction(txid)) return
+  async addNewTransaction (txid, ds = null) {
+    ds = ds || this.ds
+    if (await ds.txExists(txid)) return
 
     const time = Math.round(Date.now() / 1000)
-    await this.ds.addNewTx(txid, time)
+    await ds.addNewTx(txid, time)
 
     if (this.onAddTransaction) { await this.onAddTransaction(txid) }
   }
 
-  async setTransactionHeight (txid, height) {
-    await this.ds.setTxHeight(txid, height)
-  }
-
-  async setTransactionTime (txid, time) {
-    await this.ds.setTxTime(txid, time)
-  }
-
   async storeParsedNonExecutableTransaction (txid, hex, inputs, outputs) {
-    await this.ds.performOnTransaction(async () => {
+    await this.ds.performOnTransaction(async (ds) => {
       const bytes = Buffer.from(hex, 'hex')
-      await this.ds.setTxBytes(txid, bytes)
-      await this.ds.setExecutableForTx(txid, 0)
+      await ds.setTxBytes(txid, bytes)
+      await ds.setExecutableForTx(txid, 0)
 
       for (const location of inputs) {
-        await this.ds.upsertSpend(location, txid)
+        await ds.upsertSpend(location, txid)
       }
       for (const location of outputs) {
-        await this.ds.setAsUnspent(location)
+        await ds.setAsUnspent(location)
       }
     })
 
@@ -177,27 +166,27 @@ class Database {
   }
 
   async storeParsedExecutableTransaction (txid, hex, hasCode, deps, inputs, outputs) {
-    await this.ds.performOnTransaction(async () => {
+    await this.ds.performOnTransaction(async (ds) => {
       const bytes = Buffer.from(hex, 'hex')
-      await this.ds.setTxBytes(txid, bytes)
-      await this.ds.setExecutableForTx(txid, 1)
+      await ds.setTxBytes(txid, bytes)
+      await ds.setExecutableForTx(txid, true)
 
-      await this.ds.setHasCodeForTx(txid, hasCode ? 1 : 0)
+      await ds.setHasCodeForTx(txid, hasCode)
 
       for (const location of inputs) {
-        await this.ds.upsertSpend(location, txid)
+        await ds.upsertSpend(location, txid)
       }
       for (const location of outputs) {
-        await this.ds.setAsUnspent(location)
+        await ds.setAsUnspent(location)
       }
 
       for (const deptxid of deps) {
-        await this.addNewTransaction(deptxid)
-        await this.ds.addDep(deptxid, txid)
+        await this.addNewTransaction(deptxid, ds)
+        await ds.addDep(deptxid, txid)
 
-        const failed = await this.ds.getFailedTx(deptxid)
+        const failed = await ds.getFailedTx(deptxid)
         if (failed) {
-          await this.setTransactionExecutionFailed(txid)
+          await this.setTransactionExecutionFailed(txid, ds)
           return
         }
       }
@@ -209,31 +198,31 @@ class Database {
   async storeExecutedTransaction (txid, result) {
     const { cache, classes, locks, scripthashes } = result
 
-    await this.ds.performOnTransaction(async () => {
-      await this.ds.setExecutedForTx(txid, 1)
-      await this.ds.setIndexedForTx(txid, 1)
-      await this.ds.removeTxFromExecuting(txid)
+    await this.ds.performOnTransaction(async (ds) => {
+      await ds.setExecutedForTx(txid, 1)
+      await ds.setIndexedForTx(txid, 1)
+      await ds.removeTxFromExecuting(txid)
 
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
-          await this.ds.setJigState(location, cache[key])
+          await ds.setJigState(location, cache[key])
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
-          await this.ds.setBerryState(location, cache[key])
+          await ds.setBerryState(location, cache[key])
         }
       }
 
       for (const [location, cls] of classes) {
-        await this.ds.setJigClass(location, cls)
+        await ds.setJigClass(location, cls)
       }
 
       for (const [location, lock] of locks) {
-        await this.ds.setJigLock(location, lock)
+        await ds.setJigLock(location, lock)
       }
 
       for (const [location, scripthash] of scripthashes) {
-        await this.ds.setJigScriptHash(location, scripthash)
+        await ds.setJigScriptHash(location, scripthash)
       }
     })
 
@@ -243,11 +232,12 @@ class Database {
     }
   }
 
-  async setTransactionExecutionFailed (txid) {
-    await this.ds.setExecutableForTx(txid, 0)
-    await this.ds.setExecutedForTx(txid, 1)
-    await this.ds.setIndexedForTx(txid, 0)
-    await this.ds.removeTxFromExecuting(txid)
+  async setTransactionExecutionFailed (txid, ds = null) {
+    ds = ds || this.ds
+    await ds.setExecutableForTx(txid, 0)
+    await ds.setExecutedForTx(txid, 1)
+    await ds.setIndexedForTx(txid, 0)
+    await ds.removeTxFromExecuting(txid)
 
     // We try executing downstream transactions if this was marked executable but it wasn't.
     // This allows an admin to manually change executable status in the database.
@@ -260,9 +250,9 @@ class Database {
     // } catch (e) { }
 
     // if (!executable) {
-    const downstream = await this.ds.searchDownstreamForTxid(txid)
+    const downstream = await ds.searchDownstreamForTxid(txid)
     for (const downtxid of downstream) {
-      await this._checkExecutability(downtxid)
+      await this._checkExecutability(downtxid, ds)
     }
     // }
   }
@@ -284,21 +274,23 @@ class Database {
 
     const txids = [txid]
     deleted.add(txid)
+    const deletedOnTx = []
 
-    await this.ds.performOnTransaction(async () => {
+    await this.ds.performOnTransaction(async (ds) => {
       while (txids.length) {
         const txid = txids.shift()
 
         if (this.onDeleteTransaction) { await this.onDeleteTransaction(txid) }
 
-        await this.ds.deleteTx(txid)
-        await this.ds.deleteJigStatesForTxid(txid)
-        await this.ds.deleteBerryStatesForTxid(txid)
-        await this.ds.deleteSpendsForTxid(txid)
-        await this.ds.unspendOutput(txid)
-        await this.ds.deleteDepsForTxid(txid)
+        await ds.deleteTx(txid)
+        deletedOnTx.push((txid))
+        await ds.deleteJigStatesForTxid(txid)
+        await ds.deleteBerryStatesForTxid(txid)
+        await ds.deleteSpendsForTxid(txid)
+        await ds.unspendOutput(txid)
+        await ds.deleteDepsForTxid(txid)
 
-        const downtxids = await this.ds.searchDownstreamForTxid(txid)
+        const downtxids = await ds.searchDownstreamForTxid(txid)
 
         for (const downtxid of downtxids) {
           if (deleted.has(downtxid)) continue
@@ -307,42 +299,37 @@ class Database {
         }
       }
     })
+
+    if (this.onDeleteTransaction) {
+      await Promise.all(deletedOnTx.map(async txid => this.onDeleteTransaction(txid)))
+    }
   }
 
   async unconfirmTransaction (txid) {
     await this.ds.unconfirmTx(txid)
   }
 
-  async unindexTransaction (txid) {
-    await this.ds.performOnTransaction(async () => {
-      const indexed = await this.ds.txIsIndexed(txid)
+  async unindexTransaction (txid, outerDs = null) {
+    outerDs = outerDs || this.ds
+    await outerDs.performOnTransaction(async (ds) => {
+      const indexed = await ds.txIsIndexed(txid)
       if (indexed) {
-        await this.ds.setExecutedForTx(txid, 0)
-        await this.ds.setIndexedForTx(txid, 0)
-        await this.ds.deleteJigStatesStmt(txid)
-        await this.ds.deleteBerryStatesForTxid(txid)
-        await this.ds.removeTxFromExecuting(txid)
+        await ds.setExecutedForTx(txid, 0)
+        await ds.setIndexedForTx(txid, 0)
+        await ds.deleteJigStatesForTxid(txid)
+        await ds.deleteBerryStatesForTxid(txid)
+        await ds.removeTxFromExecuting(txid)
 
-        const downloadedTxids = await this.ds.searchDownstreamForTxid(txid)
+        const downloadedTxids = await ds.searchDownstreamForTxid(txid)
         for (const downloadedTxid of downloadedTxids) {
-          await this.unindexTransaction(downloadedTxid)
+          await this.unindexTransaction(downloadedTxid, ds)
         }
-
-        if (this.onUnindexTransaction) { await this.onUnindexTransaction(txid) }
       }
     })
   }
 
-  async hasTransaction (txid) {
-    return this.ds.txExists(txid)
-  }
-
   async isTransactionDownloaded (txid) {
     return this.ds.checkTxIsDownloaded(txid)
-  }
-
-  async isTransactionIndexed (txid) {
-    return this.ds.txIsIndexed(txid)
   }
 
   async getTransactionsAboveHeight (height) {
@@ -381,21 +368,22 @@ class Database {
   // deps
   // --------------------------------------------------------------------------
 
-  async addDep (txid, deptxid) {
-    await this.addNewTransaction(deptxid)
+  async addDep (txid, deptxid, ds = null) {
+    ds = ds || this.ds
+    await this.addNewTransaction(deptxid, ds)
 
-    await this.ds.addDep(deptxid, txid)
+    await ds.addDep(deptxid, txid)
 
-    const failed = await this.ds.getFailedTx(deptxid)
+    const failed = await ds.getFailedTx(deptxid)
     if (failed) {
-      await this.setTransactionExecutionFailed(deptxid)
+      await this.setTransactionExecutionFailed(deptxid, ds)
     }
   }
 
   async addMissingDeps (txid, deptxids) {
-    await this.ds.performOnTransaction(async () => {
+    await this.ds.performOnTransaction(async (ds) => {
       for (const deptxid of deptxids) {
-        await this.addDep(txid, deptxid)
+        await this.addDep(txid, deptxid, ds)
       }
     })
 
@@ -467,7 +455,7 @@ class Database {
   }
 
   async trust (txid) {
-    const trusted = await this.trustList.trust(txid)
+    const trusted = await this.trustList.trust(txid, this.ds)
 
     for (const txid of trusted) {
       await this._checkExecutability(txid)
@@ -481,15 +469,15 @@ class Database {
   }
 
   async untrust (txid) {
-    await this.ds.performOnTransaction(async () => {
-      await this.unindexTransaction(txid)
-      await this.trustList.untrust(txid)
+    await this.ds.performOnTransaction(async (ds) => {
+      await this.unindexTransaction(txid, ds)
+      await this.trustList.untrust(txid, ds)
     })
     if (this.onUntrustTransaction) await this.onUntrustTransaction(txid)
   }
 
   async getTrustlist () {
-    return this.trustList.executionTrustList()
+    return this.trustList.executionTrustList(this.ds)
   }
 
   // --------------------------------------------------------------------------
@@ -501,9 +489,9 @@ class Database {
   }
 
   async ban (txid) {
-    await this.ds.performOnTransaction(async () => {
-      await this.unindexTransaction(txid)
-      await this.ds.saveBan(txid)
+    await this.ds.performOnTransaction(async (ds) => {
+      await this.unindexTransaction(txid, ds)
+      await ds.saveBan(txid)
     })
     if (this.onBanTransaction) await this.onBanTransaction(txid)
   }
@@ -551,11 +539,12 @@ class Database {
     }
   }
 
-  async _checkExecutability (txid) {
-    const executable = await this.trustList.checkExecutability(txid)
+  async _checkExecutability (txid, ds = null) {
+    ds = ds || this.ds
+    const executable = await this.trustList.checkExecutability(txid, ds)
 
     if (executable) {
-      await this.ds.markTxAsExecuting(txid)
+      await ds.markTxAsExecuting(txid)
       if (this.onReadyToExecute) { await this.onReadyToExecute(txid) }
     }
   }

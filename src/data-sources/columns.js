@@ -32,10 +32,41 @@ const BAN = {
   txid: 'txid'
 }
 
+const SPEND = {
+  NAME: 'spends',
+  location: 'location',
+  spendTxid: 'spend_txid'
+}
+
+const JIG = {
+  NAME: 'jig',
+  location: 'location',
+  state: 'state',
+  klass: 'class',
+  lock: 'lock',
+  scriptHash: 'scriptHash'
+}
+
+const BERRY = {
+  NAME: 'berry',
+  location: 'location',
+  state: 'state'
+}
+
+const CRAWL = {
+  NAME: 'crawl',
+  name: 'key',
+  value: 'value'
+}
+
 module.exports = {
   TX,
   DEPS,
   EXECUTING,
   TRUST,
-  BAN
+  BAN,
+  SPEND,
+  JIG,
+  BERRY,
+  CRAWL
 }

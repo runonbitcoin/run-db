@@ -10,9 +10,10 @@ const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
-const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const Executor = require('../src/execution/executor')
+const { KnexDatasource } = require('../src/data-sources/knex-datasource')
+const knex = require('knex')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -23,18 +24,38 @@ const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = 
 const crawled = (indexer) => new Promise((resolve) => { indexer.onBlock = height => resolve(height) })
 const reorged = (indexer) => new Promise((resolve) => { indexer.onReorg = newHeight => resolve(newHeight) })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const ds = new SqliteDatasource(':memory:', logger, false)
-const trustList = new DbTrustList(ds)
-const database = new Database(ds, trustList, logger)
-
-beforeEach(() => database.open())
-afterEach(() => database.close())
 
 // ------------------------------------------------------------------------------------------------
 // Crawler
 // ------------------------------------------------------------------------------------------------
 
 describe('Crawler', () => {
+  let knexInstance
+  let ds
+  let trustList
+  let database
+
+  beforeEach(async () => {
+    knexInstance = knex({
+      client: 'better-sqlite3',
+      connection: {
+        filename: ':memory:'
+      },
+      migrations: {
+        directory: 'db-migrations'
+      }
+    })
+    ds = new KnexDatasource(knexInstance, logger, false)
+    trustList = new DbTrustList(ds)
+    database = new Database(ds, trustList, logger)
+
+    await knexInstance.migrate.latest()
+    await database.open()
+  })
+  afterEach(async () => {
+    await database.close()
+  })
+
   it('add txids', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     function getNextBlock (_height, _hash) {
@@ -88,12 +109,13 @@ describe('Crawler', () => {
     const executor = new Executor('main', 1, database, logger)
     const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     indexer.crawler.pollForNewBlocksInterval = 10
+    const promise1 = indexed(indexer, txids[1])
     await indexer.start()
     await database.addTransaction(txids[1])
     await database.trust(txids[0])
     await database.trust(txids[1])
     await database.trust(txids[2])
-    await indexed(indexer, txids[1])
+    await promise1
     indexedMiddleTransaction = true
     await indexed(indexer, txids[0])
     await indexer.stop()

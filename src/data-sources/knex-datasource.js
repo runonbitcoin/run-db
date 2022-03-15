@@ -3,201 +3,25 @@
  *
  * Layer between the database and the application
  */
-const { HEIGHT_MEMPOOL } = require('../constants')
-const knex = require('knex')
-const { TX, DEPS, EXECUTING, TRUST, BAN } = require('./columns')
+const { HEIGHT_MEMPOOL, CRAWL_HASH, CRAWL_HEIGHT } = require('../constants')
+const { TX, DEPS, EXECUTING, TRUST, BAN, SPEND, JIG, BERRY, CRAWL } = require('./columns')
 
-this.addNewTransactionStmt = this.connection.prepare('INSERT OR IGNORE INTO tx (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, null, ?, null, 0, 0, 0, 0)')
-// this.setTransactionBytesStmt = this.connection.prepare('UPDATE tx SET bytes = ? WHERE txid = ?')
-// this.setTransactionExecutableStmt = this.connection.prepare('UPDATE tx SET executable = ? WHERE txid = ?')
-// this.setTransactionTimeStmt = this.connection.prepare('UPDATE tx SET time = ? WHERE txid = ?')
-// this.setTransactionHeightStmt = this.connection.prepare(`UPDATE tx SET height = ? WHERE txid = ? AND (height IS NULL OR height = ${HEIGHT_MEMPOOL})`)
-// this.setTransactionHasCodeStmt = this.connection.prepare('UPDATE tx SET has_code = ? WHERE txid = ?')
-// this.setTransactionExecutedStmt = this.connection.prepare('UPDATE tx SET executed = ? WHERE txid = ?')
-// this.setTransactionIndexedStmt = this.connection.prepare('UPDATE tx SET indexed = ? WHERE txid = ?')
-// this.txExistsStmt = this.connection.prepare('SELECT txid FROM tx WHERE txid = ?')
-// this.getTransactionHexStmt = this.connection.prepare('SELECT LOWER(HEX(bytes)) AS hex FROM tx WHERE txid = ?')
-// this.getTransactionTimeStmt = this.connection.prepare('SELECT time FROM tx WHERE txid = ?')
-// this.getTransactionHeightStmt = this.connection.prepare('SELECT height FROM tx WHERE txid = ?')
-// this.getTransactionHasCodeStmt = this.connection.prepare('SELECT has_code FROM tx WHERE txid = ?')
-// this.getTransactionIndexedStmt = this.connection.prepare('SELECT indexed FROM tx WHERE txid = ?')
-// this.getTransactionWasExecutedStmt = this.connection.prepare('SELECT executed FROM tx WHERE txid = ?')
-// this.getTransactionFailedStmt = this.connection.prepare('SELECT (executed = 1 AND indexed = 0) AS failed FROM tx WHERE txid = ?')
-// this.getTransactionDownloadedStmt = this.connection.prepare('SELECT downloaded FROM tx WHERE txid = ?')
-// this.deleteTransactionStmt = this.connection.prepare('DELETE FROM tx WHERE txid = ?')
-// this.unconfirmTransactionStmt = this.connection.prepare(`UPDATE tx SET height = ${HEIGHT_MEMPOOL} WHERE txid = ?`)
-// this.getTransactionsAboveHeightStmt = this.connection.prepare('SELECT txid FROM tx WHERE height > ?')
-// this.getMempoolTransactionsBeforeTimeStmt = this.connection.prepare(`SELECT txid FROM tx WHERE height = ${HEIGHT_MEMPOOL} AND time < ?`)
-// this.getTransactionsToDownloadStmt = this.connection.prepare('SELECT txid FROM tx WHERE downloaded = 0')
-// this.getTransactionsDownloadedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE downloaded = 1')
-// this.getTransactionsIndexedCountStmt = this.connection.prepare('SELECT COUNT(*) AS count FROM tx WHERE indexed = 1')
-// this.isTrustedAndReadyToExecuteStmt = this.connection.prepare(TRUSTED_AND_READY_TO_EXECUTE_SQL)
-// this.isReadyToExecuteStmt = this.connection.prepare(READY_TO_EXECUTE_SQL)
-// this.depsExecutedOkStmt = this.connection.prepare(`
-//     SELECT COUNT(*) = 0 as ok
-//     FROM tx
-//     JOIN deps ON deps.up = tx.txid
-//     WHERE deps.down = ?
-//     AND (+tx.downloaded = 0 OR (tx.executable = 1 AND tx.executed = 0))
-// `)
-// this.getDownstreamReadyToExecuteStmt = this.connection.prepare(GET_DOWNSTREAM_READY_TO_EXECUTE_SQL)
-// this.getTxMetadataStmt = this.connection.prepare('SELECT * FROM tx WHERE txid = ?')
-//
-// this.setSpendStmt = this.connection.prepare('INSERT OR REPLACE INTO spends (location, spend_txid) VALUES (?, ?)')
-// this.setUnspentStmt = this.connection.prepare('INSERT OR IGNORE INTO spends (location, spend_txid) VALUES (?, null)')
-// this.getSpendStmt = this.connection.prepare('SELECT spend_txid FROM spends WHERE location = ?')
-// this.unspendOutputsStmt = this.connection.prepare('UPDATE spends SET spend_txid = null WHERE spend_txid = ?')
-// this.deleteSpendsStmt = this.connection.prepare('DELETE FROM spends WHERE location LIKE ? || \'%\'')
-// //
-// this.addDepStmt = this.connection.prepare('INSERT OR IGNORE INTO deps (up, down) VALUES (?, ?)')
-// this.deleteDepsStmt = this.connection.prepare('DELETE FROM deps WHERE down = ?')
-// this.getDownstreamStmt = this.connection.prepare('SELECT down FROM deps WHERE up = ?')
-// this.getUpstreamUnexecutedCodeStmt = this.connection.prepare(`
-//   SELECT txdeps.txid as txid
-//   FROM (SELECT up AS txid FROM deps WHERE down = ?) as txdeps
-//   JOIN tx ON tx.txid = txdeps.txid
-//   WHERE tx.executable = 1 AND tx.executed = 0 AND tx.has_code = 1
-// `)
-// this.hasFailedDepStmt = this.connection.prepare(`
-//   SELECT count(*) > 0 FROM tx
-//   JOIN deps ON deps.up = tx.txid
-//   WHERE
-//       tx.txid = ? AND
-//       tx.executed = 1 AND
-//       tx.indexed = 0;
-// `)
-// //
-// this.setJigStateStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location, state, class, lock, scripthash) VALUES (?, ?, null, null, null)')
-// this.setJigMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO jig (location)  VALUES (?)')
-// this.setJigClassStmt = this.connection.prepare('UPDATE jig SET class = ? WHERE location = ?')
-// this.setJigLockStmt = this.connection.prepare('UPDATE jig SET lock = ? WHERE location = ?')
-// this.setJigScripthashStmt = this.connection.prepare('UPDATE jig SET scripthash = ? WHERE location = ?')
-// this.getJigStateStmt = this.connection.prepare('SELECT state FROM jig WHERE location = ?')
-// this.deleteJigStatesStmt = this.connection.prepare('DELETE FROM jig WHERE location LIKE ? || \'%\'')
-//
-// const getAllUnspentSql = `
-//   SELECT spends.location AS location FROM spends
-//   JOIN jig ON spends.location = jig.location
-//   WHERE spends.spend_txid IS NULL`
-// this.getAllUnspentStmt = this.connection.prepare(getAllUnspentSql)
-// this.getAllUnspentByClassStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.class = ?`)
-// this.getAllUnspentByLockStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.lock = ?`)
-// this.getAllUnspentByScripthashStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.scripthash = ?`)
-// this.getAllUnspentByClassLockStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.class = ? AND lock = ?`)
-// this.getAllUnspentByClassScripthashStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.class = ? AND scripthash = ?`)
-// this.getAllUnspentByLockScripthashStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.lock = ? AND scripthash = ?`)
-// this.getAllUnspentByClassLockScripthashStmt = this.connection.prepare(`${getAllUnspentSql} AND jig.class = ? AND jig.lock = ? AND scripthash = ?`)
-// this.getNumUnspentStmt = this.connection.prepare('SELECT COUNT(*) as unspent FROM spends JOIN jig ON spends.location = jig.location WHERE spends.spend_txid IS NULL')
-//
-// this.setBerryStateStmt = this.connection.prepare('INSERT OR IGNORE INTO berry (location, state) VALUES (?, ?)')
-// this.setBerryMetadataStmt = this.connection.prepare('INSERT OR IGNORE INTO berry (location) VALUES (?)')
-// this.getBerryStateStmt = this.connection.prepare('SELECT state FROM berry WHERE location = ?')
-// this.deleteBerryStatesStmt = this.connection.prepare('DELETE FROM berry WHERE location LIKE ? || \'%\'')
-//
-// this.setTrustedStmt = this.connection.prepare('INSERT OR REPLACE INTO trust (txid, value) VALUES (?, ?)')
-// this.getTrustlistStmt = this.connection.prepare('SELECT txid FROM trust WHERE value = 1')
-// this.isTrustedStmt = this.connection.prepare('SELECT COUNT(*) FROM trust WHERE txid = ? AND value = 1')
-//
-// this.banStmt = this.connection.prepare('INSERT OR REPLACE INTO ban (txid) VALUES (?)')
-// this.unbanStmt = this.connection.prepare('DELETE FROM ban WHERE txid = ?')
-// this.isBannedStmt = this.connection.prepare('SELECT COUNT(*) FROM ban WHERE txid = ?')
-// this.getBanlistStmt = this.connection.prepare('SELECT txid FROM ban')
-//
-// this.getHeightStmt = this.connection.prepare('SELECT value FROM crawl WHERE key = \'height\'')
-// this.getHashStmt = this.connection.prepare('SELECT value FROM crawl WHERE key = \'hash\'')
-// this.setHeightStmt = this.connection.prepare('UPDATE crawl SET value = ? WHERE key = \'height\'')
-// this.setHashStmt = this.connection.prepare('UPDATE crawl SET value = ? WHERE key = \'hash\'')
-//
-// this.markExecutingStmt = this.connection.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
-// this.unmarkExecutingStmt = this.connection.prepare('DELETE FROM executing WHERE txid = ?')
-// this.findAllExecutingTxidsStmt = this.connection.prepare('SELECT txid FROM executing')
-
-// The + in the following 2 queries before downloaded improves performance by NOT using the
-// tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
-// See: https://www.sqlite.org/optoverview.html
-// const TRUSTED_AND_READY_TO_EXECUTE_SQL = `
-//       SELECT (
-//         downloaded = 1
-//         AND executable = 1
-//         AND executed = 0
-//         AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-//         AND txid NOT IN ban
-//         AND (
-//           SELECT COUNT(*)
-//           FROM tx AS tx2
-//           JOIN deps
-//           ON deps.up = tx2.txid
-//           WHERE deps.down = tx.txid
-//           AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-//         ) = 0
-//       ) AS ready
-//       FROM tx
-//       WHERE txid = ?
-//     `
-
-// const READY_TO_EXECUTE_SQL = `
-//       SELECT (
-//               downloaded = 1
-//               AND executable = 1
-//               AND executed = 0
-//               AND (
-//                 SELECT COUNT(*)
-//                 FROM tx AS tx2
-//                 JOIN deps
-//                 ON deps.up = tx2.txid
-//                 WHERE deps.down = tx.txid AND
-//                 (
-//                   +tx2.downloaded = 0 OR
-//                   (tx2.executable = 1 AND tx2.executed = 0) OR
-//                   (tx2.executed = 1 AND tx2.indexed = 0)
-//                 )
-//               ) = 0
-//             ) AS ready
-//             FROM tx
-//             WHERE txid = ?
-// `
-
-// const GET_DOWNSTREAM_READY_TO_EXECUTE_SQL = `
-//       SELECT down
-//       FROM deps
-//       JOIN tx
-//       ON tx.txid = deps.down
-//       WHERE up = ?
-//       AND +downloaded = 1
-//       AND executable = 1
-//       AND executed = 0
-//       AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-//       AND txid NOT IN ban
-//       AND (
-//         SELECT COUNT(*)
-//         FROM tx AS tx2
-//         JOIN deps
-//         ON deps.up = tx2.txid
-//         WHERE deps.down = tx.txid
-//         AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-//       ) = 0
-//     `
-
-// ------------------------------------------------------------------------------------------------
-// Database
-// ------------------------------------------------------------------------------------------------
-
-class SqliteDatasource {
-  constructor (connectionUri, logger, readonly = false) {
-    this.connectionUri = connectionUri
-    this.knex = null
+class KnexDatasource {
+  constructor (knex, logger, readonly = false) {
+    this.knex = knex
     this.logger = logger
     this.readonly = readonly
     this.connection = null
+    this.insideTx = false
   }
 
   prepareStatements () {}
 
   async setUp () {
-    this.knex = knex({
-      client: 'pg',
-      connection: this.connectionUri
-    })
+    // this.knex = knex({
+    //   client: 'pg',
+    //   connection: this.connectionUri
+    // })
   }
 
   async tearDown () {
@@ -208,13 +32,25 @@ class SqliteDatasource {
   }
 
   async performOnTransaction (fn) {
-    this.knex.transaction(async trx => {
-      await fn(trx)
+    if (this.insideTx) {
+      return fn(this)
+    }
+
+    return this.knex.transaction(async trx => {
+      const newDs = new KnexDatasource(trx, this.logger, this.readonly)
+      newDs.insideTx = true
+      try {
+        await fn(newDs)
+      } catch (e) {
+        console.error(e)
+        throw e
+      }
     })
   }
 
   async txExists (txid) {
-    return this.knex(TX.NAME).exists({ txid })
+    const row = await this.knex(TX.NAME).where(TX.txid, txid).first([TX.txid])
+    return !!row
   }
 
   async checkTxIsDownloaded (txid) {
@@ -234,7 +70,7 @@ class SqliteDatasource {
   }
 
   async searchTxsToDownload () {
-    return this.knex(TX.NAME).whereNotNull(TX.bytes).select()
+    return this.knex(TX.NAME).whereNotNull(TX.bytes).pluck(TX.txid)
   }
 
   async countDownloadedTxs () {
@@ -260,6 +96,7 @@ class SqliteDatasource {
       bytes: null,
       has_code: false,
       executable: false,
+      executed: false,
       indexed: false
     })
   }
@@ -336,7 +173,7 @@ class SqliteDatasource {
 
   async getTxHex (txid) {
     const result = await this.knex(TX.NAME).where(TX.txid, txid).first([TX.bytes])
-    return result && result.bytes.toString('hex')
+    return result && result.bytes && result.bytes.toString('hex')
   }
 
   async getTxTime (txid) {
@@ -360,6 +197,7 @@ class SqliteDatasource {
   async getTxMetadata (txid) {
     return this.knex(TX.NAME).where(TX.txid, txid).first()
   }
+
   // executing
 
   async markTxAsExecuting (txid) {
@@ -374,58 +212,49 @@ class SqliteDatasource {
   }
 
   async findAllExecutingTxids () {
-    return this.knex(EXECUTING.NAME).select()
+    return this.knex(EXECUTING.NAME).pluck(EXECUTING.txid)
   }
 
   async txidTrustedAndReadyToExecute (txid) {
-    // `
-    //   SELECT (
-    //     downloaded = 1
-    //     AND executable = 1
-    //     AND executed = 0
-    //     AND (has_code = 0 OR (SELECT COUNT(*) FROM trust WHERE trust.txid = tx.txid AND trust.value = 1) = 1)
-    //     AND txid NOT IN ban
-    //     AND (
-    //       SELECT COUNT(*)
-    //       FROM tx AS tx2
-    //       JOIN deps
-    //       ON deps.up = tx2.txid
-    //       WHERE deps.down = tx.txid
-    //       AND (+tx2.downloaded = 0 OR (tx2.executable = 1 AND tx2.executed = 0))
-    //     ) = 0
-    //   ) AS ready
-    //   FROM tx
-    //   WHERE txid = ?
-    // `
-  //   select tx.txid from tx
-  //   join trust t on t.txid = tx.txid
-  //   left join ban on tx.txid = ban.txid
-  //   where
-  //   tx.txid  = ? and
-  //     tx.executable = true and
-  //   tx.executed = false and
-  //   (
-  //     tx.has_code = false or t.value = true
-  // ) and
-  //   ban.txid is null and
-  //   not exists (
-  //     select txDep.txid from  tx as txDep
-  //   join deps on txDep.txid = deps.up
-  //   where
-  //   deps.down = tx.txid and
-  //   (txDep.bytes is null or (txDep.executable = true and txDep.executed = false))
-  // );
     const mainTx = 'mainTx'
     const knex = this.knex
-    knex(this.knex.ref(TX.NAME).as(mainTx))
-      .join(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
+    const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
+      .leftJoin(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
       .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+      .whereNotNull(`${mainTx}.${TX.bytes}`)
       .where(`${mainTx}.${TX.txid}`, txid)
       .where(`${mainTx}.${TX.executable}`, true)
       .where(`${mainTx}.${TX.executed}`, false)
       .where(qb => {
-        qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.txid}`, true)
+        qb.where(`${mainTx}.${TX.hasCode}`, false)
+          .orWhere(`${TRUST.NAME}.${TRUST.value}`, true)
       })
+      .whereNull(`${BAN.NAME}.${BAN.txid}`)
+      .whereNotExists(function () {
+        const depTx = 'depTx'
+        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
+          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
+          .where(qb => {
+            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+              qb.where(`${depTx}.${TX.executable}`, true)
+              qb.where(`${depTx}.${TX.executed}`, false)
+            })
+          })
+      }).first(`${mainTx}.${TX.txid}`)
+
+    return !!row
+  }
+
+  async txidIsReadyToExecute (txid) {
+    const mainTx = 'mainTx'
+    const knex = this.knex
+    const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
+      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+      .whereNotNull(`${mainTx}.${TX.bytes}`)
+      .where(`${mainTx}.${TX.txid}`, txid)
+      .where(`${mainTx}.${TX.executable}`, true)
+      .where(`${mainTx}.${TX.executed}`, false)
       .whereNull(`${BAN.NAME}`)
       .whereNotExists(function () {
         const depTx = 'depTx'
@@ -438,35 +267,43 @@ class SqliteDatasource {
               qb.where(`${depTx}.${TX.executed}`, false)
             })
           })
-      })
+      }).first(['txid'])
 
-    const row = this.isTrustedAndReadyToExecuteStmt.get(txid)
-    return row && row.ready
-  }
-
-  async txidIsReadyToExecute (txid) {
-    const row = this.isReadyToExecuteStmt.get(txid)
-    return !!(row && row.ready)
+    return !!row
   }
 
   async checkDependenciesWereExecutedOk (txid) {
-    const row = this.depsExecutedOkStmt.get(txid)
-    return row && row.ok
+    // `SELECT COUNT(*) = 0 as ok
+    //     FROM tx
+    //     JOIN deps ON deps.up = tx.txid
+    //     WHERE deps.down = ?
+    //     AND (+tx.downloaded = 0 OR (tx.executable = 1 AND tx.executed = 0))`
+    const count = await this.knex(TX.NAME)
+      .join(DEPS.NAME, `${DEPS.NAME}.${DEPS.up}`, `${TX.NAME}.${TX.txid}`)
+      .where(DEPS.down, txid)
+      .where(qb => {
+        qb.whereNotNull(`${TX.NAME}.${TX.bytes}`).orWhere(qb => {
+          qb.where(`${TX.NAME}.${TX.executable}`, true).andWhere(`${TX.NAME}.${TX.executed}`, false)
+        })
+      }).count()
+    return count === 0
   }
 
   // spends
 
   async getSpendingTxid (location) {
-    const row = this.getSpendStmt.raw(true).get(location)
-    return row && row[0]
+    const row = await this.knex(SPEND.NAME).where(SPEND.location, location).first([SPEND.spendTxid])
+    return row && row[SPEND.spendTxid]
   }
 
   async upsertSpend (location, txid) {
-    await this.setSpendStmt.run(location, txid)
+    await this.knex(SPEND.NAME)
+      .insert({ [SPEND.location]: location, [SPEND.spendTxid]: txid })
+      .onConflict(SPEND.location).merge()
   }
 
   async setAsUnspent (location) {
-    this.setUnspentStmt.run(location)
+    await this.upsertSpend(location, null)
   }
 
   async deleteSpendsForTxid (txid) {
@@ -474,180 +311,310 @@ class SqliteDatasource {
   }
 
   async unspendOutput (txid) {
-    this.unspendOutputsStmt.run(txid)
+    await this.knex(SPEND.NAME)
+      .whereLike(SPEND.location, `${txid}_o%`)
+      .del()
   }
 
   // deps
 
   async addDep (deptxid, txid) {
-    this.addDepStmt.run(deptxid, txid)
+    await this.knex(DEPS.NAME)
+      .insert({ [DEPS.up]: deptxid, [DEPS.down]: txid })
+      .onConflict([DEPS.up, DEPS.down]).ignore()
   }
 
   async searchDownstreamTxidsReadyToExecute (txid) {
-    return this.getDownstreamReadyToExecuteStmt.raw(true).all(txid).map(x => x[0])
+    const knex = this.knex
+    const mainTx = 'mainTx'
+    return knex(DEPS.NAME)
+      .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${DEPS.NAME}.${DEPS.down}`)
+      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
+      .leftJoin(TRUST.NAME, `${mainTx}.${TX.txid}`, `${TRUST.NAME}.${TRUST.txid}`)
+      .whereNotNull(`${mainTx}.${TX.bytes}`)
+      .where(`${DEPS.NAME}.${DEPS.up}`, txid)
+      .where(`${mainTx}.${TX.executable}`, true)
+      .where(`${mainTx}.${TX.executed}`, false)
+      .whereNull(`${BAN.NAME}.${BAN.txid}`)
+      .where(qb => {
+        qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.value}`, true)
+      })
+      .whereNotExists(function () {
+        const depTx = 'depTx'
+        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
+          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
+          .where(qb => {
+            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+              qb.where(`${depTx}.${TX.executable}`, true)
+              qb.where(`${depTx}.${TX.executed}`, false)
+            })
+          })
+      }).pluck(`${mainTx}.${TX.txid}`)
   }
 
   async searchDownstreamForTxid (txid) {
-    return this.getDownstreamStmt.raw(true).all(txid).map(x => x[0])
+    const rows = await this.knex(DEPS.NAME).where(DEPS.up, txid).select([DEPS.down])
+    return rows.map(r => r.down)
   }
 
   async deleteDepsForTxid (txid) {
-    this.deleteDepsStmt.run(txid)
+    await this.knex(DEPS.NAME).where(DEPS.down, txid).del()
   }
 
   async getNonExecutedUpstreamTxIds (txid) {
-    return this.getUpstreamUnexecutedCodeStmt.raw(true).all(txid).map(x => x[0])
+    const rows = await this.knex(DEPS.NAME)
+      .join(TX.NAME, TX.txid, DEPS.up)
+      .where(DEPS.down, txid)
+      .where(TX.executable, true)
+      .where(TX.executed, false)
+      .where(TX.hasCode, true)
+      .select([DEPS.up])
+
+    return rows.map(r => r.txid)
   }
 
   // jig
 
   async setJigMetadata (location) {
-    this.setJigMetadataStmt.run(location)
+    await this.knex(JIG.NAME)
+      .insert({ [JIG.location]: location })
+      .onConflict().ignore()
   }
 
   async getJigState (location) {
-    const row = this.getJigStateStmt.raw(true).get(location)
-    if (row && row[0]) {
-      return JSON.parse(row[0])
+    const row = await this.knex(JIG.NAME)
+      .where(JIG.location, location)
+      .first([JIG.state])
+    if (row && row.state) {
+      return JSON.parse(row.state)
     } else {
       return null
     }
   }
 
   async setJigState (location, stateObject) {
-    this.setJigStateStmt.run(location, JSON.stringify(stateObject))
+    await this.knex(JIG.NAME)
+      .insert({ [JIG.location]: location, [JIG.state]: JSON.stringify(stateObject) })
+      .onConflict().ignore()
   }
 
   async setBerryState (location, stateObject) {
-    this.setBerryStateStmt.run(location, JSON.stringify(stateObject))
+    await this.knex(BERRY.NAME)
+      .insert({ [BERRY.location]: location, [BERRY.state]: JSON.stringify(stateObject) })
+      .onConflict().ignore()
   }
 
   async setBerryMetadata (location) {
-    this.setBerryMetadataStmt.run(location)
+    await this.knex(BERRY.NAME)
+      .insert({ [BERRY.location]: location })
+      .onConflict().ignore()
   }
 
   async getBerryState (location) {
-    const row = this.getBerryStateStmt.raw(true).get(location)
-    if (row && row[0]) {
-      return JSON.parse(row[0])
+    const row = await this.knex(BERRY.NAME)
+      .where(BERRY.location, location)
+      .first([BERRY.state])
+    if (row && row.state) {
+      return JSON.parse(row.state)
     } else {
       return null
     }
   }
 
   async setJigClass (location, cls) {
-    this.setJigClassStmt.run(cls, location)
+    await this.knex(JIG.NAME)
+      .where(JIG.location, location)
+      .update({ [JIG.klass]: cls })
   }
 
   async setJigLock (location, lock) {
-    this.setJigLockStmt.run(lock, location)
+    await this.knex(JIG.NAME)
+      .where(JIG.location, location)
+      .update({ [JIG.lock]: lock })
   }
 
   async setJigScriptHash (location, scriptHash) {
-    this.setJigScripthashStmt.run(scriptHash, location)
+    await this.knex(JIG.NAME)
+      .where(JIG.location, location)
+      .update({ [JIG.scriptHash]: scriptHash })
   }
 
   async deleteJigStatesForTxid (txid) {
-    this.deleteJigStatesStmt.run(txid)
+    await this.knex(JIG.NAME)
+      .whereLike(JIG.location, `${txid}%`)
+      .del()
   }
 
   async deleteBerryStatesForTxid (txid) {
-    this.deleteBerryStatesStmt.run(txid)
+    await this.knex(BERRY.NAME)
+      .whereLike(BERRY.location, `${txid}%`)
+      .del()
   }
 
   // unspent
 
   async getAllUnspent () {
-    return this.getAllUnspentStmt.raw(true).all().map(row => row[0])
+    const rows = await this.knex(JIG.NAME)
+      .join(SPEND.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .select([JIG.location])
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOrigin (origin) {
-    return this.getAllUnspentByClassStmt.raw(true).all(origin).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.klass, origin)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByLockOrigin (origin) {
-    return this.getAllUnspentByLockStmt.raw(true).all(origin).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.lock, origin)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByScripthash (scripthash) {
-    return this.getAllUnspentByScripthashStmt.raw(true).all(scripthash).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.scriptHash, scripthash)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
-    return this.getAllUnspentByClassLockStmt.raw(true).all(clsOrigin, lockOrigin).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.klass, clsOrigin)
+      .where(JIG.lock, lockOrigin)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
-    return this.getAllUnspentByClassScripthashStmt.raw(true).all(clsOrigin, scripthash).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.klass, clsOrigin)
+      .where(JIG.scriptHash, scripthash)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
-    return this.getAllUnspentByLockScripthashStmt.raw(true).all(lockOrigin, scripthash).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.lock, lockOrigin)
+      .where(JIG.scriptHash, scripthash)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndLockOriginAndScriptHash (clsOrigin, lockOrigin, scripthash) {
-    return this.getAllUnspentByClassLockScripthashStmt.raw(true).all(clsOrigin, lockOrigin, scripthash).map(row => row[0])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .where(JIG.klass, clsOrigin)
+      .where(JIG.lock, lockOrigin)
+      .where(JIG.scriptHash, scripthash)
+      .select([JIG.location])
+
+    return rows.map(row => row.location)
   }
 
   async countTotalUnspent () {
-    return this.getNumUnspentStmt.get().unspent
+    return this.knex(SPEND.NAME)
+      .join(JIG.NAME, SPEND.location, JIG.location)
+      .whereNull(SPEND.spendTxid)
+      .count()
   }
 
   // trust
-
   async isTrusted (txid) {
-    const row = this.isTrustedStmt.raw(true).get(txid)
-    return !!row && !!row[0]
+    const row = await this.knex(TRUST.NAME)
+      .where(TRUST.txid, txid)
+      .first([TRUST.txid])
+
+    return !!row
   }
 
   async setTrust (txid, trusted) {
-    this.setTrustedStmt.run(txid, trusted)
+    await this.knex(TRUST.NAME)
+      .insert({ [TRUST.txid]: txid, [TRUST.value]: trusted })
+      .onConflict(TRUST.txid).merge()
   }
 
   async searchAllTrust () {
-    return this.getTrustlistStmt.raw(true).all().map(x => x[0])
+    return this.knex(TRUST.NAME)
+      .where(TRUST.value, true)
+      .pluck(TRUST.txid)
   }
 
   // ban
 
   async checkIsBanned (txid) {
-    const row = this.isBannedStmt.raw(true).get(txid)
-    return !!row && !!row[0]
+    const row = await this.knex(BAN.NAME).where(BAN.txid, txid).first([BAN.txid])
+    return !!row
   }
 
   async saveBan (txid) {
-    this.banStmt.run(txid)
+    await this.knex(BAN.NAME)
+      .insert({ [BAN.txid]: txid })
+      .onConflict().merge()
   }
 
   async removeBan (txid) {
-    this.unbanStmt.run(txid)
+    await this.knex(BAN.NAME)
+      .where(BAN.txid, txid)
+      .del()
   }
 
   async searchAllBans () {
-    return this.getBanlistStmt.raw(true).all().map(x => x[0])
+    return this.knex(BAN.NAME).pluck(BAN.txid)
   }
 
   // crawl
 
   async setCrawlHeight (heigth) {
-    this.setHeightStmt.run(heigth.toString())
+    await this.knex(CRAWL.NAME)
+      .insert({ [CRAWL.name]: CRAWL_HEIGHT, [CRAWL.value]: heigth.toString() })
   }
 
   async setCrawlHash (hash) {
-    this.setHashStmt.run(hash)
+    await this.knex(CRAWL.NAME)
+      .insert({ [CRAWL.name]: CRAWL_HASH, [CRAWL.value]: hash.toString() })
   }
 
   async getCrawlHeight () {
-    const row = this.getHeightStmt.raw(true).all()[0]
-    return row && parseInt(row[0])
+    const row = await this.knex(CRAWL.NAME)
+      .where(CRAWL.name, CRAWL_HEIGHT)
+      .first([CRAWL.value])
+    return row && parseInt(row.value)
   }
 
   async getCrawlHash () {
-    const row = this.getHashStmt.raw(true).all()[0]
-    return row && row[0]
+    const row = await this.knex(CRAWL.NAME)
+      .where(CRAWL.name, CRAWL_HASH)
+      .first([CRAWL.value])
+    return row && row.value
   }
 }
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = { SqliteDatasource }
+module.exports = { KnexDatasource }
