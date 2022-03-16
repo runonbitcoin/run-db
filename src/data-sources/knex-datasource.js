@@ -305,7 +305,9 @@ class KnexDatasource {
   }
 
   async setAsUnspent (location) {
-    await this.upsertSpend(location, null)
+    await this.knex(SPEND.NAME)
+      .insert({ [SPEND.location]: location, [SPEND.spendTxid]: null })
+      .onConflict(SPEND.location).ignore()
   }
 
   async deleteSpendsForTxid (txid) {
@@ -540,10 +542,11 @@ class KnexDatasource {
   }
 
   async countTotalUnspent () {
-    return this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .count()
+    const row = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .count(`${SPEND.NAME}.${SPEND.location}`, { as: 'count' }).first()
+    return row.count
   }
 
   // trust
