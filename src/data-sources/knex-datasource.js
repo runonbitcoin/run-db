@@ -459,84 +459,84 @@ class KnexDatasource {
   // unspent
 
   async getAllUnspent () {
-    const rows = await this.knex(JIG.NAME)
-      .join(SPEND.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .select([JIG.location])
+    const rows = await this.knex(SPEND.NAME)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOrigin (origin) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.klass, origin)
-      .select([JIG.location])
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.klass}`, origin)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByLockOrigin (origin) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.lock, origin)
-      .select([JIG.location])
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.lock}`, origin)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByScripthash (scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.scriptHash, scripthash)
-      .select([JIG.location])
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.klass, clsOrigin)
-      .where(JIG.lock, lockOrigin)
-      .select([JIG.location])
+      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
+      .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.klass, clsOrigin)
-      .where(JIG.scriptHash, scripthash)
-      .select([JIG.location])
+      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
+      .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.lock, lockOrigin)
-      .where(JIG.scriptHash, scripthash)
-      .select([JIG.location])
+      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)
+      .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }
 
   async getAllUnspentByClassOriginAndLockOriginAndScriptHash (clsOrigin, lockOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(JIG.NAME, SPEND.location, JIG.location)
-      .whereNull(SPEND.spendTxid)
-      .where(JIG.klass, clsOrigin)
-      .where(JIG.lock, lockOrigin)
-      .where(JIG.scriptHash, scripthash)
-      .select([JIG.location])
+      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
+      .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
+      .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)
+      .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
+      .select(this.knex.ref(`${JIG.NAME}.${JIG.location}`, { as: 'location' }))
 
     return rows.map(row => row.location)
   }

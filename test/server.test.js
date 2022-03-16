@@ -12,10 +12,11 @@ const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
-const { SqliteDatasource } = require('../src/data-sources/sqlite-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { buildMainServer } = require('../src/http/build-main-server')
 const Executor = require('../src/execution/executor')
+const knex = require('knex')
+const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -28,18 +29,40 @@ const api = { fetch }
 const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-const ds = new SqliteDatasource(':memory:', logger, false)
-const trustList = new DbTrustList(ds)
-const database = new Database(ds, trustList, logger)
-
-beforeEach(() => database.open())
-afterEach(() => database.close())
+// const ds = new SqliteDatasource(':memory:', logger, false)
+// const trustList = new DbTrustList(ds)
+// const database = new Database(ds, trustList, logger)
 
 // ------------------------------------------------------------------------------------------------
 // Server
 // ------------------------------------------------------------------------------------------------
 
 describe('Server', () => {
+  let knexInstance
+  let ds
+  let trustList
+  let database
+
+  beforeEach(async () => {
+    knexInstance = knex({
+      client: 'better-sqlite3',
+      connection: {
+        filename: ':memory:'
+      },
+      migrations: {
+        directory: 'db-migrations'
+      },
+      useNullAsDefault: true
+    })
+    ds = new KnexDatasource(knexInstance, logger, false)
+    trustList = new DbTrustList(ds)
+    database = new Database(ds, trustList, logger)
+
+    await knexInstance.migrate.latest()
+    await database.open()
+  })
+  afterEach(() => database.close())
+
   // --------------------------------------------------------------------------
   // post tx
   // --------------------------------------------------------------------------
