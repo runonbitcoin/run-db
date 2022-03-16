@@ -29,9 +29,6 @@ const api = { fetch }
 const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-// const ds = new SqliteDatasource(':memory:', logger, false)
-// const trustList = new DbTrustList(ds)
-// const database = new Database(ds, trustList, logger)
 
 // ------------------------------------------------------------------------------------------------
 // Server
