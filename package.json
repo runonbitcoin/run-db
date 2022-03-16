@@ -28,7 +28,8 @@
     "start-execution-server": "node --experimental-worker src/bin/start-execution-server.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
-    "bump": "npm version patch && git push --follow-tags && npm publish"
+    "bump": "npm version patch && git push --follow-tags && npm publish",
+    "migrate": "knex migrate:up"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",

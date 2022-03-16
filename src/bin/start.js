@@ -46,6 +46,8 @@ const { TrustAllTrustList } = require('../trust-list/trust-all-trust-list')
 const { buildMainServer } = require('../http/build-main-server')
 const Executor = require('../execution/executor')
 const { ApiExecutor } = require('../execution/api-executor')
+const { KnexDatasource } = require('../data-sources/knex-datasource')
+const knex = require('knex')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -90,6 +92,12 @@ const readonly = !!SERVE_ONLY
 let dataSource
 if (DATA_SOURCE === 'sqlite') {
   dataSource = new SqliteDatasource(DB, logger, readonly)
+} else if (DATA_SOURCE === 'pg') {
+  const knexInstance = knex({
+    client: 'pg',
+    connection: process.env.DB_CONNECTION_URI
+  })
+  dataSource = new KnexDatasource(knexInstance, logger, false)
 } else if (DATA_SOURCE === 'mixed') {
   const blobStorage = new ApiBlobStorage(DATA_API_TX_ROOT, DATA_API_STATE_ROOT)
   dataSource = new SqliteMixedDatasource(DB, logger, readonly, blobStorage)

@@ -18,10 +18,6 @@ class KnexDatasource {
   prepareStatements () {}
 
   async setUp () {
-    // this.knex = knex({
-    //   client: 'pg',
-    //   connection: this.connectionUri
-    // })
   }
 
   async tearDown () {
@@ -65,8 +61,8 @@ class KnexDatasource {
   async mempoolTxsPreviousToTime (time) {
     return this.knex(TX.NAME)
       .where(TX.height, HEIGHT_MEMPOOL)
-      .where(TX.time, '<', time)
-      .select()
+      .where(TX.time, '<', new Date(time))
+      .pluck(TX.txid)
   }
 
   async searchTxsToDownload () {
@@ -91,7 +87,7 @@ class KnexDatasource {
   async addNewTx (txid, time) {
     await this.knex(TX.NAME).insert({
       txid,
-      time,
+      time: new Date(time),
       height: null,
       bytes: null,
       has_code: false,
@@ -262,14 +258,14 @@ class KnexDatasource {
         const depTx = 'depTx'
         this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
           .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
-          .where(DEPS.down, `${mainTx}.${TX.txid}`)
+          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
           .where(qb => {
             qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
               qb.where(`${depTx}.${TX.executable}`, true)
               qb.where(`${depTx}.${TX.executed}`, false)
             })
           })
-      }).first(['txid'])
+      }).first(`${mainTx}.${TX.txid}`)
 
     return !!row
   }
@@ -391,7 +387,7 @@ class KnexDatasource {
       .where(JIG.location, location)
       .first([JIG.state])
     if (row && row.state) {
-      return JSON.parse(row.state)
+      return row.state
     } else {
       return null
     }

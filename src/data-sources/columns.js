@@ -44,7 +44,7 @@ const JIG = {
   state: 'state',
   klass: 'class',
   lock: 'lock',
-  scriptHash: 'scriptHash'
+  scriptHash: 'scripthash'
 }
 
 const BERRY = {
