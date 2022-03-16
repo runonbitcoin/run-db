@@ -43,7 +43,8 @@ describe('Crawler', () => {
       },
       migrations: {
         directory: 'db-migrations'
-      }
+      },
+      useNullAsDefault: true
     })
     ds = new KnexDatasource(knexInstance, logger, false)
     trustList = new DbTrustList(ds)
