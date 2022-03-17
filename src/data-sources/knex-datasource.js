@@ -66,7 +66,7 @@ class KnexDatasource {
   }
 
   async searchTxsToDownload () {
-    return this.knex(TX.NAME).whereNotNull(TX.bytes).pluck(TX.txid)
+    return this.knex(TX.NAME).whereNull(TX.bytes).pluck(TX.txid)
   }
 
   async countDownloadedTxs () {
@@ -145,7 +145,7 @@ class KnexDatasource {
   async txIsIndexed (txid) {
     const result = await this.knex(TX.NAME)
       .where(TX.txid, txid)
-      .first([TX.txid])
+      .first(TX.indexed)
 
     return result && result.indexed
   }
