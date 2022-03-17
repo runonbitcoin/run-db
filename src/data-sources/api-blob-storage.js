@@ -42,9 +42,7 @@ class ApiBlobStorage {
     return result.buffer()
   }
 
-  async pushTx (_rawTx) {
-    // do nothing
-  }
+  async pushTx (_rawTx) {}
 }
 
 module.exports = { ApiBlobStorage }

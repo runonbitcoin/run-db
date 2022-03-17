@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@vscode/sqlite3": "^5.0.7",
+    "bdd-lazy-var": "^2.6.1",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "mocha": "^9.2.1",
