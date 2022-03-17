@@ -94,7 +94,7 @@ class KnexDatasource {
       executable: false,
       executed: false,
       indexed: false
-    })
+    }).onConflict(TX.txid).ignore()
   }
 
   async setTxHeight (txid, height) {
