@@ -65,4 +65,13 @@ exports.up = async (knex) => {
 }
 
 exports.down = async (knex) => {
+  await knex.schema.dropTable('spends')
+  await knex.schema.dropTable('deps')
+  await knex.schema.dropTable('jig')
+  await knex.schema.dropTable('berry')
+  await knex.schema.dropTable('trust')
+  await knex.schema.dropTable('ban')
+  await knex.schema.dropTable('tx')
+  await knex.schema.dropTable('crawl')
+  await knex.schema.dropTable('executing')
 }

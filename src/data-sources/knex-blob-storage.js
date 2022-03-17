@@ -1,4 +1,5 @@
 const crypto = require('crypto')
+const { JIG_STATES, RAW_TRANSACTIONS } = require('./columns')
 
 const identity = (a) => a
 
@@ -22,15 +23,15 @@ class KnexBlobStorage {
       throw new Error('missing state')
     }
 
-    await this.knex('jig_states')
+    await this.knex(JIG_STATES.NAME)
       .insert({ location, state: this.filter.serialize(stateObject) })
-      .onConflict('location').merge()
+      .onConflict(JIG_STATES.location).merge()
   }
 
   async pullJigState (location, ifNone) {
-    const result = await this.knex('jig_states')
-      .where('location', location)
-      .first('state')
+    const result = await this.knex(JIG_STATES.NAME)
+      .where(JIG_STATES.location, location)
+      .first(JIG_STATES.state)
 
     if (!result) {
       return ifNone()
@@ -39,9 +40,9 @@ class KnexBlobStorage {
   }
 
   async pullTx (txid, ifNone) {
-    const result = await this.knex('raw_transactions')
-      .where('txid', txid)
-      .first('bytes')
+    const result = await this.knex(RAW_TRANSACTIONS.NAME)
+      .where(RAW_TRANSACTIONS.txid, txid)
+      .first(RAW_TRANSACTIONS.bytes)
     if (!result) {
       return ifNone()
     }
@@ -54,9 +55,9 @@ class KnexBlobStorage {
     }
 
     txid = txid || this._hash(rawTx)
-    await this.knex('raw_transactions')
+    await this.knex(RAW_TRANSACTIONS.NAME)
       .insert({ txid, bytes: rawTx })
-      .onConflict('txid').merge()
+      .onConflict(RAW_TRANSACTIONS.txid).merge()
     return txid
   }
 

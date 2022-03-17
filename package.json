@@ -29,7 +29,8 @@
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
     "bump": "npm version patch && git push --follow-tags && npm publish",
-    "migrate": "knex migrate:up"
+    "migrate": "knex migrate:up",
+    "migrate:down": "knex migrate:down"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",

@@ -59,6 +59,21 @@ const CRAWL = {
   value: 'value'
 }
 
+/**
+ * Blob Storage columns
+ */
+const JIG_STATES = {
+  NAME: 'jig_states',
+  location: 'location',
+  state: 'state'
+}
+
+const RAW_TRANSACTIONS = {
+  NAME: 'raw_transactions',
+  txid: 'txid',
+  bytes: 'bytes'
+}
+
 module.exports = {
   TX,
   DEPS,
@@ -68,5 +83,7 @@ module.exports = {
   SPEND,
   JIG,
   BERRY,
-  CRAWL
+  CRAWL,
+  JIG_STATES,
+  RAW_TRANSACTIONS
 }
