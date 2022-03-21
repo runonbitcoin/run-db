@@ -12,10 +12,11 @@ const Bus = require('../bus')
 // ------------------------------------------------------------------------------------------------
 
 class Executor {
-  constructor (network, numWorkers, database, logger, opts = {}) {
+  constructor (network, numWorkers, blobs, ds, logger, opts = {}) {
     this.network = network
     this.numWorkers = numWorkers
-    this.database = database
+    this.blobs = blobs
+    this.ds = ds
     this.logger = logger
     this.workerOpts = {
       dataApiRoot: opts.dataApiRoot || null,
@@ -68,7 +69,7 @@ class Executor {
     this.workerRequests = []
   }
 
-  async execute (txid) {
+  async execute (txid, trustList) {
     if (this.executing.has(txid)) return
 
     this.logger.debug('Enqueueing', txid, 'for execution')
@@ -79,8 +80,8 @@ class Executor {
 
     worker.missingDeps = new Set()
 
-    const hex = await this.database.getTransactionHex(txid)
-    const trustList = await this.database.getTrustlist()
+    const txBuf = await this.blobs.pullTx(txid, () => null)
+    const hex = txBuf.toString('hex')
 
     let result = null
     try {
@@ -120,21 +121,20 @@ class Executor {
   }
 
   async _onCacheGet (key) {
-    if (key.startsWith('jig://')) {
-      const state = await this.database.getJigState(key.slice('jig://'.length))
-      if (state) return state
+    const [type, identifier] = key.split('://')
+    if (type === 'jig') {
+      return this.blobs.pullJigState(identifier, () => undefined)
     }
     if (key.startsWith('berry://')) {
-      const state = await this.database.getBerryState(key.slice('berry://'.length))
-      if (state) return state
+      return this.blobs.pullJigState(identifier, () => undefined)
     }
     if (key.startsWith('tx://')) {
-      return await this.database.getTransactionHex(key.slice('tx://'.length))
+      return await this.blobs.pullTx(identifier, () => undefined)
     }
   }
 
   async _onBlockchainFetch (worker, txid) {
-    const hex = await this.database.getTransactionHex(txid)
+    const hex = await this.blobs.getTransactionHex(txid)
     if (hex) return hex
     worker.missingDeps.add(txid)
     throw new Error(`Not found: ${txid}`)

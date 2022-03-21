@@ -7,6 +7,10 @@ class DbTrustList {
     return ds.txidTrustedAndReadyToExecute(txid)
   }
 
+  async isTrusted (txid, ds) {
+    return ds.isTrusted(txid)
+  }
+
   async trust (txid, ds) {
     if (await ds.isTrusted(txid)) return []
 
@@ -33,6 +37,17 @@ class DbTrustList {
 
   async untrust (txid, ds) {
     await ds.setTrust(txid, false)
+  }
+
+  async missingTrustFor (txid, ds) {
+    const txids = await ds.upstreamWithCode(txid)
+    const result = []
+
+    for (const currentTxid of [...txids, txid]) {
+      const trusted = this.isTrusted(currentTxid, ds)
+      if (trusted) result.push(currentTxid)
+    }
+    return result
   }
 }
 

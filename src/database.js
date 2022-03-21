@@ -55,11 +55,10 @@ class Database {
     await this.setHash(hash)
   }
 
-  async addTransaction (txid, txhex, height, time) {
+  async addTransaction (txid, txhex, height = null, time = null) {
     await this.ds.performOnTransaction(async (ds) => {
-      await this.addNewTransaction(txid, ds)
-      if (height) { await ds.setTxHeight(txid, height) }
-      if (time) { await ds.setTxTime(txid, time) }
+      const time = Date.now()
+      await ds.addNewTx(txid, time, height)
     })
 
     const indexed = await this.ds.txIsIndexed(txid)
@@ -138,7 +137,7 @@ class Database {
     ds = ds || this.ds
     if (await ds.txExists(txid)) return
 
-    const time = Math.round(Date.now() / 1000)
+    const time = Date.now()
     await ds.addNewTx(txid, time)
 
     if (this.onAddTransaction) { await this.onAddTransaction(txid) }
@@ -193,43 +192,6 @@ class Database {
     })
 
     await this._checkExecutability(txid)
-  }
-
-  async storeExecutedTransaction (txid, result) {
-    const { cache, classes, locks, scripthashes } = result
-
-    await this.ds.performOnTransaction(async (ds) => {
-      await ds.setExecutedForTx(txid, 1)
-      await ds.setIndexedForTx(txid, 1)
-      await ds.removeTxFromExecuting(txid)
-
-      for (const key of Object.keys(cache)) {
-        if (key.startsWith('jig://')) {
-          const location = key.slice('jig://'.length)
-          await ds.setJigState(location, cache[key])
-        } else if (key.startsWith('berry://')) {
-          const location = key.slice('berry://'.length)
-          await ds.setBerryState(location, cache[key])
-        }
-      }
-
-      for (const [location, cls] of classes) {
-        await ds.setJigClass(location, cls)
-      }
-
-      for (const [location, lock] of locks) {
-        await ds.setJigLock(location, lock)
-      }
-
-      for (const [location, scripthash] of scripthashes) {
-        await ds.setJigScriptHash(location, scripthash)
-      }
-    })
-
-    const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
-    for (const downtxid of downstreamReadyToExecute) {
-      await this._checkExecutability(downtxid)
-    }
   }
 
   async setTransactionExecutionFailed (txid, ds = null) {
@@ -452,20 +414,6 @@ class Database {
 
   async isTrusted (txid) {
     return this.ds.isTrusted(txid)
-  }
-
-  async trust (txid) {
-    const trusted = await this.trustList.trust(txid, this.ds)
-
-    for (const txid of trusted) {
-      await this._checkExecutability(txid)
-    }
-
-    if (this.onTrustTransaction) {
-      for (const txid of trusted) {
-        await this.onTrustTransaction(txid)
-      }
-    }
   }
 
   async untrust (txid) {

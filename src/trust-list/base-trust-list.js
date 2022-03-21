@@ -14,6 +14,10 @@ class BaseTrustList {
   async untrust (_txid) {
     throw new Error('subclass responsibility')
   }
+
+  async missingTrustFor (_txid, _ds) {
+    throw new Error('subclass responsibility')
+  }
 }
 
 module.exports = { BaseTrustList }

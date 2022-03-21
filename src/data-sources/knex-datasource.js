@@ -45,7 +45,7 @@ class KnexDatasource {
   }
 
   async txExists (txid) {
-    const row = await this.knex(TX.NAME).where(TX.txid, txid).first([TX.txid])
+    const row = await this.knex(TX.NAME).where(TX.txid, txid).first(TX.txid)
     return !!row
   }
 
@@ -84,17 +84,22 @@ class KnexDatasource {
     return result && result.executed && !result.indexed
   }
 
-  async addNewTx (txid, time) {
-    await this.knex(TX.NAME).insert({
+  async addNewTx (txid, time, height = null) {
+    let query = this.knex(TX.NAME).insert({
       txid,
       time: new Date(time),
-      height: null,
-      bytes: null,
+      height,
       has_code: false,
       executable: false,
       executed: false,
       indexed: false
-    }).onConflict(TX.txid).ignore()
+    }).onConflict(TX.txid)
+
+    query = height
+      ? query.merge([TX.height])
+      : query.ignore()
+
+    await query
   }
 
   async setTxHeight (txid, height) {
@@ -219,7 +224,6 @@ class KnexDatasource {
     const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
       .leftJoin(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
       .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
-      .whereNotNull(`${mainTx}.${TX.bytes}`)
       .where(`${mainTx}.${TX.txid}`, txid)
       .where(`${mainTx}.${TX.executable}`, true)
       .where(`${mainTx}.${TX.executed}`, false)
@@ -249,7 +253,6 @@ class KnexDatasource {
     const knex = this.knex
     const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
       .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
-      .whereNotNull(`${mainTx}.${TX.bytes}`)
       .where(`${mainTx}.${TX.txid}`, txid)
       .where(`${mainTx}.${TX.executable}`, true)
       .where(`${mainTx}.${TX.executed}`, false)
@@ -271,11 +274,6 @@ class KnexDatasource {
   }
 
   async checkDependenciesWereExecutedOk (txid) {
-    // `SELECT COUNT(*) = 0 as ok
-    //     FROM tx
-    //     JOIN deps ON deps.up = tx.txid
-    //     WHERE deps.down = ?
-    //     AND (+tx.downloaded = 0 OR (tx.executable = 1 AND tx.executed = 0))`
     const count = await this.knex(TX.NAME)
       .join(DEPS.NAME, `${DEPS.NAME}.${DEPS.up}`, `${TX.NAME}.${TX.txid}`)
       .where(DEPS.down, txid)
@@ -326,13 +324,14 @@ class KnexDatasource {
 
   async searchDownstreamTxidsReadyToExecute (txid) {
     const knex = this.knex
+    const mainDeps = 'mainDeps'
     const mainTx = 'mainTx'
-    return knex(DEPS.NAME)
-      .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${DEPS.NAME}.${DEPS.down}`)
+
+    return knex(knex.ref(DEPS.NAME).as(mainDeps))
+      .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${mainDeps}.${DEPS.down}`)
       .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
       .leftJoin(TRUST.NAME, `${mainTx}.${TX.txid}`, `${TRUST.NAME}.${TRUST.txid}`)
-      .whereNotNull(`${mainTx}.${TX.bytes}`)
-      .where(`${DEPS.NAME}.${DEPS.up}`, txid)
+      .where(`${mainDeps}.${DEPS.up}`, txid)
       .where(`${mainTx}.${TX.executable}`, true)
       .where(`${mainTx}.${TX.executed}`, false)
       .whereNull(`${BAN.NAME}.${BAN.txid}`)
@@ -341,14 +340,12 @@ class KnexDatasource {
       })
       .whereNotExists(function () {
         const depTx = 'depTx'
-        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
-          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
-          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
+        const deps2 = 'deps2'
+        this.select(`${depTx}.${TX.txid}`).from(knex.ref(TX.NAME).as(depTx))
+          .leftJoin(knex.ref(DEPS.NAME).as(deps2), `${deps2}.${DEPS.up}`, `${depTx}.${TX.txid}`)
+          .where(`${deps2}.${DEPS.down}`, knex.ref(`${mainTx}.${TX.txid}`))
           .where(qb => {
-            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
-              qb.where(`${depTx}.${TX.executable}`, true)
-              qb.where(`${depTx}.${TX.executed}`, false)
-            })
+            qb.where(`${depTx}.${TX.indexed}`, false)
           })
       }).pluck(`${mainTx}.${TX.txid}`)
   }
@@ -372,6 +369,24 @@ class KnexDatasource {
       .select(DEPS.up)
 
     return rows.map(r => r.up)
+  }
+
+  async nonExecutedDepsFor (txid) {
+    const txids = await this.knex(DEPS.NAME)
+      .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
+      .where(`${DEPS.NAME}.${DEPS.down}`, txid)
+      .where(`${TX.NAME}.${TX.indexed}`, false)
+      .pluck(`${TX.NAME}.${TX.txid}`)
+    return txids
+  }
+
+  async upstreamWithCode (txid) {
+    const txids = await this.knex(DEPS.NAME)
+      .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
+      .where(`${DEPS.NAME}.${DEPS.down}`, txid)
+      .where(`${TX.NAME}.${TX.hasCode}`, true)
+      .pluck(`${TX.NAME}.${TX.txid}`)
+    return txids
   }
 
   // jig

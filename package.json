@@ -30,7 +30,8 @@
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
     "bump": "npm version patch && git push --follow-tags && npm publish",
     "migrate": "knex migrate:up",
-    "migrate:down": "knex migrate:down"
+    "migrate:down": "knex migrate:down",
+    "blobs-migrate": "knex -c blobs-knexfile.js migrate:up"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",
@@ -47,6 +48,7 @@
     "generic-pool": "^3.8.2",
     "helmet": "^5.0.1",
     "knex": "^1.0.3",
+    "lodash": "^4.17.21",
     "morgan": "^1.10.0",
     "nanoid": "^3.1.30",
     "node-fetch": "^2.6.1",
