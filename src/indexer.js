@@ -122,6 +122,8 @@ class Indexer {
             return
           }
         }
+      } else {
+        await ds.setIndexedForTx(parsedTx.txid, true)
       }
     })
   }
@@ -152,7 +154,16 @@ class Indexer {
       // this.logger.error(`${txid} => ${e.message}`)
       // await this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
       // return
-      executable = false
+      return {
+        txid,
+        hex,
+        deps: [],
+        inputs: [],
+        outputs: [],
+        hasCode: false,
+        executable: false,
+        txBuf
+      }
     }
 
     const deps = new Set()
@@ -163,9 +174,7 @@ class Indexer {
     }
 
     for (const ref of metadata.ref) {
-      if (ref.startsWith('native://')) {
-        continue
-      } else if (ref.includes('berry')) {
+      if (ref.includes('berry')) {
         const reftxid = ref.slice(0, 64)
         deps.add(reftxid)
       } else {

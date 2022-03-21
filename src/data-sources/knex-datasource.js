@@ -372,21 +372,19 @@ class KnexDatasource {
   }
 
   async nonExecutedDepsFor (txid) {
-    const txids = await this.knex(DEPS.NAME)
+    return this.knex(DEPS.NAME)
       .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
       .where(`${TX.NAME}.${TX.indexed}`, false)
       .pluck(`${TX.NAME}.${TX.txid}`)
-    return txids
   }
 
   async upstreamWithCode (txid) {
-    const txids = await this.knex(DEPS.NAME)
+    return this.knex(DEPS.NAME)
       .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
       .where(`${TX.NAME}.${TX.hasCode}`, true)
       .pluck(`${TX.NAME}.${TX.txid}`)
-    return txids
   }
 
   // jig
@@ -564,7 +562,7 @@ class KnexDatasource {
   async isTrusted (txid) {
     const row = await this.knex(TRUST.NAME)
       .where(TRUST.txid, txid)
-      .first([TRUST.txid])
+      .first(TRUST.txid)
 
     return !!row
   }
