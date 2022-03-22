@@ -1,3 +1,4 @@
-class ExecutionError extends Error {}
+class
+ExecutionError extends Error {}
 
 module.exports = { ExecutionError }

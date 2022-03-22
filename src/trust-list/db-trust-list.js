@@ -39,12 +39,13 @@ class DbTrustList {
     await ds.setTrust(txid, false)
   }
 
-  async missingTrustFor (txid, ds) {
+  async missingTrustFor (txid, ds, includeRoot) {
     const txids = await ds.upstreamWithCode(txid)
     const result = []
-    for (const currentTxid of [...txids, txid]) {
+    const list = includeRoot ? [...txids, txid] : txids
+    for (const currentTxid of list) {
       const trusted = await this.isTrusted(currentTxid, ds)
-      if (trusted) result.push(currentTxid)
+      if (!trusted) result.push(currentTxid)
     }
     return result
   }

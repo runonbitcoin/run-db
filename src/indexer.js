@@ -5,7 +5,6 @@
  */
 
 const Database = require('./database')
-// const Crawler = require('./crawler')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
@@ -19,7 +18,6 @@ const { IndexerResult } = require('./model/indexer-result')
 class Indexer {
   constructor (database, ds, blobs, trustList, executor, network, logger) {
     this.onDownload = null
-    this.onFailToDownload = null
     this.onIndex = null
     this.onFailToIndex = null
     this.onBlock = null
@@ -35,14 +33,6 @@ class Indexer {
 
     this.executor = executor
 
-    this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
-    this.database.onAddTransaction = this._onAddTransaction.bind(this)
-    this.database.onDeleteTransaction = this._onDeleteTransaction.bind(this)
-    this.database.onTrustTransaction = this._onTrustTransaction.bind(this)
-    this.database.onUntrustTransaction = this._onUntrustTransaction.bind(this)
-    this.database.onBanTransaction = this._onBanTransaction.bind(this)
-    this.database.onUnbanTransaction = this._onUnbanTransaction.bind(this)
-    this.database.onRequestDownload = this._onRequestDownload.bind(this)
     this.executor.onIndexed = this._onIndexed.bind(this)
     this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
     this.executor.onMissingDeps = this._onMissingDeps.bind(this)
@@ -52,10 +42,7 @@ class Indexer {
     const trusted = await this.trustList.trust(txid, this.ds)
 
     for (const txid of trusted) {
-      const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
-      if (canExecuteNow) {
-        await this.executor.execute(txid)
-      }
+      await this.executeIfPossible(txid)
     }
   }
 
@@ -74,10 +61,8 @@ class Indexer {
     await this.storeTx(parsed)
 
     if (parsed.executable) {
-      const canExecuteNow = await this.trustList.checkExecutability(parsed.txid, this.ds)
-      if (canExecuteNow) {
-        const trustList = await this.trustList.executionTrustList(this.ds)
-        await this.executor.execute(parsed.txid, trustList)
+      const executed = await this.executeIfPossible(parsed.txid)
+      if (executed) {
         return new IndexerResult(
           true,
           [],
@@ -89,9 +74,18 @@ class Indexer {
     return new IndexerResult(
       false,
       await this.ds.nonExecutedDepsFor(parsed.txid),
-      await this.trustList.missingTrustFor(txid, this.ds),
+      await this.trustList.missingTrustFor(txid, this.ds, parsed.hasCode),
       []
     )
+  }
+
+  async executeIfPossible (txid) {
+    const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
+    if (canExecuteNow) {
+      const trustList = await this.trustList.executionTrustList(this.ds)
+      await this.executor.execute(txid, trustList)
+    }
+    return canExecuteNow
   }
 
   async storeTx (parsedTx) {
@@ -112,7 +106,6 @@ class Indexer {
         await ds.setHasCodeForTx(parsedTx.txid, parsedTx.hasCode)
 
         for (const depTxid of parsedTx.deps) {
-          await this.database.addNewTransaction(depTxid, ds)
           await ds.addNewTx(depTxid, new Date())
           await ds.addDep(depTxid, parsedTx.txid)
 
@@ -166,22 +159,7 @@ class Indexer {
       }
     }
 
-    const deps = new Set()
-
-    for (let i = 0; i < metadata.in; i++) {
-      const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
-      deps.add(prevtxid)
-    }
-
-    for (const ref of metadata.ref) {
-      if (ref.includes('berry')) {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      } else {
-        const reftxid = ref.slice(0, 64)
-        deps.add(reftxid)
-      }
-    }
+    const deps = Run.util.deps(hex)
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
 
@@ -199,7 +177,10 @@ class Indexer {
 
   async start () {
     this.logger.debug('Starting indexer')
-    await this.database.loadTransactionsToExecute()
+    const txids = await this.ds.findAllExecutingTxids()
+    for (const txid of txids) {
+      await this.executeIfPossible(txid)
+    }
   }
 
   async stop () {
@@ -209,29 +190,10 @@ class Indexer {
     await this.executor.stop()
   }
 
-  async _onDownloadTransaction (txid, hex, height, time) {
-    this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
-    if (await this.ds.checkTxIsDownloaded(txid)) return
-    if (height) { await this.ds.setTxHeight(txid, height) }
-    if (time) { await this.ds.setTxTime(txid, time) }
-    await this.database.parseAndStoreTransaction(txid, hex)
-    if (this.onDownload) await this.onDownload(txid)
-  }
-
-  async _onFailedToDownloadTransaction (txid, e) {
-    this.logger.error('Failed to download', txid, e.toString())
-    if (this.onFailToDownload) { await this.onFailToDownload(txid) }
-  }
-
-  async _onRetryingDownload (txid, secondsToRetry) {
-    this.logger.info('Retrying download', txid, 'after', secondsToRetry, 'seconds')
-  }
-
   async _onIndexed (txid, result) {
     this.pendingRetries.delete(txid)
     if (!await this.ds.txExists(txid)) return // Check not re-orged
     this.logger.info(`Executed ${txid}`)
-    // await this.database.storeExecutedTransaction(txid, result)
 
     const { cache, classes, locks, scripthashes } = result
 
@@ -290,35 +252,6 @@ class Indexer {
       .catch((e) =>
         console.warn(`error executing tx ${txid}: ${e.message}`)
       )
-  }
-
-  async _onAddTransaction (txid) {
-    this.logger.info('Added', txid)
-  }
-
-  async _onDeleteTransaction (txid) {
-    this.logger.info('Removed', txid)
-    await this.downloader.remove(txid)
-  }
-
-  async _onTrustTransaction (txid) {
-    this.logger.info('Trusted', txid)
-  }
-
-  async _onUntrustTransaction (txid) {
-    this.logger.info('Untrusted', txid)
-  }
-
-  async _onBanTransaction (txid) {
-    this.logger.info('Banned', txid)
-  }
-
-  async _onUnbanTransaction (txid) {
-    this.logger.info('Unbanned', txid)
-  }
-
-  async _onRequestDownload (txid) {
-    await this.downloader.add(txid)
   }
 
   async _onMissingDeps (txid, deptxids) {
