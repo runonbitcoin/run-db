@@ -59,29 +59,6 @@ class Executor {
     }
 
     this.pool = genericPool.createPool(factory, opts)
-    // for (let i = 0; i < this.numWorkers; i++) {
-    //   this.logger.debug('Starting worker', i)
-    //
-    //   const path = require.resolve('../worker/worker.js')
-    //   const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
-    //
-    //   worker.id = i
-    //   worker.available = true
-    //   worker.missingDeps = new Set()
-    //
-    //   this.workers.push(worker)
-    //
-    //   const cacheGet = (txid) => this._onCacheGet(txid)
-    //   const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
-    //   const handlers = { cacheGet, blockchainFetch }
-    //
-    //   Bus.listen(worker, handlers)
-    //
-    //   if (this.workerRequests.length) {
-    //     worker.available = false
-    //     this.workerRequests.shift()(worker)
-    //   }
-    // }
   }
 
   async stop () {
@@ -117,19 +94,6 @@ class Executor {
     } finally {
       this.pool.release(worker)
     }
-  }
-
-  _requestWorker () {
-    const worker = this.workers.find(worker => worker.available)
-
-    if (worker) {
-      worker.available = false
-      return worker
-    }
-
-    return new Promise((resolve) => {
-      this.workerRequests.push(resolve)
-    })
   }
 
   async _onCacheGet (key) {
