@@ -6,6 +6,8 @@
 
 const { Worker } = require('worker_threads')
 const Bus = require('../bus')
+const genericPool = require('generic-pool')
+const { ExecutionResult } = require('../model/execution-result')
 
 // ------------------------------------------------------------------------------------------------
 // Executor
@@ -29,44 +31,63 @@ class Executor {
     this.onExecuteFailed = null
     this.onMissingDeps = null
 
-    this.workers = []
-    this.workerRequests = []
+    // this.workers = []
+    // this.workerRequests = []
     this.executing = new Set()
+    this.pool = null
   }
 
   start () {
-    for (let i = 0; i < this.numWorkers; i++) {
-      this.logger.debug('Starting worker', i)
-
-      const path = require.resolve('../worker/worker.js')
-      const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
-
-      worker.id = i
-      worker.available = true
-      worker.missingDeps = new Set()
-
-      this.workers.push(worker)
-
-      const cacheGet = (txid) => this._onCacheGet(txid)
-      const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
-      const handlers = { cacheGet, blockchainFetch }
-
-      Bus.listen(worker, handlers)
-
-      if (this.workerRequests.length) {
-        worker.available = false
-        this.workerRequests.shift()(worker)
+    const factory = {
+      create: async () => {
+        const path = require.resolve('../worker/worker.js')
+        const worker = new Worker(path, { workerData: { network: this.network, ...this.workerOpts } })
+        const cacheGet = (txid) => this._onCacheGet(txid)
+        const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
+        const handlers = { cacheGet, blockchainFetch }
+        Bus.listen(worker, handlers)
+        return worker
+      },
+      destroy: async (worker) => {
+        await worker.terminate()
       }
     }
+
+    const opts = {
+      min: 1,
+      max: this.numWorkers
+    }
+
+    this.pool = genericPool.createPool(factory, opts)
+    // for (let i = 0; i < this.numWorkers; i++) {
+    //   this.logger.debug('Starting worker', i)
+    //
+    //   const path = require.resolve('../worker/worker.js')
+    //   const worker = new Worker(path, { workerData: { id: i, network: this.network, ...this.workerOpts } })
+    //
+    //   worker.id = i
+    //   worker.available = true
+    //   worker.missingDeps = new Set()
+    //
+    //   this.workers.push(worker)
+    //
+    //   const cacheGet = (txid) => this._onCacheGet(txid)
+    //   const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
+    //   const handlers = { cacheGet, blockchainFetch }
+    //
+    //   Bus.listen(worker, handlers)
+    //
+    //   if (this.workerRequests.length) {
+    //     worker.available = false
+    //     this.workerRequests.shift()(worker)
+    //   }
+    // }
   }
 
   async stop () {
     this.logger.debug('Stopping all workers')
-
-    await Promise.all(this.workers.map(worker => worker.terminate()))
-
-    this.workers = []
-    this.workerRequests = []
+    await this.pool.drain()
+    await this.pool.clear()
   }
 
   async execute (txid, trustList) {
@@ -76,34 +97,25 @@ class Executor {
 
     this.executing.add(txid)
 
-    const worker = await this._requestWorker()
+    const worker = await this.pool.acquire()
 
     worker.missingDeps = new Set()
 
     const txBuf = await this.blobs.pullTx(txid, () => null)
     const hex = txBuf.toString('hex')
 
-    let result = null
     try {
-      result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
+      const result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
+      return new ExecutionResult(true, [], result)
     } catch (e) {
       if (worker.missingDeps.size) {
         if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
+        return new ExecutionResult(false, Array.from(worker.missingDeps), null)
       } else {
-        if (this.onExecuteFailed) await this.onExecuteFailed(txid, e.message)
+        return new ExecutionResult(false, [], null)
       }
     } finally {
-      this.executing.delete(txid)
-
-      worker.available = true
-
-      if (this.workerRequests.length) {
-        worker.available = false
-        this.workerRequests.shift()(worker)
-      }
-    }
-    if (this.onIndexed && result !== null) {
-      await this.onIndexed(txid, result)
+      this.pool.release(worker)
     }
   }
 
@@ -129,15 +141,17 @@ class Executor {
       return this.blobs.pullJigState(identifier, () => undefined)
     }
     if (key.startsWith('tx://')) {
-      return await this.blobs.pullTx(identifier, () => undefined)
+      const buf = await this.blobs.pullTx(identifier, () => undefined)
+      return buf && buf.toString('hex')
     }
   }
 
   async _onBlockchainFetch (worker, txid) {
-    const hex = await this.blobs.getTransactionHex(txid)
-    if (hex) return hex
-    worker.missingDeps.add(txid)
-    throw new Error(`Not found: ${txid}`)
+    const buff = await this.blobs.pullTx(txid, () => {
+      worker.missingDeps.add(txid)
+      throw new Error(`Not found: ${txid}`)
+    })
+    return buff.toString('hex')
   }
 }
 

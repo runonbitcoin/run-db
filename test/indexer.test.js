@@ -49,7 +49,7 @@ describe('Indexer', () => {
     knexInstance = knex({
       client: 'sqlite3',
       connection: {
-        filename: 'file:memDb1?mode=memory&cache=shared',
+        filename: 'file:memDbMain?mode=memory&cache=shared',
         flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
       },
       migrations: {
@@ -62,7 +62,7 @@ describe('Indexer', () => {
     blobsKnex = knex({
       client: 'sqlite3',
       connection: {
-        filename: 'file:memDb2?mode=memory&cache=shared',
+        filename: 'file:memDbBlobs?mode=memory&cache=shared',
         flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
       },
       migrations: {
@@ -197,7 +197,13 @@ describe('Indexer', () => {
 
     def('Counter', async () => {
       class Counter extends Run.Jig {
+        init () {
+          this.count = 0
+        }
 
+        inc () {
+          this.count += 1
+        }
       }
 
       get.run.deploy(Counter)
@@ -227,6 +233,7 @@ describe('Indexer', () => {
 
     afterEach(async () => {
       await get.indexer.stop()
+      await get.executor.stop()
     })
 
     describe('when the tx is executable and has no dependencies', () => {
@@ -253,6 +260,31 @@ describe('Indexer', () => {
       })
 
       it('craetes the spend')
+    })
+
+    describe('when the tx execution fails because there is a missing state on the blob storage', async () => {
+      it('returns the missing tx associated to the missing state as a missing dep', async () => {
+        const Counter = await get.Counter
+        const instance = new Counter()
+        await instance.sync()
+
+        const txid1 = Counter.location.split('_')[0]
+        const txid2 = instance.location.split('_')[0]
+        const txHex1 = await get.run.blockchain.fetch(txid1)
+        const txHex2 = await get.run.blockchain.fetch(txid2)
+
+        const txBuf1 = Buffer.from(txHex1, 'hex')
+        const txBuf2 = Buffer.from(txHex2, 'hex')
+
+        await get.indexer.trust(txid1)
+        await get.indexer.indexTransaction(txBuf1)
+
+        await blobsKnex('jig_states').where('location', Counter.location).del()
+        await blobsKnex('raw_transactions').where('txid', Counter.location.split('_')[0]).del()
+
+        const result = await get.indexer.indexTransaction(txBuf2)
+        expect(result.executed).to.eql(false)
+      })
     })
 
     describe('when the tx depends of an unknown berry', () => {

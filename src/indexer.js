@@ -33,9 +33,9 @@ class Indexer {
 
     this.executor = executor
 
-    this.executor.onIndexed = this._onIndexed.bind(this)
-    this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
-    this.executor.onMissingDeps = this._onMissingDeps.bind(this)
+    // this.executor.onIndexed = this._onIndexed.bind(this)
+    // this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
+    // this.executor.onMissingDeps = this._onMissingDeps.bind(this)
   }
 
   async trust (txid) {
@@ -83,7 +83,16 @@ class Indexer {
     const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
     if (canExecuteNow) {
       const trustList = await this.trustList.executionTrustList(this.ds)
-      await this.executor.execute(txid, trustList)
+      const result = await this.executor.execute(txid, trustList)
+      if (result.success) {
+        await this._onIndexed(txid, result.result)
+      } else if (result.missingDeps.length > 0) {
+        await this._onMissingDeps(txid, result.missingDeps)
+        return false
+      } else {
+        await this._onExecuteFailed(txid, result.error, false)
+        return false
+      }
     }
     return canExecuteNow
   }
@@ -106,7 +115,7 @@ class Indexer {
         await ds.setHasCodeForTx(parsedTx.txid, parsedTx.hasCode)
 
         for (const depTxid of parsedTx.deps) {
-          await ds.addNewTx(depTxid, new Date())
+          // await ds.addNewTx(depTxid, new Date())
           await ds.addDep(depTxid, parsedTx.txid)
 
           const failed = await ds.getFailedTx(depTxid)
@@ -224,15 +233,6 @@ class Indexer {
         await ds.setJigScriptHash(location, scripthash)
       }
     })
-
-    const downstreamReadyToExecute = await this.ds.searchDownstreamForTxid(txid)
-    for (const downtxid of downstreamReadyToExecute) {
-      await this.database._checkExecutability(downtxid)
-    }
-
-    if (this.onIndex) {
-      await this.onIndex(txid)
-    }
   }
 
   async _onExecuteFailed (txid, e, shouldRetry = false) {
@@ -256,8 +256,12 @@ class Indexer {
 
   async _onMissingDeps (txid, deptxids) {
     this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
-    await this.database.addMissingDeps(txid, deptxids)
-    deptxids.forEach(deptxid => this.downloader.add(deptxid))
+
+    await this.ds.performOnTransaction(async (ds) => {
+      for (const deptxid of deptxids) {
+        await ds.addDep(deptxid, txid)
+      }
+    })
   }
 
   async _onCrawlError (e) {

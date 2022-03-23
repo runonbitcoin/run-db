@@ -99,13 +99,7 @@ async function execute (txid, hex, trustlist) {
   run.trust('cache')
 
   const tx = await run.import(hex, { txid })
-
-  try {
-    await tx.cache()
-  } catch (e) {
-    console.error(e)
-    throw e
-  }
+  await tx.cache()
 
   const cache = run.cache.state
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)

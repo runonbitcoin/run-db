@@ -234,11 +234,11 @@ class KnexDatasource {
       .whereNull(`${BAN.NAME}.${BAN.txid}`)
       .whereNotExists(function () {
         const depTx = 'depTx'
-        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
-          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+        this.select(TX.txid).from(DEPS.NAME)
+          .leftJoin(knex.ref(TX.NAME).as(depTx), DEPS.up, `${depTx}.${TX.txid}`)
           .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
           .where(qb => {
-            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+            qb.whereNull(`${depTx}.${TX.txid}`).orWhere(qb => {
               qb.where(`${depTx}.${TX.executable}`, true)
               qb.where(`${depTx}.${TX.executed}`, false)
             })
@@ -326,7 +326,6 @@ class KnexDatasource {
     const knex = this.knex
     const mainDeps = 'mainDeps'
     const mainTx = 'mainTx'
-
     return knex(knex.ref(DEPS.NAME).as(mainDeps))
       .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${mainDeps}.${DEPS.down}`)
       .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
@@ -341,11 +340,11 @@ class KnexDatasource {
       .whereNotExists(function () {
         const depTx = 'depTx'
         const deps2 = 'deps2'
-        this.select(`${depTx}.${TX.txid}`).from(knex.ref(TX.NAME).as(depTx))
-          .leftJoin(knex.ref(DEPS.NAME).as(deps2), `${deps2}.${DEPS.up}`, `${depTx}.${TX.txid}`)
+        this.select(`${depTx}.${TX.txid}`).from(knex.ref(DEPS.NAME).as(deps2))
+          .leftJoin(knex.ref(TX.NAME).as(depTx), `${deps2}.${DEPS.up}`, `${depTx}.${TX.txid}`)
           .where(`${deps2}.${DEPS.down}`, knex.ref(`${mainTx}.${TX.txid}`))
           .where(qb => {
-            qb.where(`${depTx}.${TX.indexed}`, false)
+            qb.where(`${depTx}.${TX.indexed}`, false).orWhereNull(`${depTx}.${TX.txid}`)
           })
       }).pluck(`${mainTx}.${TX.txid}`)
   }
@@ -373,10 +372,10 @@ class KnexDatasource {
 
   async nonExecutedDepsFor (txid) {
     return this.knex(DEPS.NAME)
-      .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
+      .leftJoin(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
-      .where(`${TX.NAME}.${TX.indexed}`, false)
-      .pluck(`${TX.NAME}.${TX.txid}`)
+      .where(`${TX.NAME}.${TX.indexed}`, false).orWhereNull(`${TX.NAME}.${TX.txid}`)
+      .pluck(`${DEPS.NAME}.${DEPS.up}`)
   }
 
   async upstreamWithCode (txid) {
