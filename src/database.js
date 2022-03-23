@@ -55,7 +55,7 @@ class Database {
     await this.setHash(hash)
   }
 
-  async addTransaction (txid, txhex, height = null, time = null) {
+  async addTransaction (txid, txhex, height = null, _time = null) {
     await this.ds.performOnTransaction(async (ds) => {
       const time = Date.now()
       await ds.addNewTx(txid, time, height)
@@ -109,11 +109,9 @@ class Database {
       const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
       deps.add(prevtxid)
     }
-
-    for (const ref of metadata.ref) {
-      if (ref.startsWith('native://')) {
-        continue
-      } else if (ref.includes('berry')) {
+    const refs = metadata.ref.filter(r => !r.startsWith('native://'))
+    for (const ref of refs) {
+      if (ref.includes('berry')) {
         const reftxid = ref.slice(0, 64)
         deps.add(reftxid)
       } else {
@@ -394,10 +392,6 @@ class Database {
 
   async getAllUnspentByClassOriginAndLockOriginAndScripthash (clsOrigin, lockOrigin, scripthash) {
     return this.ds.getAllUnspentByClassOriginAndLockOriginAndScriptHash(clsOrigin, lockOrigin, scripthash)
-  }
-
-  async getNumUnspent () {
-    return this.ds.countTotalUnspent()
   }
 
   // --------------------------------------------------------------------------

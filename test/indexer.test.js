@@ -22,8 +22,7 @@ const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = txid => { return { hex: require('./txns.json')[txid] } }
-const api = { fetch }
+// const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 // const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
@@ -85,36 +84,6 @@ describe('Indexer', () => {
   afterEach(async () => {
     database.close()
     blobsKnex.destroy()
-  })
-
-  // --------------------------------------------------------------------------
-
-  it.skip('add and download dependencies', async () => {
-    const executor = new Executor('main', 1, database, logger)
-    const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, [])
-    await indexer.start()
-    await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    await indexer.stop()
-  })
-
-  // --------------------------------------------------------------------------
-
-  it.skip('deletes are not included in unspent', async () => {
-    const executor = new Executor('test', 1, database, logger)
-    const indexer = new Indexer(database, {}, executor, 1, 1, logger, 0, Infinity, [])
-    const rawtx1 = '01000000016f4f66891029280028bce15768b3fdc385533b0bcc77a029add646176207e77f010000006b483045022100a76777ae759178595cb83ce9473699c9056e32faa8e0d07c2517918744fab9e90220369d7a6a2f52b5ddd9bff4ed659ef5a8e676397dac15e9c5dc6dad09e5eab85e412103ac8a61b3fb98161003daaaa63ec1983dc127f4f978a42f2eefd31a074a814345ffffffff030000000000000000fd0301006a0372756e0105004cf87b22696e223a302c22726566223a5b226e61746976653a2f2f4a6967225d2c226f7574223a5b2237373864313934336265613463353166356561313635666630346335613039323435356365386437343335623936336333613130623961343536633463623330225d2c2264656c223a5b5d2c22637265223a5b226d674671626e5254774c3155436d384a654e6e556d6b7a58665a6f3271385764364c225d2c2265786563223a5b7b226f70223a224445504c4f59222c2264617461223a5b22636c617373204120657874656e6473204a6967207b207d222c7b2264657073223a7b224a6967223a7b22246a6967223a307d7d7d5d7d5d7d11010000000000001976a914081c4c589c062b1b1d4e4b25a8b3096868059d7a88acf6def505000000001976a914146caf0030b67f3fae5d53b7c3fa7e1e6fcaaf3b88ac00000000'
-    const rawtx2 = '01000000015991661ed379a0d12a68feacdbf7776d82bcffe1761f995cf0412c5ae2d25d28010000006a47304402203776f765d6915431388110a7f4645a61bd8d2f2ab00ade0049f0da95b5455c22022074ca4b6a87891ba852416bf08b64ad3db130a0b780e2a658c451ebacbbcffbf8412103646b0e969bd3825f781f39b737bdfed1e2cd63533301317099e5ac021b4826aaffffffff010000000000000000b1006a0372756e0105004ca67b22696e223a312c22726566223a5b5d2c226f7574223a5b5d2c2264656c223a5b2265386436393434613366383765323936663237326562656437663033623133323962653262313733653732376436623431643632616365343036656434373539225d2c22637265223a5b5d2c2265786563223a5b7b226f70223a2243414c4c222c2264617461223a5b7b22246a6967223a307d2c2264657374726f79222c5b5d5d7d5d7d00000000'
-    const txid1 = new bsv.Transaction(rawtx1).hash
-    const txid2 = new bsv.Transaction(rawtx2).hash
-    await indexer.start()
-    const promise = indexed(indexer, txid2)
-    await database.addTransaction(txid1, rawtx1)
-    await database.addTransaction(txid2, rawtx2)
-    await database.trust(txid1)
-    await promise
-    expect(await indexer.database.getNumUnspent()).to.equal(0)
-    await indexer.stop()
   })
 
   it.skip('mark a transaction as failed when a dependency already failed', async () => {
@@ -284,6 +253,83 @@ describe('Indexer', () => {
 
         const result = await get.indexer.indexTransaction(txBuf2)
         expect(result.executed).to.eql(false)
+      })
+    })
+
+    describe('when the tx deletes a jig', () => {
+      it('saves the deleted jig', async () => {
+        class CanBeDeleted extends Run.Jig {
+          deleteMe () {
+            this.destroy()
+          }
+        }
+
+        get.run.deploy(CanBeDeleted)
+        await get.run.sync()
+
+        const instance = new CanBeDeleted()
+        await instance.sync()
+
+        instance.deleteMe()
+        await get.run.sync()
+
+        const txid1 = CanBeDeleted.location.split('_')[0]
+        const txid2 = instance.origin.split('_')[0]
+        const txid3 = instance.location.split('_')[0]
+        await get.indexer.trust(txid1)
+
+        const hex1 = await get.run.blockchain.fetch(txid1)
+        const hex2 = await get.run.blockchain.fetch(txid2)
+        const hex3 = await get.run.blockchain.fetch(txid3)
+
+        const buff1 = Buffer.from(hex1, 'hex')
+        const buff2 = Buffer.from(hex2, 'hex')
+        const buff3 = Buffer.from(hex3, 'hex')
+
+        await get.indexer.indexTransaction(buff1)
+        await get.indexer.indexTransaction(buff2)
+        await get.indexer.indexTransaction(buff3)
+
+        const savedState = await blobStorage.pullJigState(instance.location, () => expect.fail('should be present'))
+        expect(savedState.props.origin).to.eql(instance.origin)
+        expect(savedState.props.location).to.match(/_d0$/)
+      })
+
+      it('does not include deleted on unspent', async () => {
+        // this test should not be here.
+        class CanBeDeleted extends Run.Jig {
+          deleteMe () {
+            this.destroy()
+          }
+        }
+
+        get.run.deploy(CanBeDeleted)
+        await get.run.sync()
+
+        const instance = new CanBeDeleted()
+        await instance.sync()
+
+        instance.deleteMe()
+        await get.run.sync()
+
+        const txid1 = CanBeDeleted.location.split('_')[0]
+        const txid2 = instance.origin.split('_')[0]
+        const txid3 = instance.location.split('_')[0]
+        await get.indexer.trust(txid1)
+
+        const hex1 = await get.run.blockchain.fetch(txid1)
+        const hex2 = await get.run.blockchain.fetch(txid2)
+        const hex3 = await get.run.blockchain.fetch(txid3)
+
+        const buff1 = Buffer.from(hex1, 'hex')
+        const buff2 = Buffer.from(hex2, 'hex')
+        const buff3 = Buffer.from(hex3, 'hex')
+
+        await get.indexer.indexTransaction(buff1)
+        await get.indexer.indexTransaction(buff2)
+        await get.indexer.indexTransaction(buff3)
+
+        expect(await ds.countTotalUnspent()).to.equal(0)
       })
     })
 
