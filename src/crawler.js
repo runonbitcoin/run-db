@@ -9,11 +9,11 @@
 // ------------------------------------------------------------------------------------------------
 
 class Crawler {
-  constructor (indexer, api, logger) {
+  constructor (indexer, api, ds, logger) {
     this.indexer = indexer
     this.api = api
     this.logger = logger
-
+    this.ds = ds
     // this.height = null
     // this.hash = null
     // this.pollForNewBlocksInterval = 10000
@@ -32,6 +32,15 @@ class Crawler {
   }
 
   async start (_height, _hash) {
+    const realTip = await this.api.getTip()
+    let knownHeight = await this.ds.getCrawlHeight()
+
+    while (knownHeight < realTip.height) {
+      knownHeight++
+      const { height, hash } = await this.api.getBlockDataByHeight(knownHeight)
+      await this._receiveBlock(height, hash)
+    }
+
     await this.api.onMempoolTx(this._receiveTransaction.bind(this))
     await this.api.onNewBlock(this._receiveBlock.bind(this))
     // this.logger.debug('Starting crawler')
@@ -54,6 +63,14 @@ class Crawler {
     await this.api.iterateBlock(blockHash, async (rawTx) => {
       await this._receiveTransaction(rawTx, blockHeight)
     })
+    await this.ds.setCrawlHash(blockHash)
+    await this.ds.setCrawlHeight(blockHeight)
+  }
+
+  async setTip (blockHash) {
+    const { height, hash } = await this.api.getBlockData(blockHash)
+    this.ds.setCrawlHash(hash)
+    this.ds.setCrawlHeight(height)
   }
 
   stop () {

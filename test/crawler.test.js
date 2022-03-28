@@ -36,12 +36,13 @@ const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {
 describe('Crawler', () => {
   def('ds', () => {
     const knexInstance = knex({
-      client: 'better-sqlite3',
+      client: 'sqlite3',
       connection: {
         filename: 'file:memDbMain?mode=memory&cache=shared',
         flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
       },
       migrations: {
+        tableName: 'migrations',
         directory: 'db-migrations'
       },
       useNullAsDefault: true
@@ -89,7 +90,7 @@ describe('Crawler', () => {
   })
 
   def('crawler', () => {
-    return new Crawler(get.indexer, get.api, logger)
+    return new Crawler(get.indexer, get.api, get.ds, logger)
   })
 
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
@@ -99,6 +100,15 @@ describe('Crawler', () => {
     get.run.deploy(Counter)
     await get.run.sync()
     const txid = Counter.location.split('_')[0]
+    const hex = await get.run.blockchain.fetch(txid)
+    return { txid, hex, buff: Buffer.from(hex, 'hex') }
+  })
+
+  def('anotherRunTx', async () => {
+    class AnotherClass extends Run.Jig {}
+    get.run.deploy(AnotherClass)
+    await get.run.sync()
+    const txid = AnotherClass.location.split('_')[0]
     const hex = await get.run.blockchain.fetch(txid)
     return { txid, hex, buff: Buffer.from(hex, 'hex') }
   })
@@ -126,12 +136,6 @@ describe('Crawler', () => {
   })
 
   it('indexes a tx that arrives from the mempool', async () => {
-    // const run = new Run({ network: 'mock', cache: new Map() })
-    // class Counter extends Run.Jig {}
-    // run.deploy(Counter)
-    // await run.sync()
-    // const txid = Counter.location.split('_')[0]
-    // const hex = await run.blockchain.fetch(txid)
     const { txid, buff } = await get.someRunTx
     await get.indexer.trust(txid)
 
@@ -143,30 +147,77 @@ describe('Crawler', () => {
     expect(txWasIndexed).to.eql(true)
   })
 
-  it('indexes transactions that arrive from a new block', async () => {
-    const { txid: txid1, buff: buff1 } = await get.someRunTx
-    const { txid: txid2, buff: buff2 } = await get.childRunTx
+  describe('when indexinga block', () => {
+    beforeEach(async () => {
+      const { txid: txid1, buff: buff1 } = await get.someRunTx
+      const { txid: txid2, buff: buff2 } = await get.childRunTx
 
-    await get.indexer.trust(txid1)
-    get.api.newMempoolTx(txid1, buff1)
-    get.api.newMempoolTx(txid1, buff2)
+      await get.indexer.trust(txid1)
+      get.api.newMempoolTx(txid1, buff1)
+      get.api.newMempoolTx(txid2, buff2)
 
-    await get.crawler.start()
-    get.api.closeBlock('blockhash1')
-    await get.api.waitForall()
-    const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
-    const tx2WasIndexed = await get.ds.txIsIndexed(txid2)
-    expect(tx1WasIndexed).to.eql(true)
-    expect(tx2WasIndexed).to.eql(true)
+      await get.crawler.start()
+      get.api.closeBlock('blockhash1')
+      await get.api.waitForall()
+    })
+
+    it('indexes the transactions in the block', async () => {
+      const { txid: txid1 } = await get.someRunTx
+      const { txid: txid2 } = await get.childRunTx
+      const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
+      const tx2WasIndexed = await get.ds.txIsIndexed(txid2)
+      expect(tx1WasIndexed).to.eql(true)
+      expect(tx2WasIndexed).to.eql(true)
+    })
+
+    it('increases the crawl', async () => {
+      const height = await get.ds.getCrawlHeight()
+      const hash = await get.ds.getCrawlHash()
+      expect(height).to.eql(1)
+      expect(hash).to.eql('blockhash1')
+    })
   })
 
   describe('#start', async () => {
-    it('when the known tip is behind the real tip it resquests missing blocks', () => {
-      get.crawler.setTip('firstEmpty')
+    it('when its behind of the real tip it keeps up when starting', async () => {
+      const tx1 = await get.someRunTx
+      const tx2 = await get.anotherRunTx
+      get.api.newMempoolTx(tx1.txid, tx1.buff)
+      get.api.closeBlock('nonEmpty')
       get.api.closeBlock('firstEmpty')
       get.api.closeBlock('secondEmpty')
-      get.api.closeBlock('thirdEmpty')
-      get.api.closeBlock('fourthEmpty')
+      get.api.newMempoolTx(tx2.txid, tx2.buff)
+      get.api.closeBlock('tipNonEmpty')
+
+      await get.indexer.trust(tx1.txid)
+      await get.indexer.trust(tx2.txid)
+      await get.crawler.start()
+
+      const tx1WasIndexed = await get.ds.txIsIndexed(tx1.txid)
+      const tx2WasIndexed = await get.ds.txIsIndexed(tx2.txid)
+      expect(tx1WasIndexed).to.eql(true)
+      expect(tx2WasIndexed).to.eql(true)
+    })
+
+    it('when it already knows a tip it does not look for previous blocks', async () => {
+      const tx1 = await get.someRunTx
+      const tx2 = await get.anotherRunTx
+      get.api.newMempoolTx(tx1.txid, tx1.buff)
+      get.api.closeBlock('nonEmpty')
+      get.api.closeBlock('firstEmpty')
+      get.api.closeBlock('secondEmpty')
+      get.api.newMempoolTx(tx2.txid, tx2.buff)
+      get.api.closeBlock('tipNonEmpty')
+
+      await get.indexer.trust(tx1.txid)
+      await get.indexer.trust(tx2.txid)
+      await get.crawler.setTip('firstEmpty')
+      await get.crawler.start()
+
+      const tx1WasIndexed = await get.ds.txIsIndexed(tx1.txid)
+      const tx2WasIndexed = await get.ds.txIsIndexed(tx2.txid)
+      expect(tx1WasIndexed).to.eql(false)
+      expect(tx2WasIndexed).to.eql(true)
     })
   })
 

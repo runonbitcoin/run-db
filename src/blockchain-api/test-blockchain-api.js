@@ -17,11 +17,29 @@ class TestBlockchainApi {
     return tx
   }
 
+  async getBlockData (blockHash, ifNone) {
+    const blockHeight = this.blocks.findIndex(b => b.hash === blockHash)
+    if (blockHeight < 0) {
+      return ifNone()
+    }
+
+    return { height: blockHeight, hash: blockHash }
+  }
+
+  async getBlockDataByHeight (height) {
+    return { height, hash: this.blocks[height].hash }
+  }
+
   async iterateBlock (blockHash, fn) {
     const block = this.blocks.find(b => b.hash === blockHash)
     for (const tx of block.txs) {
       await fn(tx)
     }
+  }
+
+  async getTip () {
+    const latest = this.blocks[this.blocks.length - 1]
+    return { height: this.blocks.length - 1, hash: latest.hash }
   }
 
   onMempoolTx (fn) {
@@ -47,7 +65,7 @@ class TestBlockchainApi {
     }
     this.blocks.push(newBlock)
     this.mempool = []
-    const promise = this._onNewBlock(this.blocks.length, blockHash)
+    const promise = this._onNewBlock(this.blocks.length - 1, blockHash)
     this.pending.add(promise)
     promise.finally(() => this.pending.delete(promise))
   }

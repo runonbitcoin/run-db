@@ -81,13 +81,12 @@ class BitcoinNodeConnection {
 
   _buildBlockResponse (block, height) {
     const runTxs = block.txs.filter(tx => this._isRunTx(tx.toBuffer().toString('hex')))
-    const response = {
+    return {
       height: height,
       hash: block.hash,
       txids: runTxs.map(tx => tx.hash),
       txhexs: runTxs.map(tx => tx.toBuffer().toString('hex'))
     }
-    return response
   }
 
   _parseBlock (rpcResponse, requestedHeight) {

@@ -22,7 +22,7 @@ class BitcoinRpc {
   /**
    * Creates an instance to connect with a given rpc url.
    *
-   * @param {string} url full connection url, with credentials, port, etc.
+   * @param {string} baseUrl full connection url, with credentials, port, etc.
    */
   constructor (baseUrl) {
     this.baseUrl = baseUrl
@@ -30,6 +30,7 @@ class BitcoinRpc {
 
   /**
    * @param {String} txid
+   * @param {boolean} verbose
    */
   async getRawTransaction (txid, verbose = true) {
     return this._rpcCall('getrawtransaction', [txid, verbose])
@@ -41,6 +42,7 @@ class BitcoinRpc {
 
   /**
    * @param {Number} targetHeight block height. must be positive int.
+   * @param {boolean} verbose
    * @returns object with needed data. txs are bsv transactions
    */
   async getBlockByHeight (targetHeight, verbose = false) {

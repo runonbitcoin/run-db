@@ -625,7 +625,7 @@ class KnexDatasource {
     const row = await this.knex(CRAWL.NAME)
       .where(CRAWL.name, CRAWL_HEIGHT)
       .first([CRAWL.value])
-    return row && parseInt(row.value)
+    return row ? parseInt(row.value) : 0
   }
 
   async getCrawlHash () {
