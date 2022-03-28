@@ -10,13 +10,14 @@ const { def, get } = require('bdd-lazy-var/getter')
 const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const Executor = require('../src/execution/executor')
 const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const knex = require('knex')
 const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 const Crawler = require('../src/crawler')
+const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api')
+const Run = require('run-sdk')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -84,15 +85,32 @@ describe('Crawler', () => {
   })
 
   def('api', () => {
-    return {}
+    return new TestBlockchainApi()
   })
 
   def('crawler', () => {
-    return new Crawler(indexer, api, logger)
+    return new Crawler(get.indexer, get.api, logger)
   })
 
-  let indexer
-  let blobs
+  def('run', () => new Run({ network: 'mock', cache: new Map() }))
+
+  def('someRunTx', async () => {
+    class Counter extends Run.Jig {}
+    get.run.deploy(Counter)
+    await get.run.sync()
+    const txid = Counter.location.split('_')[0]
+    const hex = await get.run.blockchain.fetch(txid)
+    return { txid, hex, buff: Buffer.from(hex, 'hex') }
+  })
+
+  def('childRunTx', async () => {
+    const [Counter] = get.run.inventory.code.filter(c => c.name === 'Counter')
+    const instance = new Counter()
+    await instance.sync()
+    const txid = instance.location.split('_')[0]
+    const hex = await get.run.blockchain.fetch(txid)
+    return { txid, hex, buff: Buffer.from(hex, 'hex') }
+  })
 
   beforeEach(async () => {
     await get.ds.setUp()
@@ -107,8 +125,49 @@ describe('Crawler', () => {
     await get.blobs.knex.destroy()
   })
 
-  it('works', () => {
-    expect(1).to.eql(1)
+  it('indexes a tx that arrives from the mempool', async () => {
+    // const run = new Run({ network: 'mock', cache: new Map() })
+    // class Counter extends Run.Jig {}
+    // run.deploy(Counter)
+    // await run.sync()
+    // const txid = Counter.location.split('_')[0]
+    // const hex = await run.blockchain.fetch(txid)
+    const { txid, buff } = await get.someRunTx
+    await get.indexer.trust(txid)
+
+    await get.crawler.start()
+
+    get.api.newMempoolTx(txid, buff)
+    await get.api.waitForall()
+    const txWasIndexed = await get.ds.txIsIndexed(txid)
+    expect(txWasIndexed).to.eql(true)
+  })
+
+  it('indexes transactions that arrive from a new block', async () => {
+    const { txid: txid1, buff: buff1 } = await get.someRunTx
+    const { txid: txid2, buff: buff2 } = await get.childRunTx
+
+    await get.indexer.trust(txid1)
+    get.api.newMempoolTx(txid1, buff1)
+    get.api.newMempoolTx(txid1, buff2)
+
+    await get.crawler.start()
+    get.api.closeBlock('blockhash1')
+    await get.api.waitForall()
+    const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
+    const tx2WasIndexed = await get.ds.txIsIndexed(txid2)
+    expect(tx1WasIndexed).to.eql(true)
+    expect(tx2WasIndexed).to.eql(true)
+  })
+
+  describe('#start', async () => {
+    it('when the known tip is behind the real tip it resquests missing blocks', () => {
+      get.crawler.setTip('firstEmpty')
+      get.api.closeBlock('firstEmpty')
+      get.api.closeBlock('secondEmpty')
+      get.api.closeBlock('thirdEmpty')
+      get.api.closeBlock('fourthEmpty')
+    })
   })
 
   it.skip('add txids', async () => {

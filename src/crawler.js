@@ -31,7 +31,9 @@ class Crawler {
     // this.onExpireMempoolTransactions = null
   }
 
-  async start (height, hash) {
+  async start (_height, _hash) {
+    await this.api.onMempoolTx(this._receiveTransaction.bind(this))
+    await this.api.onNewBlock(this._receiveBlock.bind(this))
     // this.logger.debug('Starting crawler')
     //
     // if (this.started) return
@@ -42,6 +44,16 @@ class Crawler {
     //
     // this._pollForNewBlocks().catch(console.error)
     // this._expireMempoolTransactions().catch(console.error)
+  }
+
+  async _receiveTransaction (rawTx, blockHeight = null) {
+    await this.indexer.indexTransaction(rawTx, blockHeight)
+  }
+
+  async _receiveBlock (blockHeight, blockHash) {
+    await this.api.iterateBlock(blockHash, async (rawTx) => {
+      await this._receiveTransaction(rawTx, blockHeight)
+    })
   }
 
   stop () {

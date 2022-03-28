@@ -4,17 +4,17 @@
  * Entry point
  */
 
-const BitcoinNodeConnection = require('./bitcoin-node-connection')
-const BitcoinRpc = require('./bitcoin-rpc')
-const BitcoinZmq = require('./bitcoin-zmq')
+const BitcoinNodeConnection = require('./blockchain-api/bitcoin-node-connection')
+const BitcoinRpc = require('./blockchain-api/bitcoin-rpc')
+const BitcoinZmq = require('./blockchain-api/bitcoin-zmq')
 const Bus = require('./bus')
 const Crawler = require('./crawler')
 const Database = require('./database')
 const Downloader = require('./downloader')
 const Indexer = require('./indexer')
-const MatterCloud = require('./mattercloud')
-const Planaria = require('./planaria')
-const RunConnectFetcher = require('./run-connect')
+const MatterCloud = require('./blockchain-api/mattercloud')
+const Planaria = require('./blockchain-api/planaria')
+const RunConnectFetcher = require('./blockchain-api/run-connect')
 const config = require('./config')
 const dataSources = require('./data-sources')
 const execution = require('./execution')

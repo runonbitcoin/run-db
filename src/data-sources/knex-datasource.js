@@ -152,7 +152,7 @@ class KnexDatasource {
       .where(TX.txid, txid)
       .first(TX.indexed)
 
-    return result && result.indexed
+    return !!(result && result.indexed)
   }
 
   async hasFailedDep (txid) {
