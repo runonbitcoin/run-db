@@ -4,7 +4,6 @@
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
 
-const Database = require('./database')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
@@ -44,6 +43,11 @@ class Indexer {
     for (const txid of trusted) {
       await this.executeIfPossible(txid)
     }
+  }
+
+  async indexTxid (txid, blockHeight = null) {
+    const txBuff = await this.blobs.pullTx(txid)
+    return this.indexTransaction(txBuff, blockHeight)
   }
 
   async indexTransaction (txBuf, blockHeight = null) {
@@ -262,47 +266,6 @@ class Indexer {
         await ds.addDep(deptxid, txid)
       }
     })
-  }
-
-  async _onCrawlError (e) {
-    this.logger.error(`Crawl error: ${e.toString()}`)
-  }
-
-  async _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
-    this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
-    await this.database.addBlock(txids, txhexs, height, hash, time)
-    if (this.onBlock) await this.onBlock(height)
-  }
-
-  async _onRewindBlocks (newHeight) {
-    this.logger.info(`Rewinding to block ${newHeight}`)
-
-    const txids = await this.database.getTransactionsAboveHeight(newHeight)
-    // Put all transactions back into the mempool. This is better than deleting them, because
-    // when we assume they will just go into a different block, we don't need to re-execute.
-    // If they don't make it into a block, then they will be expired in time.
-    for (const txid of txids) {
-      await this.database.unconfirmTransaction(txid)
-    }
-
-    await this.database.setHeight(newHeight)
-    await this.ds.nullCrawlHash(null)
-
-    if (this.onReorg) this.onReorg(newHeight)
-  }
-
-  async _onMempoolTransaction (txid, hex) {
-    await this.database.addTransaction(txid, hex, Database.HEIGHT_MEMPOOL, null)
-  }
-
-  async _onExpireMempoolTransactions () {
-    const expirationTime = Math.round(Date.now() / 1000) - this.mempoolExpiration
-
-    const expired = await this.database.getMempoolTransactionsBeforeTime(expirationTime)
-    const deleted = new Set()
-    for (const txid of expired) {
-      await this.database.deleteTransaction(txid, deleted)
-    }
   }
 }
 

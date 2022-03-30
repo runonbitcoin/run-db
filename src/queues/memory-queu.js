@@ -9,7 +9,7 @@ class MemoryQueue extends EventQueue {
     this._onEmpty = () => {}
   }
 
-  publish (event) {
+  async publish (event) {
     this.pending.push(event)
     this.current.then(() => {
       return Promise.all(this.subscriptions.map(async s => s(event)))
@@ -21,7 +21,7 @@ class MemoryQueue extends EventQueue {
     })
   }
 
-  subscribe (fn) {
+  async subscribe (fn) {
     this.subscriptions.push(fn)
   }
 
