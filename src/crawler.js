@@ -14,21 +14,6 @@ class Crawler {
     this.api = api
     this.logger = logger
     this.ds = ds
-    // this.height = null
-    // this.hash = null
-    // this.pollForNewBlocksInterval = 10000
-    // this.pollForNewBlocksTimerId = null
-    // this.expireMempoolTransactionsInterval = 60000
-    // this.expireMempoolTransactionsTimerId = null
-    // this.rewindCount = 10
-    // this.started = false
-    // this.listeningForMempool = false
-    //
-    // this.onCrawlError = null
-    // this.onCrawlBlockTransactions = null
-    // this.onRewindBlocks = null
-    // this.onMempoolTransaction = null
-    // this.onExpireMempoolTransactions = null
   }
 
   async start (_height, _hash) {
@@ -38,11 +23,11 @@ class Crawler {
     while (knownHeight < realTip.height) {
       knownHeight++
       const { height, hash } = await this.api.getBlockDataByHeight(knownHeight)
-      await this._receiveBlock(height, hash)
+      await this.receiveBlock(height, hash)
     }
 
     await this.api.onMempoolTx(this._receiveTransaction.bind(this))
-    await this.api.onNewBlock(this._receiveBlock.bind(this))
+    await this.api.onNewBlock(this.receiveBlock.bind(this))
     // this.logger.debug('Starting crawler')
     //
     // if (this.started) return
@@ -59,10 +44,27 @@ class Crawler {
     await this.indexer.indexTransaction(rawTx, blockHeight)
   }
 
-  async _receiveBlock (blockHeight, blockHash) {
-    await this.api.iterateBlock(blockHash, async (rawTx) => {
-      await this._receiveTransaction(rawTx, blockHeight)
-    })
+  async knownHeight () {
+    if (!this._knownHeight) {
+      this._knownHeight = await this.ds.getCrawlHeight()
+    }
+    return this._knownHeight
+  }
+
+  async receiveBlock (blockHeight, blockHash) {
+    let currentHeight = await this.knownHeight()
+    while (currentHeight < blockHeight) {
+      const currentHash = blockHeight === currentHeight
+        ? blockHash
+        : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
+
+      await this.api.iterateBlock(currentHash, async (rawTx) => {
+        await this._receiveTransaction(rawTx, blockHeight)
+      })
+      currentHeight++
+    }
+    this._knownHeight = currentHeight
+
     await this.ds.setCrawlHash(blockHash)
     await this.ds.setCrawlHeight(blockHeight)
   }

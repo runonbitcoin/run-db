@@ -147,7 +147,7 @@ describe('Crawler', () => {
     expect(txWasIndexed).to.eql(true)
   })
 
-  describe('when indexinga block', () => {
+  describe('when indexing a block', () => {
     beforeEach(async () => {
       const { txid: txid1, buff: buff1 } = await get.someRunTx
       const { txid: txid2, buff: buff2 } = await get.childRunTx
@@ -155,13 +155,12 @@ describe('Crawler', () => {
       await get.indexer.trust(txid1)
       get.api.newMempoolTx(txid1, buff1)
       get.api.newMempoolTx(txid2, buff2)
-
-      await get.crawler.start()
-      get.api.closeBlock('blockhash1')
-      await get.api.waitForall()
     })
 
     it('indexes the transactions in the block', async () => {
+      await get.crawler.start()
+      get.api.closeBlock('blockhash1')
+      await get.api.waitForall()
       const { txid: txid1 } = await get.someRunTx
       const { txid: txid2 } = await get.childRunTx
       const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
@@ -171,10 +170,44 @@ describe('Crawler', () => {
     })
 
     it('increases the crawl', async () => {
+      await get.crawler.start()
+      get.api.closeBlock('blockhash1')
+      await get.api.waitForall()
+
       const height = await get.ds.getCrawlHeight()
       const hash = await get.ds.getCrawlHash()
       expect(height).to.eql(1)
       expect(hash).to.eql('blockhash1')
+    })
+
+    describe('when the are missing blocks between the latest known and the new block', function () {
+      // beforeEach(async () => {
+      //
+      // })
+
+      it('searchs for the middle blocks', async () => {
+        await get.crawler.start()
+        get.api.closeBlock('blockhash1')
+        const { txid, buff } = await get.anotherRunTx
+        const old1 = get.api._onNewBlock
+        const old2 = get.api._onNewMempoolTx
+        await get.indexer.trust(txid)
+        get.api.onNewBlock(async () => {})
+        get.api.onMempoolTx(async () => {})
+        get.api.closeBlock('empty1')
+        get.api.newMempoolTx(txid, buff)
+        await get.api.waitForall()
+        get.api.closeBlock('nonempty')
+
+        // get.api.closeBlock('empty2')
+        get.api.onNewBlock(old1)
+        get.api.onMempoolTx(old2)
+        get.api.closeBlock('empty2')
+        await get.api.waitForall()
+
+        const tx1WasIndexed = await get.ds.txIsIndexed(txid)
+        expect(tx1WasIndexed).to.eql(true)
+      })
     })
   })
 
