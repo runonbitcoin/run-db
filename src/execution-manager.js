@@ -16,9 +16,9 @@ class ExecutionManager {
   }
 
   async setUp () {
-    this.execQueue.subscribe(async ({ txid }) => {
+    await this.execQueue.subscribe(async ({ txid }) => {
       const result = await this.indexer.indexTxid(txid)
-      this._handleIndexResult(result)
+      await this._handleIndexResult(result)
     })
   }
 
