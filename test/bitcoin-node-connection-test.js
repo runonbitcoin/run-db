@@ -156,7 +156,7 @@ const buildBlock = (transactions, prevHash = Buffer.alloc(32).fill('1'), hash) =
   })
 }
 
-describe('BitcoinNodeConnection', () => {
+describe.skip('BitcoinNodeConnection', () => {
   it('initializes', () => {
     const bitcoinZmq = new TestZmq()
     const bitcoinRpc = new TestBitcoinRpc()

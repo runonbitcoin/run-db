@@ -1,4 +1,7 @@
 class BlockchainApi {
+  async setUp () {}
+  async tearDown () {}
+
   async fetch (_txid, _ifNone) {
     throw new Error('subclass responsibility')
   }

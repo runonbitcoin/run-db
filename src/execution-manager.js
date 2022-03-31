@@ -11,13 +11,13 @@ class ExecutionManager {
    * @param {number} blockHeight - if tx confirmed in which height.
    */
   async indexTransaction (txBuff, blockHeight = null) {
-    const result = await this.indexer.indexTransaction(txBuff, blockHeight)
-    await this._handleIndexResult(result)
+    const txid = await this.indexer.blobs.pushTx(null, txBuff)
+    this.execQueue.publish({ txid, blockHeight })
   }
 
   async setUp () {
-    await this.execQueue.subscribe(async ({ txid }) => {
-      const result = await this.indexer.indexTxid(txid)
+    await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
+      const result = await this.indexer.indexTxid(txid, blockHeight)
       await this._handleIndexResult(result)
     })
   }
@@ -26,7 +26,14 @@ class ExecutionManager {
     const enableProms = result.enables.map(async txid => {
       return this.execQueue.publish({ txid })
     })
-    const depProms = result.missingDeps.map(async txid => {
+    const depsToExecute = await Promise.all(result.missingDeps.map(async txid => {
+      if (await this.indexer.trustList.checkExecutability(txid, this.indexer.ds)) {
+        return txid
+      } else {
+        return null
+      }
+    })).then(list => list.filter(a => a))
+    const depProms = depsToExecute.map(async txid => {
       return this.execQueue.publish({ txid })
     })
     await Promise.all([...enableProms, ...depProms])

@@ -68,7 +68,7 @@ class Executor {
   }
 
   async execute (txid, trustList) {
-    if (this.executing.has(txid)) return
+    if (this.executing.has(txid)) return new ExecutionResult(false, [], null)
 
     this.logger.debug('Enqueueing', txid, 'for execution')
 
@@ -89,7 +89,7 @@ class Executor {
         if (this.onMissingDeps) await this.onMissingDeps(txid, Array.from(worker.missingDeps))
         return new ExecutionResult(false, Array.from(worker.missingDeps), null)
       } else {
-        return new ExecutionResult(false, [], null)
+        return new ExecutionResult(false, [], null, e)
       }
     } finally {
       this.pool.release(worker)
@@ -121,4 +121,4 @@ class Executor {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Executor
+module.exports = { Executor }

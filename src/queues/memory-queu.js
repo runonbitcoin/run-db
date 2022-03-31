@@ -1,4 +1,5 @@
 const { EventQueue } = require('./exec-queue')
+const _ = require('lodash')
 
 class MemoryQueue extends EventQueue {
   constructor () {
@@ -14,7 +15,7 @@ class MemoryQueue extends EventQueue {
     this.current.then(() => {
       return Promise.all(this.subscriptions.map(async s => s(event)))
     }).then(() => {
-      this.pending = this.pending.filter(e => e !== event)
+      _.remove(this.pending, e => e === event)
       if (this.pending.length === 0) {
         this._onEmpty()
       }

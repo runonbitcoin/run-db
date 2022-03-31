@@ -14,6 +14,17 @@ class KnexBlobStorage {
     this.filter = statateTransformation
   }
 
+  async setUp () {
+    await this.knex.migrate.latest()
+  }
+
+  async tearDown () {
+    if (this.knex) {
+      await this.knex.destroy()
+      this.knex = null
+    }
+  }
+
   async pushJigState (location, stateObject) {
     if (!location) {
       throw new Error('missing location')

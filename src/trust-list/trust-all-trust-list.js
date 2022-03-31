@@ -14,6 +14,10 @@ class TrustAllTrustList {
   async untrust (_txid, _ds) {
     // do nothing
   }
+
+  async missingTrustFor (_txid, _ds, _includeRoot) {
+    return []
+  }
 }
 
 module.exports = { TrustAllTrustList }

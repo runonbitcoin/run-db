@@ -1,9 +1,9 @@
 module.exports = {
   client: 'pg',
-  connection: process.env.DB_CONNECTION_URI || {
+  connection: process.env.BLOB_DB_CONNECTION_URI || {
     user: 'someuser',
     password: 'sosecret',
-    database: 'rundb_regtest'
+    database: 'blobs_regtest'
   },
   migrations: {
     tableName: 'migrations',

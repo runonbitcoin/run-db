@@ -40,13 +40,32 @@ class BitcoinRpc {
     return this._rpcCall('getblockcount', [])
   }
 
+  async getBlockHash (height) {
+    return this._rpcCall('getblockhash', [height])
+  }
+
   /**
    * @param {Number} targetHeight block height. must be positive int.
-   * @param {boolean} verbose
    * @returns object with needed data. txs are bsv transactions
    */
-  async getBlockByHeight (targetHeight, verbose = false) {
-    return this._rpcCall('getblockbyheight', [targetHeight, verbose])
+  async getBlockDataByHeight (targetHeight) {
+    return this._rpcCall('getblockbyheight', [targetHeight, true])
+  }
+
+  /**
+   * @param {String} targetHash block hash.
+   * @returns object with needed data. txs are bsv transactions
+   */
+  async getBlockDataByHash (targetHash) {
+    return this._rpcCall('getblock', [targetHash, true])
+  }
+
+  /**
+   * @param {String} targetHash block hash.
+   * @returns object with needed data. txs are bsv transactions
+   */
+  async getBlockHexByHash (targetHash) {
+    return this._rpcCall('getblock', [targetHash, false])
   }
 
   async _rpcCall (method, params) {

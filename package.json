@@ -31,7 +31,7 @@
     "bump": "npm version patch && git push --follow-tags && npm publish",
     "migrate": "knex migrate:up",
     "migrate:down": "knex migrate:down",
-    "blobs-migrate": "knex -c blobs-knexfile.js migrate:up"
+    "blobs-migrate": "knex --knexfile blobs-knexfile.js migrate:up"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",

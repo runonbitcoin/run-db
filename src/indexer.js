@@ -15,26 +15,17 @@ const { IndexerResult } = require('./model/indexer-result')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (database, ds, blobs, trustList, executor, network, logger) {
-    this.onDownload = null
-    this.onIndex = null
+  constructor (_database, ds, blobs, trustList, executor, network, logger) {
     this.onFailToIndex = null
-    this.onBlock = null
-    this.onReorg = null
     this.pendingRetries = new Map()
 
     this.logger = logger
-    this.database = database
     this.ds = ds
     this.blobs = blobs
     this.trustList = trustList
     this.network = network
 
     this.executor = executor
-
-    // this.executor.onIndexed = this._onIndexed.bind(this)
-    // this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
-    // this.executor.onMissingDeps = this._onMissingDeps.bind(this)
   }
 
   async trust (txid) {
@@ -59,12 +50,20 @@ class Indexer {
     await this.ds.addNewTx(txid, time, blockHeight)
 
     const indexed = await this.ds.txIsIndexed(txid)
-    if (indexed) return
+    if (indexed) return new IndexerResult(true, [], [], [])
 
     const parsed = await this.parseTx(txBuf)
     await this.storeTx(parsed)
 
     if (parsed.executable) {
+      if (this.executor.executing.has(parsed.txid)) {
+        return new IndexerResult(
+          true,
+          [],
+          [],
+          []
+        )
+      }
       const executed = await this.executeIfPossible(parsed.txid)
       if (executed) {
         return new IndexerResult(
@@ -75,9 +74,10 @@ class Indexer {
         )
       }
     }
+    const missingDeps = await this.ds.nonExecutedDepsFor(parsed.txid)
     return new IndexerResult(
       false,
-      await this.ds.nonExecutedDepsFor(parsed.txid),
+      missingDeps,
       await this.trustList.missingTrustFor(txid, this.ds, parsed.hasCode),
       []
     )
@@ -246,7 +246,7 @@ class Indexer {
     } else {
       this.pendingRetries.delete(txid)
       this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-      await this.database.setTransactionExecutionFailed(txid)
+      await this._setTransactionExecutionFailed(txid)
     }
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
@@ -256,6 +256,30 @@ class Indexer {
       .catch((e) =>
         console.warn(`error executing tx ${txid}: ${e.message}`)
       )
+  }
+
+  async _setTransactionExecutionFailed (txid, ds = null) {
+    ds = ds || this.ds
+    await ds.setExecutableForTx(txid, 0)
+    await ds.setExecutedForTx(txid, 1)
+    await ds.setIndexedForTx(txid, 0)
+    await ds.removeTxFromExecuting(txid)
+
+    // We try executing downstream transactions if this was marked executable but it wasn't.
+    // This allows an admin to manually change executable status in the database.
+
+    // let executable = false
+    // try {
+    //   const rawTx = await this.getTransactionHex(txid)
+    //   Run.util.metadata(rawTx)
+    //   executable = true
+    // } catch (e) { }
+
+    // if (!executable) {
+    const downstream = await ds.searchDownstreamForTxid(txid)
+    for (const downtxid of downstream) {
+      await this._setTransactionExecutionFailed(downtxid, ds)
+    }
   }
 
   async _onMissingDeps (txid, deptxids) {

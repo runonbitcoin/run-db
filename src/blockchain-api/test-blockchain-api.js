@@ -50,6 +50,8 @@ class TestBlockchainApi {
     this._onNewBlock = fn
   }
 
+  // test
+
   newMempoolTx (txid, rawTx) {
     this.mempool.push(rawTx)
     this.txs.set(txid, rawTx)

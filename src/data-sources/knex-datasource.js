@@ -18,6 +18,7 @@ class KnexDatasource {
   prepareStatements () {}
 
   async setUp () {
+    await this.knex.migrate.latest()
   }
 
   async tearDown () {
@@ -37,7 +38,9 @@ class KnexDatasource {
       newDs.insideTx = true
       try {
         await fn(newDs)
+        await trx.commit()
       } catch (e) {
+        trx.rollback()
         console.error(e)
         throw e
       }
@@ -96,7 +99,7 @@ class KnexDatasource {
     }).onConflict(TX.txid)
 
     query = height
-      ? query.merge([TX.height])
+      ? query.merge(TX.height)
       : query.ignore()
 
     await query
@@ -256,14 +259,14 @@ class KnexDatasource {
       .where(`${mainTx}.${TX.txid}`, txid)
       .where(`${mainTx}.${TX.executable}`, true)
       .where(`${mainTx}.${TX.executed}`, false)
-      .whereNull(`${BAN.NAME}`)
+      .whereNull(`${BAN.NAME}.${BAN.txid}`)
       .whereNotExists(function () {
         const depTx = 'depTx'
-        this.select(TX.txid).from(knex.ref(TX.NAME).as(depTx))
-          .join(DEPS.NAME, DEPS.up, `${depTx}.${TX.txid}`)
+        this.select(TX.txid).from(DEPS.NAME)
+          .leftJoin(knex.ref(TX.NAME).as(depTx), DEPS.up, `${depTx}.${TX.txid}`)
           .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
           .where(qb => {
-            qb.whereNull(`${depTx}.${TX.bytes}`).orWhere(qb => {
+            qb.whereNull(`${depTx}.${TX.txid}`).orWhere(qb => {
               qb.where(`${depTx}.${TX.executable}`, true)
               qb.where(`${depTx}.${TX.executed}`, false)
             })
