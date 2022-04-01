@@ -56,8 +56,17 @@ services:
       - db-data:/var/lib/postgresql/data
       - ./dev/create-dbs.sh:/docker-entrypoint-initdb.d/create-dbs.sh
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+#      - ./dev/rabbitmq.conf:/etc/rabbitmq/conf.d/10-default-guest-user.conf
+    ports:
+      - 5674:5672
+      - 15674:15672
+
 volumes:
   bitcoind-data:
-#  rabbitmq-data:
+  rabbitmq-data:
   run-db-data:
   db-data:

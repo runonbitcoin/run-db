@@ -4,12 +4,14 @@
  * Entry point
  */
 
+const ampq = require('amqplib')
 const Indexer = require('../indexer')
 const {
   NETWORK,
   WORKERS,
   ZMQ_URL,
-  RPC_URL
+  RPC_URL,
+  RABBITMQ_URI
 } = require('../config')
 
 const { KnexDatasource } = require('../data-sources/knex-datasource')
@@ -19,7 +21,7 @@ const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
 const { TrustAllTrustList } = require('../trust-list')
 const { Executor } = require('../execution')
 const { ExecutionManager } = require('../execution-manager')
-const { MemoryQueue } = require('../queues/memory-queu')
+const { RabbitQueue } = require('../queues/rabbit-queue')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -60,16 +62,18 @@ const ds = new KnexDatasource(knexInstance)
 const trustList = new TrustAllTrustList()
 const executor = new Executor(network, WORKERS, blobs, ds, logger, {})
 const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
-const execQueue = new MemoryQueue()
-const indexManager = new ExecutionManager(indexer, execQueue)
-const crawler = new Crawler(indexManager, api, ds, logger)
 
 // ------------------------------------------------------------------------------------------------
 // main
 // ------------------------------------------------------------------------------------------------
 
 async function main () {
+  const rabbitConnection = await ampq.connect(RABBITMQ_URI)
+  const rabbitChannel = await rabbitConnection.createChannel()
+  const execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   await execQueue.setUp()
+  const indexManager = new ExecutionManager(indexer, execQueue)
+  const crawler = new Crawler(indexManager, api, ds, logger)
   await ds.setUp()
   await blobs.setUp()
   await indexManager.setUp()

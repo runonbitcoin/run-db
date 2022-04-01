@@ -35,6 +35,7 @@ const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
 const ZMQ_URL = process.env.ZMQ_URL || null
 let DATA_API_STATE_ROOT = process.env.DATA_API_STATE_ROOT || null
 let DATA_API_TX_ROOT = process.env.DATA_API_TX_ROOT || null
+const RABBITMQ_URI = process.env.RABBITMQ_URI
 
 if (!DATA_API_TX_ROOT && !DATA_API_STATE_ROOT && DATA_API_ROOT) {
   DATA_API_TX_ROOT = `${DATA_API_ROOT}/tx`
@@ -139,5 +140,6 @@ module.exports = {
   TRUST_LIST,
   WORKERS,
   WORKER_CACHE_TYPE,
-  ZMQ_URL
+  ZMQ_URL,
+  RABBITMQ_URI
 }
