@@ -10,7 +10,12 @@ class ExecutionManager {
    * @param {Buffer} txBuff - tx to be indexed
    * @param {number} blockHeight - if tx confirmed in which height.
    */
-  async indexTransaction (txBuff, blockHeight = null) {
+  async indexTxNow (txBuff, blockHeight = null) {
+    const result = await this.indexer.indexTransaction(txBuff, blockHeight)
+    await this._handleIndexResult(result)
+  }
+
+  async indexTxLater (txBuff, blockHeight = null) {
     const txid = await this.indexer.blobs.pushTx(null, txBuff)
     this.execQueue.publish({ txid, blockHeight })
   }

@@ -10,7 +10,6 @@ const bsv = require('bsv')
 const Indexer = require('../src/indexer')
 const Run = require('run-sdk')
 // const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { Executor } = require('../src/execution/executor')
 const knex = require('knex')
@@ -32,20 +31,8 @@ const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {
 // ------------------------------------------------------------------------------------------------
 
 describe('Indexer', () => {
-  let knexInstance
-  let blobsKnex
-  let ds
-  let trustList
-  let database
-  let blobStorage
-
-  def('filter', () => ({
-    serialize: JSON.stringify,
-    deserialize: JSON.parse
-  }))
-
-  beforeEach(async () => {
-    knexInstance = knex({
+  def('ds', () => {
+    const knexInstance = knex({
       client: 'sqlite3',
       connection: {
         filename: 'file:memDbMain?mode=memory&cache=shared',
@@ -58,7 +45,23 @@ describe('Indexer', () => {
       useNullAsDefault: true
     })
 
-    blobsKnex = knex({
+    return new KnexDatasource(knexInstance, logger, false)
+  })
+
+  let trustList
+  let blobStorage
+
+  def('filter', () => ({
+    serialize: JSON.stringify,
+    deserialize: JSON.parse
+  }))
+
+  def('trustList', () => {
+    return new DbTrustList()
+  })
+
+  def('blobs', () => {
+    const blobsKnex = knex({
       client: 'sqlite3',
       connection: {
         filename: 'file:memDbBlobs?mode=memory&cache=shared',
@@ -70,23 +73,27 @@ describe('Indexer', () => {
       },
       useNullAsDefault: true
     })
-    await knexInstance.migrate.latest()
-    await blobsKnex.migrate.latest()
 
-    ds = new KnexDatasource(knexInstance, logger, false)
-    trustList = new DbTrustList(ds)
-    database = new Database(ds, trustList, logger)
-    blobStorage = new KnexBlobStorage(blobsKnex, get.filter)
+    return new KnexBlobStorage(blobsKnex, {
+      serialize: JSON.stringify,
+      deserialize: JSON.parse
+    })
+  })
 
-    await database.open()
+  beforeEach(async () => {
+    trustList = get.trustList
+    blobStorage = get.blobs
+    await get.ds.setUp()
+    await get.blobs.setUp()
   })
 
   afterEach(async () => {
-    database.close()
-    blobsKnex.destroy()
+    await get.ds.tearDown()
+    await get.blobs.tearDown()
   })
 
   it.skip('mark a transaction as failed when a dependency already failed', async () => {
+    const database = null
     const run = new Run({ network: 'mock' })
 
     class Counter extends Run.Jig {
@@ -187,11 +194,11 @@ describe('Indexer', () => {
     })
 
     def('executor', () => {
-      return new Executor('test', 1, blobStorage, ds, logger)
+      return new Executor('test', 1, blobStorage, get.ds, logger)
     })
 
     def('indexer', () =>
-      new Indexer(database, ds, blobStorage, trustList, get.executor, 'test', logger)
+      new Indexer(null, get.ds, blobStorage, trustList, get.executor, 'test', logger)
     )
 
     beforeEach(async () => {
@@ -226,7 +233,7 @@ describe('Indexer', () => {
 
         await indexer.indexTransaction(await get.txBuf, null, null)
 
-        const counterState = await ds.getJigMetadata(Counter.location)
+        const counterState = await get.ds.getJigMetadata(Counter.location)
         expect(counterState.scripthash).not.to.eql(null)
         expect(counterState.scripthash).not.to.eql(undefined)
       })
@@ -261,8 +268,8 @@ describe('Indexer', () => {
         await get.indexer.trust(txid1)
         await get.indexer.indexTransaction(txBuf1)
 
-        await blobsKnex('jig_states').where('location', Counter.location).del()
-        await blobsKnex('raw_transactions').where('txid', Counter.location.split('_')[0]).del()
+        await get.blobs.knex('jig_states').where('location', Counter.location).del()
+        await get.blobs.knex('raw_transactions').where('txid', Counter.location.split('_')[0]).del()
 
         const result = await get.indexer.indexTransaction(txBuf2)
         expect(result.executed).to.eql(false)
@@ -342,7 +349,7 @@ describe('Indexer', () => {
         await get.indexer.indexTransaction(buff2)
         await get.indexer.indexTransaction(buff3)
 
-        const all = await ds.getAllUnspent()
+        const all = await get.ds.getAllUnspent()
         expect(all).to.eql([CanBeDeleted.location]) // deleted is not in the list, only class
       })
     })
@@ -425,7 +432,7 @@ describe('Indexer', () => {
 
       it('it marks the tx as indexed', async () => {
         await get.indexer.indexTransaction(await get.txBuf, null, null)
-        const indexed = await ds.txIsIndexed(get.tx.hash)
+        const indexed = await get.ds.txIsIndexed(get.tx.hash)
         expect(!!indexed).to.eq(true)
       })
     })

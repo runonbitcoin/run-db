@@ -4,7 +4,7 @@ const knex = require('knex')
 const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
-const Executor = require('../src/execution/executor')
+const { Executor } = require('../src/execution/executor')
 const Indexer = require('../src/indexer')
 const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api')
 const Run = require('run-sdk')
@@ -105,25 +105,17 @@ describe('ExecutionManager', () => {
     const hex = await get.run.blockchain.fetch(txid)
     return { txid, hex, buff: Buffer.from(hex, 'hex') }
   })
-  //
-  // def('anotherRunTx', async () => {
-  //   class AnotherClass extends Run.Jig {}
-  //   get.run.deploy(AnotherClass)
-  //   await get.run.sync()
-  //   const txid = AnotherClass.location.split('_')[0]
-  //   const hex = await get.run.blockchain.fetch(txid)
-  //   return { txid, hex, buff: Buffer.from(hex, 'hex') }
-  // })
 
+  let emptyQueue
   beforeEach(async () => {
     const tx = await get.someRunTx
     await get.indexer.trust(tx.txid)
+    emptyQueue = new Promise(resolve => get.execQueue.onEmpty(resolve))
   })
 
   it('executes a single tx', async () => {
     const tx = await get.someRunTx
-    await get.manager.indexTransaction(tx.buff)
-
+    await get.manager.indexTxNow(tx.buff)
     expect(await get.ds.txIsIndexed(tx.txid)).to.eql(true)
   })
 
@@ -136,8 +128,8 @@ describe('ExecutionManager', () => {
 
     it('executes the tx', async () => {
       const tx = await get.someRunTx
-      await get.manager.indexTransaction(tx.buff)
-
+      await get.manager.indexTxNow(tx.buff)
+      await emptyQueue
       expect(await get.ds.txIsIndexed(tx.txid)).to.eql(true)
     })
 
@@ -149,9 +141,8 @@ describe('ExecutionManager', () => {
       get.execQueue.subscribe((event) => {
         events.push(event)
       })
-      const emptyQueue = new Promise(resolve => get.execQueue.onEmpty(resolve))
 
-      await get.manager.indexTransaction(tx.buff)
+      await get.manager.indexTxNow(tx.buff)
 
       await emptyQueue
       expect(events).to.have.length(1)
@@ -160,25 +151,15 @@ describe('ExecutionManager', () => {
   })
 
   describe('when the tx was not executed because of missing dep', async () => {
-    // beforeEach(async () => {
-    //   const tx = await get.someRunTx
-    //   await get.blobs.pushTx(tx.txid, tx.buff)
-    // })
-
-    it('queues its found deps', async () => {
-      const parentTx = await get.someRunTx
+    it('does not queue its found deps', async () => {
       const childTx = await get.childRunTx
       const events = []
-      get.execQueue.subscribe((event) => {
-        events.push(event)
+      get.execQueue.subscribe((_event) => {
+        expect.fail('should not queue anything')
       })
 
-      const emptyQueue = new Promise(resolve => get.execQueue.onEmpty(resolve))
-      await get.manager.indexTransaction(childTx.buff)
-      await emptyQueue
-
-      expect(events).to.have.length(1)
-      expect(events[0].txid).to.eql(parentTx.txid)
+      await get.manager.indexTxNow(childTx.buff)
+      expect(events).to.have.length(0)
     })
   })
 })

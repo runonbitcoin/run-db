@@ -46,6 +46,7 @@ class Crawler {
   async receiveBlock (blockHeight, blockHash) {
     let currentHeight = await this.knownHeight()
     while (currentHeight < blockHeight) {
+      currentHeight++
       const currentHash = blockHeight === currentHeight
         ? blockHash
         : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
@@ -53,7 +54,6 @@ class Crawler {
       await this.api.iterateBlock(currentHash, async (rawTx) => {
         await this._receiveTransaction(rawTx, blockHeight)
       })
-      currentHeight++
     }
     this._knownHeight = currentHeight
 
