@@ -15,7 +15,7 @@ exports.up = async (knex) => {
 
   await knex.schema.createTable('jig', t => {
     t.text('location').notNullable().primary()
-    t.jsonb('state').notNullable()
+    t.jsonb('state')
     t.text('class')
     t.text('scripthash')
     t.text('lock')

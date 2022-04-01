@@ -394,7 +394,7 @@ class KnexDatasource {
   async setJigMetadata (location) {
     await this.knex(JIG.NAME)
       .insert({ [JIG.location]: location })
-      .onConflict().ignore()
+      .onConflict(JIG.location).ignore()
   }
 
   async getJigState (location) {
@@ -465,6 +465,12 @@ class KnexDatasource {
     await this.knex(BERRY.NAME)
       .whereLike(BERRY.location, `${txid}%`)
       .del()
+  }
+
+  async getJigMetadata (location) {
+    return await this.knex(JIG.NAME)
+      .where(JIG.location, location)
+      .first()
   }
 
   // unspent

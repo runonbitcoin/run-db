@@ -219,6 +219,7 @@ class Indexer {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           await this.blobs.pushJigState(location, cache[key])
+          await ds.setJigMetadata(location)
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
           await this.blobs.pushJigState(location, cache[key])

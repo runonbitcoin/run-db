@@ -12,7 +12,7 @@ const Run = require('run-sdk')
 // const { DEFAULT_TRUSTLIST } = require('../src/config')
 const Database = require('../src/database')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
-const Executor = require('../src/execution/executor')
+const { Executor } = require('../src/execution/executor')
 const knex = require('knex')
 const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { def, get } = require('bdd-lazy-var/getter')
@@ -218,6 +218,19 @@ describe('Indexer', () => {
         expect(counterState.src).to.eql(Counter.toString().replace('Run.Jig', 'Jig'))
       })
 
+      it('saves jig metadata', async () => {
+        const indexer = get.indexer
+        const Counter = await get.Counter
+
+        await indexer.trust(Counter.location.split('_')[0])
+
+        await indexer.indexTransaction(await get.txBuf, null, null)
+
+        const counterState = await ds.getJigMetadata(Counter.location)
+        expect(counterState.scripthash).not.to.eql(null)
+        expect(counterState.scripthash).not.to.eql(undefined)
+      })
+
       it('returns executed as true', async () => {
         const Counter = await get.Counter
 
@@ -329,7 +342,8 @@ describe('Indexer', () => {
         await get.indexer.indexTransaction(buff2)
         await get.indexer.indexTransaction(buff3)
 
-        expect(await ds.countTotalUnspent()).to.equal(0)
+        const all = await ds.getAllUnspent()
+        expect(all).to.eql([CanBeDeleted.location]) // deleted is not in the list, only class
       })
     })
 
