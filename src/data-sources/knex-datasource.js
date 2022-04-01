@@ -391,10 +391,15 @@ class KnexDatasource {
 
   // jig
 
-  async setJigMetadata (location) {
+  async setJigMetadata (location, klass, lock, scriptHash) {
     await this.knex(JIG.NAME)
-      .insert({ [JIG.location]: location })
-      .onConflict(JIG.location).ignore()
+      .insert({
+        [JIG.location]: location,
+        [JIG.klass]: klass,
+        [JIG.lock]: lock,
+        [JIG.scriptHash]: scriptHash
+      })
+      .onConflict(JIG.location).merge(JIG.klass, JIG.lock, JIG.scriptHash)
   }
 
   async getJigState (location) {

@@ -219,23 +219,19 @@ class Indexer {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)
           await this.blobs.pushJigState(location, cache[key])
-          await ds.setJigMetadata(location)
+          const klass = classes.find(([loc]) => loc === location)
+          const lock = locks.find(([loc]) => loc === location)
+          const scriptHash = scripthashes.find(([loc]) => loc === location)
+          await ds.setJigMetadata(
+            location,
+            klass && klass[1],
+            lock && lock[1],
+            scriptHash && scriptHash[1]
+          )
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
           await this.blobs.pushJigState(location, cache[key])
         }
-      }
-
-      for (const [location, cls] of classes) {
-        await ds.setJigClass(location, cls)
-      }
-
-      for (const [location, lock] of locks) {
-        await ds.setJigLock(location, lock)
-      }
-
-      for (const [location, scripthash] of scripthashes) {
-        await ds.setJigScriptHash(location, scripthash)
       }
     })
   }
