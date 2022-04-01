@@ -26,17 +26,7 @@ class ExecutionManager {
     const enableProms = result.enables.map(async txid => {
       return this.execQueue.publish({ txid })
     })
-    const depsToExecute = await Promise.all(result.missingDeps.map(async txid => {
-      if (await this.indexer.trustList.checkExecutability(txid, this.indexer.ds)) {
-        return txid
-      } else {
-        return null
-      }
-    })).then(list => list.filter(a => a))
-    const depProms = depsToExecute.map(async txid => {
-      return this.execQueue.publish({ txid })
-    })
-    await Promise.all([...enableProms, ...depProms])
+    await Promise.all(enableProms)
   }
 }
 module.exports = { ExecutionManager }
