@@ -344,14 +344,19 @@ describe('Server', () => {
       it('returns the state if the state exists', async () => {
         const { berry } = await get.data
         const server = get.server
+        const location = berry.location.replace(/&hash=[a-fA-F0-9]*/, '')
         const response = await request(server.app)
-        // const new URL()
-        // 4ffaeb403bc4c4e4a601f0b0e4df8026a0f1fa85ba4ce9301a27f004e8bc
-        // c9c7_o1?berry=12af03ee11bb7a82a5bc5142aede23a899c0b086113a4b
-        // b74fe963364a49f1d7&version=5
-          .get(`/berry/${encodeURIComponent(berry.location)}`)
+          .get(`/berry/${encodeURIComponent(location)}`)
           .expect(200)
-        expect(response.body).to.eql({})
+
+        expect(response.body.props).to.have.keys([
+          'nonce',
+          'satoshis',
+          'location',
+          'origin',
+          'size',
+          'owner'
+        ])
       })
     })
 
