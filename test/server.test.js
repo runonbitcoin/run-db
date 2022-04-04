@@ -32,7 +32,7 @@ const fetch = async txid => {
   return { hex: require('./txns.json')[txid] }
 }
 const api = { fetch }
-const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
+// const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
 const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
@@ -359,19 +359,65 @@ describe('Server', () => {
         ])
       })
     })
+  })
 
-    // it('returns state if exists', async () => {
+  // --------------------------------------------------------------------------
+  // get tx
+  // --------------------------------------------------------------------------
+
+  describe('get tx', () => {
+    describe('when the tx is kwnown', () => {
+      beforeEach(async () => {
+        const server = get.server
+        const tx = await get.someRunTx
+
+        await request(server.app)
+          .post('/trust')
+          .set('content-type', 'application/json')
+          .send({ txid: tx.txid, trust: true })
+          .expect(200)
+
+        await request(server.app)
+          .post('/tx')
+          .set('content-type', 'application/octet-stream')
+          .send(tx.buff)
+          .expect(200)
+      })
+
+      it('returns the tx as a buffer', async () => {
+        const tx = await get.someRunTx
+        const response = await request(get.server.app)
+          .get(`/tx/${tx.txid}`)
+          .set('content-type', 'application/octet-stream')
+          .expect(200)
+
+        expect(Buffer.compare(response.body, tx.buff)).to.eql(0)
+      })
+    })
+
+    describe('when the tx was not known from before', function () {
+      it('returns 404', async () => {
+        const tx = await get.someRunTx
+        await request(get.server.app)
+          .get(`/tx/${tx.txid}`)
+          .set('content-type', 'application/octet-stream')
+          .expect(404)
+      })
+    })
+
+    // it('returns rawtx if downloaded', async () => {
     //   const executor = new Executor('main', 1, database, logger)
     //   const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
     //   const server = buildMainServer(database, logger)
     //   await indexer.start()
     //   await server.start()
-    //   await database.addTransaction('bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
-    //   await indexed(indexer, 'bfa5180e601e92af23d80782bf625b102ac110105a392e376fe7607e4e87dc8d')
-    //   const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
-    //   const state = (await axios.get(`http://localhost:${server.port}/berry/${encodeURIComponent(location)}`)).data
-    //   expect(typeof state).to.equal('object')
-    //   expect(state.kind).to.equal('berry')
+    //   const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
+    //   const promise = downloaded(indexer, txid)
+    //   await database.addTransaction(txid)
+    //   await promise
+    //   const rawtx = (await axios.get(`http://localhost:${server.port}/tx/${txid}`)).data
+    //   expect(typeof rawtx).to.equal('string')
+    //   expect(rawtx.length).to.equal(2074)
     //   server.stop()
     //   await indexer.stop()
     // })
@@ -384,78 +430,36 @@ describe('Server', () => {
     //   const server = buildMainServer(database, logger)
     //   await indexer.start()
     //   await server.start()
-    //   const location = '24cde3638a444c8ad397536127833878ffdfe1b04d5595489bd294e50d77105a_o1?berry=2f3492ef5401d887a93ca09820dff952f355431cea306841a70d163e32b2acad&version=5'
-    //   await expect(axios.get(`http://localhost:${server.port}/berry/${location}`)).to.be.rejectedWith(Error)
+    //   const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
+    //   await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
     //   try {
-    //     await axios.get(`http://localhost:${server.port}/berry/${location}`)
+    //     await axios.get(`http://localhost:${server.port}/tx/${txid}`)
     //   } catch (e) {
     //     expect(e.response.status).to.equal(404)
     //   }
     //   server.stop()
     //   await indexer.stop()
     // })
-  })
-
-  // --------------------------------------------------------------------------
-  // get tx
-  // --------------------------------------------------------------------------
-
-  describe.skip('get tx', () => {
-    it('returns rawtx if downloaded', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-      const promise = downloaded(indexer, txid)
-      await database.addTransaction(txid)
-      await promise
-      const rawtx = (await axios.get(`http://localhost:${server.port}/tx/${txid}`)).data
-      expect(typeof rawtx).to.equal('string')
-      expect(rawtx.length).to.equal(2074)
-      server.stop()
-      await indexer.stop()
-    })
 
     // ------------------------------------------------------------------------
 
-    it('returns 404 if missing', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
-      try {
-        await axios.get(`http://localhost:${server.port}/tx/${txid}`)
-      } catch (e) {
-        expect(e.response.status).to.equal(404)
-      }
-      server.stop()
-      await indexer.stop()
-    })
-
-    // ------------------------------------------------------------------------
-
-    it('returns 404 if not downloaded', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const txid = '1111111111111111111111111111111111111111111111111111111111111111'
-      database.addTransaction(txid)
-      await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
-      try {
-        await axios.get(`http://localhost:${server.port}/tx/${txid}`)
-      } catch (e) {
-        expect(e.response.status).to.equal(404)
-      }
-      server.stop()
-      await indexer.stop()
-    })
+    // it('returns 404 if not downloaded', async () => {
+    //   const executor = new Executor('main', 1, database, logger)
+    //   const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
+    //   const server = buildMainServer(database, logger)
+    //   await indexer.start()
+    //   await server.start()
+    //   const txid = '1111111111111111111111111111111111111111111111111111111111111111'
+    //   database.addTransaction(txid)
+    //   await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
+    //   try {
+    //     await axios.get(`http://localhost:${server.port}/tx/${txid}`)
+    //   } catch (e) {
+    //     expect(e.response.status).to.equal(404)
+    //   }
+    //   server.stop()
+    //   await indexer.stop()
+    // })
   })
 
   // --------------------------------------------------------------------------

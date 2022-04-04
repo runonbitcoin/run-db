@@ -4,7 +4,6 @@
  * Express server that exposes the Indexer
  */
 
-const crypto = require('crypto')
 const { ApiServer } = require('./api-server')
 const { parseTxid } = require('../util/parse-txid')
 const { ApiError } = require('./api-error')
@@ -50,15 +49,17 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
     res.send(state)
   })
 
-  // server.get('/tx/:txid', async (req, res) => {
-  //   const txid = req.params.txid
-  //   const rawTx = await database.getTransactionHex(txid)
-  //   if (rawTx) {
-  //     res.send(rawTx)
-  //   } else {
-  //     res.status(404).send(`Not found: ${req.params.txid}\n`)
-  //   }
-  // })
+  server.get('/tx/:txid', async (req, res) => {
+    const txid = req.params.txid
+    const exists = await ds.txExists(txid)
+    if (!exists) {
+      throw new ApiError('tx not found', 'not-found', 404, { txid })
+    }
+
+    const rawTx = await blobs.pullTx(txid)
+    res.set('Content-Type', 'application/octet-stream')
+    res.send(rawTx)
+  })
 
   // server.get('/time/:txid', async (req, res) => {
   //   const txid = req.params.txid
