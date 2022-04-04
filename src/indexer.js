@@ -34,6 +34,12 @@ class Indexer {
     for (const txid of trusted) {
       await this.executeIfPossible(txid)
     }
+    return trusted
+  }
+
+  async untrust (txid) {
+    await this.trustList.untrust(txid, this.ds)
+    return [txid]
   }
 
   async indexTxid (txid, blockHeight = null) {

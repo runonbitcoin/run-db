@@ -67,7 +67,8 @@
     "chai-as-promised": "^7.1.1",
     "mocha": "^9.2.1",
     "nyc": "^15.1.0",
-    "standard": "^16.0.3"
+    "standard": "^16.0.3",
+    "supertest": "^6.2.2"
   },
   "standard": {
     "env": "mocha"

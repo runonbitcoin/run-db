@@ -32,13 +32,13 @@ class ApiServer {
     }
     app.use(morgan('tiny', { stream: new Writable({ write }) }))
 
-    app.use(bodyParser.text({ limit: '25mb' }))
+    app.use(bodyParser.raw({ limit: '30mb' }))
     app.use(bodyParser.json({ limit: '10mb' }))
 
     app.use(cors())
   }
 
-  async start (port = null) {
+  prepare () {
     this.app.use((err, req, res, next) => {
       if (this.logger) { this.logger.error(err.stack) }
       if (err instanceof ApiError) {
@@ -48,7 +48,10 @@ class ApiServer {
       }
       next()
     })
+  }
 
+  async start (port = null) {
+    this.prepare()
     this.port = port
     return new Promise(resolve => {
       this.listener = this.app.listen(port, () => {
