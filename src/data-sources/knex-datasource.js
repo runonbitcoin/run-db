@@ -520,7 +520,7 @@ class KnexDatasource {
 
   async getAllUnspentByClassOriginAndLockOrigin (clsOrigin, lockOrigin) {
     const rows = await this.knex(SPEND.NAME)
-      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
       .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
       .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
       .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)
@@ -531,7 +531,7 @@ class KnexDatasource {
 
   async getAllUnspentByClassOriginAndScripthash (clsOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
       .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
       .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
       .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
@@ -542,7 +542,7 @@ class KnexDatasource {
 
   async getAllUnspentByLockOriginAndScripthash (lockOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
       .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
       .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)
       .where(`${JIG.NAME}.${JIG.scriptHash}`, scripthash)
@@ -553,7 +553,7 @@ class KnexDatasource {
 
   async getAllUnspentByClassOriginAndLockOriginAndScriptHash (clsOrigin, lockOrigin, scripthash) {
     const rows = await this.knex(SPEND.NAME)
-      .join(SPEND.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
+      .join(JIG.NAME, `${SPEND.NAME}.${SPEND.location}`, `${JIG.NAME}.${JIG.location}`)
       .whereNull(`${SPEND.NAME}.${SPEND.spendTxid}`)
       .where(`${JIG.NAME}.${JIG.klass}`, clsOrigin)
       .where(`${JIG.NAME}.${JIG.lock}`, lockOrigin)

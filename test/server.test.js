@@ -1,3 +1,4 @@
+/* global caller */
 /**
  * server.test.js
  *
@@ -8,9 +9,7 @@ const { describe, it, beforeEach, afterEach } = require('mocha')
 require('chai').use(require('chai-as-promised'))
 const request = require('supertest')
 const { expect } = require('chai')
-const axios = require('axios')
 const Indexer = require('../src/indexer')
-const { DEFAULT_TRUSTLIST } = require('../src/config')
 const { buildMainServer } = require('../src/http/build-main-server')
 const { Executor } = require('../src/execution/executor')
 const knex = require('knex')
@@ -27,13 +26,6 @@ const bsv = require('bsv')
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
-
-const fetch = async txid => {
-  return { hex: require('./txns.json')[txid] }
-}
-const api = { fetch }
-// const downloaded = (indexer, txid) => new Promise((resolve) => { indexer.onDownload = x => txid === x && resolve() })
-const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
 // ------------------------------------------------------------------------------------------------
@@ -78,16 +70,21 @@ describe('Server', () => {
     })
   })
   def('network', () => 'test')
-  def('executor', () => new Executor(get.network, 1, get.blobs, get.ds, console, {}))
+  def('executor', () => new Executor(get.network, 1, get.blobs, get.ds, logger, {}))
   def('trustList', () => new DbTrustList())
-  def('indexer', () => new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, console))
+  def('indexer', () => new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger))
 
   def('run', new Run({ network: 'mock', cache: new Map() }))
 
-  def('someRunTx', async () => {
+  def('counterClass', async () => {
     const Counter = buildCounter()
-    get.run.deploy(Counter)
+    const Deployed = get.run.deploy(Counter)
     await get.run.sync()
+    return Deployed
+  })
+
+  def('someRunTx', async () => {
+    const Counter = await get.counterClass
     const txid = Counter.location.split('_')[0]
     return {
       txid,
@@ -96,7 +93,7 @@ describe('Server', () => {
   })
 
   def('server', () => {
-    const server = buildMainServer(get.ds, get.blobs, get.indexer, console)
+    const server = buildMainServer(get.ds, get.blobs, get.indexer, logger)
     server.prepare()
     return server
   })
@@ -404,122 +401,184 @@ describe('Server', () => {
           .expect(404)
       })
     })
-
-    // it('returns rawtx if downloaded', async () => {
-    //   const executor = new Executor('main', 1, database, logger)
-    //   const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-    //   const server = buildMainServer(database, logger)
-    //   await indexer.start()
-    //   await server.start()
-    //   const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-    //   const promise = downloaded(indexer, txid)
-    //   await database.addTransaction(txid)
-    //   await promise
-    //   const rawtx = (await axios.get(`http://localhost:${server.port}/tx/${txid}`)).data
-    //   expect(typeof rawtx).to.equal('string')
-    //   expect(rawtx.length).to.equal(2074)
-    //   server.stop()
-    //   await indexer.stop()
-    // })
-
-    // ------------------------------------------------------------------------
-
-    // it('returns 404 if missing', async () => {
-    //   const executor = new Executor('main', 1, database, logger)
-    //   const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-    //   const server = buildMainServer(database, logger)
-    //   await indexer.start()
-    //   await server.start()
-    //   const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
-    //   await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
-    //   try {
-    //     await axios.get(`http://localhost:${server.port}/tx/${txid}`)
-    //   } catch (e) {
-    //     expect(e.response.status).to.equal(404)
-    //   }
-    //   server.stop()
-    //   await indexer.stop()
-    // })
-
-    // ------------------------------------------------------------------------
-
-    // it('returns 404 if not downloaded', async () => {
-    //   const executor = new Executor('main', 1, database, logger)
-    //   const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-    //   const server = buildMainServer(database, logger)
-    //   await indexer.start()
-    //   await server.start()
-    //   const txid = '1111111111111111111111111111111111111111111111111111111111111111'
-    //   database.addTransaction(txid)
-    //   await expect(axios.get(`http://localhost:${server.port}/tx/${txid}`)).to.be.rejectedWith(Error)
-    //   try {
-    //     await axios.get(`http://localhost:${server.port}/tx/${txid}`)
-    //   } catch (e) {
-    //     expect(e.response.status).to.equal(404)
-    //   }
-    //   server.stop()
-    //   await indexer.stop()
-    // })
   })
 
   // --------------------------------------------------------------------------
   // get unspent
   // --------------------------------------------------------------------------
 
-  describe.skip('get unspent', () => {
-    it('query all unspent', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await promise
-      const unspent = (await axios.get(`http://localhost:${server.port}/unspent`)).data
-      expect(unspent.length).to.equal(3)
-      expect(unspent.includes('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64_o1')).to.equal(true)
-      expect(unspent.includes('3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64_o2')).to.equal(true)
-      expect(unspent.includes('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102_o1')).to.equal(true)
-      server.stop()
-      await indexer.stop()
+  describe('get unspent', () => {
+    def('tokenClass', async () => {
+      class SomeToken extends Run.Jig {
+        init (owner, amount) {
+          // Make sure we are calling from ourself
+          const minting = caller === this.constructor
+          const sending = caller && caller.constructor === this.constructor
+          if (!minting && !sending) throw new Error('Must create token using mint()')
+
+          this.owner = owner
+          this.amount = amount
+        }
+
+        send (newOwner, amount) {
+          if (this.amount < amount) {
+            throw new Error('not enough balance')
+          }
+          this.amount = this.amount - amount
+          return new SomeToken(newOwner, amount)
+        }
+
+        static mint (amount) {
+          return new this(this.owner, amount)
+        }
+      }
+      const Deployed = get.run.deploy(SomeToken)
+      await get.run.sync()
+      return Deployed
+    })
+
+    def('aToken', async () => {
+      const SomeToken = await get.tokenClass
+
+      const instance = await get.run.transaction(() => {
+        return SomeToken.mint(10)
+      })
+      await get.run.sync()
+      return instance
+    })
+
+    def('anAddress', () => {
+      const privKey = bsv.PrivateKey.fromRandom()
+      return bsv.Address.fromPrivateKey(privKey, 'testnet').toString()
+    })
+
+    def('anotherToken', async () => {
+      const token = await get.aToken
+      const anotherToken = token.send(get.anAddress, 1)
+      await get.run.sync()
+      return anotherToken
+    })
+
+    def('aCounter', async () => {
+      const Counter = await get.counterClass
+      const instance = new Counter()
+      await instance.sync()
+      return instance
+    })
+    function txidFromLoc (loc) {
+      return loc.split('_')[0]
+    }
+
+    beforeEach(async () => {
+      const Counter = await get.counterClass
+      const SomeToken = await get.tokenClass
+      const aToken = await get.aToken
+      const anotherToken = await get.anotherToken
+      const aCounter = await get.aCounter
+
+      await request(get.server.app)
+        .post('/trust')
+        .set('content-type', 'application/json')
+        .send({ txid: txidFromLoc(Counter.location), trust: true })
+        .expect(200)
+      await request(get.server.app)
+        .post('/trust')
+        .set('content-type', 'application/json')
+        .send({ txid: txidFromLoc(SomeToken.location), trust: true })
+        .expect(200)
+      await request(get.server.app)
+        .post('/trust')
+        .set('content-type', 'application/json')
+        .send({ txid: txidFromLoc(SomeToken.origin), trust: true })
+        .expect(200)
+
+      const txids = [
+        Counter.location,
+        SomeToken.origin,
+        aToken.origin,
+        anotherToken.location,
+        aCounter.location
+      ].map(txidFromLoc)
+
+      for (const txid of txids) {
+        const hex = await get.run.blockchain.fetch(txid)
+        const buff = Buffer.from(hex, 'hex')
+        await request(get.server.app)
+          .post('/tx')
+          .set('content-type', 'application/octet-stream')
+          .send(buff)
+          .expect(200)
+      }
+    })
+
+    it('can return all unspent', async () => {
+      const Counter = await get.counterClass
+      const SomeToken = await get.tokenClass
+      const aToken = await get.aToken
+      const anotherToken = await get.anotherToken
+      const aCounter = await get.aCounter
+
+      const response = await request(get.server.app)
+        .get('/unspent')
+        .expect(200)
+      const updatedClass = await get.run.load(SomeToken.origin)
+      await updatedClass.sync()
+      expect(response.body).to.have.length(5)
+      expect(response.body).to.include(Counter.location)
+      expect(response.body).to.include(updatedClass.location)
+      expect(response.body).to.include(anotherToken.location)
+      expect(response.body).to.include(aToken.location)
+      expect(response.body).to.include(aCounter.location)
+      expect(response.body).to.include(aCounter.location)
     })
 
     // ------------------------------------------------------------------------
 
     it('query unspent by address', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 1, 1, logger, 0, Infinity, DEFAULT_TRUSTLIST)
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const promise = indexed(indexer, '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await database.addTransaction('9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102')
-      await promise
-      const address = '1Kc8XRNryDycwvfEQiFF2TZwD1CVhgwGy2'
-      const unspent = (await axios.get(`http://localhost:${server.port}/unspent?address=${address}`)).data
-      expect(unspent.length).to.equal(3)
-      server.stop()
-      await indexer.stop()
+      const anotherToken = await get.anotherToken
+
+      const response = await request(get.server.app)
+        .get(`/unspent?address=${get.anAddress}`)
+        .expect(200)
+
+      expect(response.body).to.have.length(1)
+      expect(response.body).to.include(anotherToken.location)
     })
-  })
 
-  // --------------------------------------------------------------------------
-  // misc
-  // --------------------------------------------------------------------------
+    it('query unspent by class origin', async () => {
+      const tokenClass = await get.tokenClass
+      const aToken = await get.aToken
+      const anotherToken = await get.anotherToken
 
-  describe.skip('misc', () => {
-    it('cors', async () => {
-      const executor = new Executor('main', 1, database, logger)
-      const indexer = new Indexer(database, api, executor, 'main', 1, logger, 0, Infinity, [])
-      const server = buildMainServer(database, logger)
-      await indexer.start()
-      await server.start()
-      const opts = { headers: { Origin: 'https://www.google.com' } }
-      const resp = (await axios.get(`http://localhost:${server.port}/status`, opts))
-      expect(resp.headers['access-control-allow-origin']).to.equal('*')
-      server.stop()
-      await indexer.stop()
+      const response = await request(get.server.app)
+        .get(`/unspent?class=${tokenClass.origin}`)
+        .expect(200)
+
+      expect(response.body).to.have.length(2)
+      expect(response.body).to.include(anotherToken.location)
+      expect(response.body).to.include(aToken.location)
+    })
+
+    it('query unspent by class origin and address', async () => {
+      const counterClass = await get.counterClass
+      const aCounter = await get.aCounter
+
+      const response = await request(get.server.app)
+        .get(`/unspent?class=${counterClass.origin}&address=${aCounter.owner}`)
+        .expect(200)
+
+      expect(response.body).to.have.length(1)
+      expect(response.body).to.include(aCounter.location)
+    })
+
+    it('query unspent by class origin and address when no possible results returns empty', async () => {
+      const counterClass = await get.counterClass
+
+      const response = await request(get.server.app)
+        .get(`/unspent?class=${counterClass.origin}&address=${get.anAddress}`)
+        .expect(200)
+
+      expect(response.body).to.have.length(0)
     })
   })
 })

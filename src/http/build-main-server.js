@@ -7,12 +7,14 @@
 const { ApiServer } = require('./api-server')
 const { parseTxid } = require('../util/parse-txid')
 const { ApiError } = require('./api-error')
+const Run = require('run-sdk')
+const crypto = require('crypto')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-// const calculateScripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
+const calculateScripthash = x => crypto.createHash('sha256').update(Buffer.from(x, 'hex')).digest().reverse().toString('hex')
 
 const validateTxid = (aString) => parseTxid(
   aString,
@@ -80,31 +82,31 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
   //   }
   // })
 
-  // server.get('/unspent', async (req, res) => {
-  //   const cls = req.query.class
-  //   const lock = req.query.lock
-  //   let scripthash = req.query.scripthash
-  //   if (req.query.address) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.address).script())
-  //   if (req.query.pubkey) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.pubkey).script())
-  //
-  //   if (cls && lock && scripthash) {
-  //     res.json(await database.getAllUnspentByClassOriginAndLockOriginAndScripthash(cls, lock, scripthash))
-  //   } else if (cls && lock) {
-  //     res.json(await database.getAllUnspentByClassOriginAndLockOrigin(cls, lock))
-  //   } else if (cls && scripthash) {
-  //     res.json(await database.getAllUnspentByClassOriginAndScripthash(cls, scripthash))
-  //   } else if (lock && scripthash) {
-  //     res.json(await database.getAllUnspentByLockOriginAndScripthash(lock, scripthash))
-  //   } else if (scripthash) {
-  //     res.json(await database.getAllUnspentByScripthash(scripthash))
-  //   } else if (lock) {
-  //     res.json(await database.getAllUnspentByLockOrigin(lock))
-  //   } else if (cls) {
-  //     res.json(await database.getAllUnspentByClassOrigin(cls))
-  //   } else {
-  //     res.json(await database.getAllUnspent())
-  //   }
-  // })
+  server.get('/unspent', async (req, res) => {
+    const cls = req.query.class
+    const lock = req.query.lock
+    let scripthash = req.query.scripthash
+    if (req.query.address) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.address).script())
+    if (req.query.pubkey) scripthash = calculateScripthash(new Run.util.CommonLock(req.query.pubkey).script())
+
+    if (cls && lock && scripthash) {
+      res.json(await ds.getAllUnspentByClassOriginAndLockOriginAndScriptHash(cls, lock, scripthash))
+    } else if (cls && lock) {
+      res.json(await ds.getAllUnspentByClassOriginAndLockOrigin(cls, lock))
+    } else if (cls && scripthash) {
+      res.json(await ds.getAllUnspentByClassOriginAndScripthash(cls, scripthash))
+    } else if (lock && scripthash) {
+      res.json(await ds.getAllUnspentByLockOriginAndScripthash(lock, scripthash))
+    } else if (scripthash) {
+      res.json(await ds.getAllUnspentByScripthash(scripthash))
+    } else if (lock) {
+      res.json(await ds.getAllUnspentByLockOrigin(lock))
+    } else if (cls) {
+      res.json(await ds.getAllUnspentByClassOrigin(cls))
+    } else {
+      res.json(await ds.getAllUnspent())
+    }
+  })
 
   // server.get('/trust/:txid?', async (req, res) => {
   //   if (req.params.txid) {
