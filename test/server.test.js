@@ -74,7 +74,7 @@ describe('Server', () => {
   def('trustList', () => new DbTrustList())
   def('indexer', () => new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger))
 
-  def('run', new Run({ network: 'mock', cache: new Map() }))
+  def('run', () => new Run({ network: 'mock', cache: new Map() }))
 
   def('counterClass', async () => {
     const Counter = buildCounter()
