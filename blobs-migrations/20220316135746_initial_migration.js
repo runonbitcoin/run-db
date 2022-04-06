@@ -9,6 +9,7 @@ exports.up = async (knex) => {
   await knex.schema.createTable(RAW_TXS_T, t => {
     t.text('txid').notNullable().primary()
     t.binary('bytes').notNullable()
+    t.index('txid')
   })
 
   await knex.schema.createTable(JIG_STATES_T, t => {

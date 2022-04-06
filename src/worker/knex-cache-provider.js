@@ -6,7 +6,18 @@ const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
 class KnexCacheProvider extends CacheProvider {
   constructor (logger, opts) {
     super(logger, opts)
-    this.knex = knex(JSON.parse(process.env.KNEX_CONFIG))
+    const knexConfig = process.env.KNEX_CONFIG
+      ? JSON.parse(process.env.KNEX_CONFIG)
+      : {
+          client: process.env.BLOB_DB_CLIENT || 'pg',
+          connection: process.env.BLOB_DB_CONNECTION_URI,
+          migrations: {
+            tableName: 'migrations',
+            directory: 'blobs-migrations'
+          },
+          useNullAsDefault: true
+        }
+    this.knex = knex(knexConfig)
     const filter = process.env.FILTER_PATH
       ? require(process.env.FILTER_PATH)
       : KnexBlobStorage.defaultFilter

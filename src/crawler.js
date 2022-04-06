@@ -33,7 +33,7 @@ class Crawler {
   }
 
   async _receiveTransaction (rawTx, blockHeight = null) {
-    await this.indexer.indexTransaction(rawTx, blockHeight)
+    await this.indexer.indexTxLater(rawTx, blockHeight)
   }
 
   async knownHeight () {

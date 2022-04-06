@@ -60,7 +60,13 @@ const knexBlob = knex({
 const blobs = new KnexBlobStorage(knexBlob)
 const ds = new KnexDatasource(knexInstance)
 const trustList = new TrustAllTrustList()
-const executor = new Executor(network, WORKERS, blobs, ds, logger, {})
+const executor = new Executor(network, WORKERS, blobs, ds, logger, {
+  cacheProviderPath: require.resolve('../worker/knex-cache-provider'),
+  workerEnv: {
+    BLOB_DB_CLIENT: 'pg',
+    BLOB_DB_CONNECTION_URI: process.env.BLOB_DB_CONNECTION_URI
+  }
+})
 const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
 
 // ------------------------------------------------------------------------------------------------
