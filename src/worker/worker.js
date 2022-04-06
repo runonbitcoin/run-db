@@ -10,7 +10,6 @@ const Run = require('run-sdk')
 const bsv = require('bsv')
 const Bus = require('../bus')
 const { DEBUG } = require('../config')
-const { ApiBlobStorage } = require('../data-sources/api-blob-storage')
 const stream = require('stream')
 
 // ------------------------------------------------------------------------------------------------
@@ -83,10 +82,11 @@ logger.warn = console.warn.bind(console)
 logger.error = console.error.bind(console)
 logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 
-const bs = new ApiBlobStorage(txApiRoot, stateApiRoot)
-const cacheProvider = new CacheProvider(bs, originalLog)
+const cacheProvider = new CacheProvider(originalLog)
+const setupCache = cacheProvider.setUp()
 
 async function execute (txid, hex, trustlist) {
+  await setupCache
   run.cache = await cacheProvider.get()
 
   run.state = new Run.plugins.LocalState()

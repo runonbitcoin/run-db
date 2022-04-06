@@ -79,4 +79,6 @@ class KnexBlobStorage {
   }
 }
 
+KnexBlobStorage.defaultFilter = defaultFilter
+
 module.exports = { KnexBlobStorage }

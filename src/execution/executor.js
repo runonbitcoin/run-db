@@ -14,11 +14,10 @@ const { ExecutionResult } = require('../model/execution-result')
 // ------------------------------------------------------------------------------------------------
 
 class Executor {
-  constructor (network, numWorkers, blobs, ds, logger, opts = {}) {
+  constructor (network, numWorkers, blobs, _ds, logger, opts = {}) {
     this.network = network
     this.numWorkers = numWorkers
     this.blobs = blobs
-    this.ds = ds
     this.logger = logger
     this.workerOpts = {
       dataApiRoot: opts.dataApiRoot || null,
@@ -26,6 +25,7 @@ class Executor {
       stateApiRoot: opts.stateApiRoot || null,
       cacheProviderPath: opts.cacheProviderPath || null
     }
+    this.workerEnv = opts.workerEnv || {}
 
     this.onIndexed = null
     this.onExecuteFailed = null
@@ -41,7 +41,10 @@ class Executor {
     const factory = {
       create: async () => {
         const path = require.resolve('../worker/worker.js')
-        const worker = new Worker(path, { workerData: { network: this.network, ...this.workerOpts } })
+        const worker = new Worker(path, {
+          workerData: { network: this.network, ...this.workerOpts },
+          env: this.workerEnv
+        })
         const cacheGet = (txid) => this._onCacheGet(txid)
         const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
         const handlers = { cacheGet, blockchainFetch }

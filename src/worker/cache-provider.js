@@ -1,19 +1,14 @@
 class CacheProvider {
-  constructor (blobStorage, logger, opts) {
-    this.blob = blobStorage
+  constructor (logger, opts = {}) {
     this.logger = logger
     this.opts = opts
   }
 
-  async setUp () {
-    throw new Error('subclass responsibility')
-  }
+  async setUp () {}
+
+  async tearDown () {}
 
   async get () {
-    throw new Error('subclass responsibility')
-  }
-
-  async tearDown () {
     throw new Error('subclass responsibility')
   }
 }

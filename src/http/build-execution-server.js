@@ -12,7 +12,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
       const worker = new Worker(workerPath, {
         workerData: {
           network: network,
-          cacheProviderPath: require.resolve('../worker/direct-cache-provider.js'),
+          cacheProviderPath: require.resolve('../worker/knex-cache-provider.js'),
           ...workerOpts
         }
       })
