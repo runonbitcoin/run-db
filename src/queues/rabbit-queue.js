@@ -29,8 +29,12 @@ class RabbitQueue extends EventQueue {
   async subscribe (fn) {
     const { consumerTag } = await this.channel.consume(this.name, async (event) => {
       const payload = JSON.parse(event.content)
-      await fn(payload)
-      await this.channel.ack(event)
+      try {
+        await fn(payload)
+        await this.channel.ack(event)
+      } catch (e) {
+        await this.channel.nack(event)
+      }
     })
     this.subscriptions.push(consumerTag)
   }

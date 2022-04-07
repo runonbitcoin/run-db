@@ -38,9 +38,7 @@ class KnexDatasource {
       newDs.insideTx = true
       try {
         await fn(newDs)
-        await trx.commit()
       } catch (e) {
-        trx.rollback()
         console.error(e)
         throw e
       }
