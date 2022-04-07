@@ -85,7 +85,7 @@ async function main () {
   await indexManager.setUp()
   await executor.start()
   await indexer.start()
-  await crawler.start()
+  await crawler.start(process.env.INITIAL_CRAWL_HEIGHT ? Number(process.env.INITIAL_CRAWL_HEIGHT) : 0)
 }
 
 // ------------------------------------------------------------------------------------------------
