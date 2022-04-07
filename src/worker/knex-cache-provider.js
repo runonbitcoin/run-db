@@ -15,6 +15,10 @@ class KnexCacheProvider extends CacheProvider {
             tableName: 'migrations',
             directory: 'blobs-migrations'
           },
+          pool: {
+            min: 1,
+            max: 10
+          },
           useNullAsDefault: true
         }
     this.knex = knex(knexConfig)

@@ -50,7 +50,7 @@ const knexInstance = knex({
   },
   pool: {
     min: 1,
-    max: 40
+    max: 10
   }
 })
 const knexBlob = knex({
@@ -62,7 +62,7 @@ const knexBlob = knex({
   },
   pool: {
     min: 1,
-    max: 40
+    max: 10
   }
 })
 const blobs = new KnexBlobStorage(knexBlob)
@@ -84,13 +84,14 @@ const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logge
 async function main () {
   const rabbitConnection = await ampq.connect(RABBITMQ_URI)
   const rabbitChannel = await rabbitConnection.createChannel()
+  await rabbitChannel.prefetch(20)
   const execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   await execQueue.setUp()
   const indexManager = new ExecutionManager(indexer, execQueue)
+  await indexManager.setUp()
   const crawler = new Crawler(indexManager, api, ds, logger)
   await ds.setUp()
   await blobs.setUp()
-  await indexManager.setUp()
   await executor.start()
   await indexer.start()
   await crawler.start(process.env.INITIAL_CRAWL_HEIGHT ? Number(process.env.INITIAL_CRAWL_HEIGHT) : 0)
