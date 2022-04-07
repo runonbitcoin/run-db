@@ -16,6 +16,8 @@ const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 const Crawler = require('../src/crawler')
 const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api')
 const Run = require('run-sdk')
+const { ExecutionManager } = require('../src/execution-manager')
+const { MemoryQueue } = require('../src/queues/memory-queu')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -79,12 +81,20 @@ describe('Crawler', () => {
     return new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
   })
 
+  def('execQueue', () => {
+    return new MemoryQueue()
+  })
+
+  def('indexManager', () => {
+    return new ExecutionManager(get.indexer, get.execQueue)
+  })
+
   def('api', () => {
     return new TestBlockchainApi()
   })
 
   def('crawler', () => {
-    return new Crawler(get.indexer, get.api, get.ds, logger)
+    return new Crawler(get.indexManager, get.api, get.ds, logger)
   })
 
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
@@ -116,11 +126,14 @@ describe('Crawler', () => {
     return { txid, hex, buff: Buffer.from(hex, 'hex') }
   })
 
+  def('startHeight', () => 0)
+
   beforeEach(async () => {
     await get.ds.setUp()
     await get.ds.knex.migrate.latest()
     await get.blobs.knex.migrate.latest()
     await get.executor.start()
+    await get.indexManager.setUp()
   })
 
   afterEach(async () => {
@@ -132,13 +145,38 @@ describe('Crawler', () => {
   it('indexes a tx that arrives from the mempool', async () => {
     const { txid, buff } = await get.someRunTx
     await get.indexer.trust(txid)
+    await get.crawler.start(get.startHeight)
 
-    await get.crawler.start()
-
+    const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
     get.api.newMempoolTx(txid, buff)
     await get.api.waitForall()
+    await promise
     const txWasIndexed = await get.ds.txIsIndexed(txid)
     expect(txWasIndexed).to.eql(true)
+  })
+
+  describe('startHeight', () => {
+    def('startHeight', () => 2)
+    it('does not index txs previous to start height', async () => {
+      const { txid: txid1, buff: buff1 } = await get.someRunTx
+      const { txid: txid2, buff: buff2 } = await get.anotherRunTx
+
+      await get.indexer.trust(txid1)
+      await get.indexer.trust(txid2)
+      get.api.newMempoolTx(txid1, buff1)
+      await get.api.closeBlock('blockhash1')
+      get.api.newMempoolTx(txid2, buff2)
+      await get.api.closeBlock('blockhash2')
+
+      const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+      await get.crawler.start(get.startHeight)
+      await promise
+
+      const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
+      const tx2WasIndexed = await get.ds.txIsIndexed(txid2)
+      expect(tx1WasIndexed).to.eql(false)
+      expect(tx2WasIndexed).to.eql(true)
+    })
   })
 
   describe('when indexing a block', () => {
@@ -152,9 +190,11 @@ describe('Crawler', () => {
     })
 
     it('indexes the transactions in the block', async () => {
-      await get.crawler.start()
+      const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+      await get.crawler.start(get.startHeight)
       get.api.closeBlock('blockhash1')
       await get.api.waitForall()
+      await promise
       const { txid: txid1 } = await get.someRunTx
       const { txid: txid2 } = await get.childRunTx
       const tx1WasIndexed = await get.ds.txIsIndexed(txid1)
@@ -164,9 +204,11 @@ describe('Crawler', () => {
     })
 
     it('increases the crawl', async () => {
-      await get.crawler.start()
+      const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+      await get.crawler.start(get.startHeight)
       get.api.closeBlock('blockhash1')
       await get.api.waitForall()
+      await promise
 
       const height = await get.ds.getCrawlHeight()
       const hash = await get.ds.getCrawlHash()
@@ -176,7 +218,7 @@ describe('Crawler', () => {
 
     describe('when the are missing blocks between the latest known and the new block', function () {
       it('searchs for the middle blocks', async () => {
-        await get.crawler.start()
+        await get.crawler.start(get.startHeight)
         get.api.closeBlock('blockhash1')
         const { txid, buff } = await get.anotherRunTx
         const old1 = get.api._onNewBlock
@@ -192,8 +234,10 @@ describe('Crawler', () => {
         // get.api.closeBlock('empty2')
         get.api.onNewBlock(old1)
         get.api.onMempoolTx(old2)
+        const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
         get.api.closeBlock('empty2')
         await get.api.waitForall()
+        await promise
 
         const tx1WasIndexed = await get.ds.txIsIndexed(txid)
         expect(tx1WasIndexed).to.eql(true)
@@ -211,10 +255,11 @@ describe('Crawler', () => {
       get.api.closeBlock('secondEmpty')
       get.api.newMempoolTx(tx2.txid, tx2.buff)
       get.api.closeBlock('tipNonEmpty')
-
       await get.indexer.trust(tx1.txid)
       await get.indexer.trust(tx2.txid)
-      await get.crawler.start()
+      const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+      await get.crawler.start(get.startHeight)
+      await promise
 
       const tx1WasIndexed = await get.ds.txIsIndexed(tx1.txid)
       const tx2WasIndexed = await get.ds.txIsIndexed(tx2.txid)
@@ -235,7 +280,9 @@ describe('Crawler', () => {
       await get.indexer.trust(tx1.txid)
       await get.indexer.trust(tx2.txid)
       await get.crawler.setTip('firstEmpty')
-      await get.crawler.start()
+      const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+      await get.crawler.start(get.startHeight)
+      await promise
 
       const tx1WasIndexed = await get.ds.txIsIndexed(tx1.txid)
       const tx2WasIndexed = await get.ds.txIsIndexed(tx2.txid)

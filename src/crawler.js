@@ -16,9 +16,13 @@ class Crawler {
     this.ds = ds
   }
 
-  async start (_height, _hash) {
+  async start (startHeight) {
     const realTip = await this.api.getTip()
     let knownHeight = await this.ds.getCrawlHeight()
+    if (knownHeight < startHeight) {
+      this.ds.setCrawlHeight(startHeight - 1)
+      knownHeight = startHeight - 1
+    }
 
     while (knownHeight < realTip.height) {
       knownHeight++
