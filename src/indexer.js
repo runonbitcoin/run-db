@@ -130,7 +130,7 @@ class Indexer {
 
           const failed = await ds.getFailedTx(depTxid)
           if (failed) {
-            await this.ds.setTransactionExecutionFailed(parsedTx.txid, ds)
+            await ds.setTransactionExecutionFailed(parsedTx.txid, ds)
             return
           }
         }
