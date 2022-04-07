@@ -21,8 +21,6 @@ const http = require('./http')
 const trustList = require('./trust-list')
 const { CacheProvider } = require('./worker/cache-provider')
 const { Clock } = require('./clock')
-const { SqliteDatasource } = require('./data-sources/sqlite-datasource')
-const { SqliteMixedDatasource } = require('./data-sources/sqlite-mixed-datasource')
 
 module.exports = {
   BitcoinNodeConnection,
@@ -37,8 +35,6 @@ module.exports = {
   MatterCloud,
   Planaria,
   RunConnectFetcher,
-  SqliteDatasource,
-  SqliteMixedDatasource,
   config,
   dataSources,
   execution,

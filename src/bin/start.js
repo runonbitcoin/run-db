@@ -47,6 +47,10 @@ const knexInstance = knex({
   migrations: {
     tableName: 'migrations',
     directory: 'db-migrations'
+  },
+  pool: {
+    min: 1,
+    max: 40
   }
 })
 const knexBlob = knex({
@@ -55,6 +59,10 @@ const knexBlob = knex({
   migrations: {
     tableName: 'migrations',
     directory: 'blobs-migrations'
+  },
+  pool: {
+    min: 1,
+    max: 40
   }
 })
 const blobs = new KnexBlobStorage(knexBlob)

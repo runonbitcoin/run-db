@@ -21,11 +21,11 @@ class DirectCache {
 
     const [type, identifier] = key.split('://')
     if (type === 'jig' || type === 'berry') {
-      const jig = await withTimeMeasure(`fetch state ${identifier}`, async () => this.blobs.pullJigState(identifier), this.logger)
+      const jig = await withTimeMeasure(`fetch state ${identifier}`, async () => this.blobs.pullJigState(identifier, () => undefined), this.logger)
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const rawTx = await withTimeMeasure(`fetch rawtx ${identifier}`, async () => this.blobs.pullTx(identifier), this.logger)
+      const rawTx = await withTimeMeasure(`fetch rawtx ${identifier}`, async () => this.blobs.pullTx(identifier, () => undefined), this.logger)
       const txHex = rawTx.toString('hex')
       this.state[key] = txHex
       return txHex
