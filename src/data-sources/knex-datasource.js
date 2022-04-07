@@ -1,7 +1,7 @@
 /**
- * database.js
+ * knex-datasource.js
  *
- * Layer between the database and the application
+ * Database layer.
  */
 const { HEIGHT_MEMPOOL, CRAWL_HASH, CRAWL_HEIGHT } = require('../constants')
 const { TX, DEPS, EXECUTING, TRUST, BAN, SPEND, JIG, BERRY, CRAWL } = require('./columns')
@@ -118,6 +118,12 @@ class KnexDatasource {
     await this.knex(TX.NAME)
       .where(TX.txid, txid)
       .update(TX.time, time)
+  }
+
+  async setTransactionExecutionFailed (txid) {
+    await this.knex(TX.NAME)
+      .update({ [TX.executed]: true, [TX.executed]: false })
+      .where(TX.txid, txid)
   }
 
   async setTxBytes (txid, bytes) {

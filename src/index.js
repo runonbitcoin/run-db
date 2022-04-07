@@ -9,7 +9,6 @@ const BitcoinRpc = require('./blockchain-api/bitcoin-rpc')
 const BitcoinZmq = require('./blockchain-api/bitcoin-zmq')
 const Bus = require('./bus')
 const Crawler = require('./crawler')
-const Database = require('./database')
 const Downloader = require('./downloader')
 const Indexer = require('./indexer')
 const MatterCloud = require('./blockchain-api/mattercloud')
@@ -33,7 +32,6 @@ module.exports = {
   CacheProvider,
   Clock,
   Crawler,
-  Database,
   Downloader,
   Indexer,
   MatterCloud,
