@@ -125,7 +125,6 @@ class Indexer {
         await ds.setHasCodeForTx(parsedTx.txid, parsedTx.hasCode)
 
         for (const depTxid of parsedTx.deps) {
-          // await ds.addNewTx(depTxid, new Date())
           await ds.addDep(depTxid, parsedTx.txid)
 
           const failed = await ds.getFailedTx(depTxid)
