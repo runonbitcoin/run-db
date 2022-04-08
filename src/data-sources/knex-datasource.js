@@ -15,8 +15,6 @@ class KnexDatasource {
     this.insideTx = false
   }
 
-  prepareStatements () {}
-
   async setUp () {
     await this.knex.migrate.latest()
   }

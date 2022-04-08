@@ -39,7 +39,7 @@ const { RabbitQueue } = require('../queues/rabbit-queue')
 const logger = console
 const zmq = new BitcoinZmq(ZMQ_URL)
 const rpc = new BitcoinRpc(RPC_URL)
-const api = new BitcoinNodeConnection(zmq, rpc)
+const api = new BitcoinNodeConnection(zmq, rpc, process.env.BITCOIND_REST_URL)
 const network = NETWORK
 const knexInstance = knex({
   client: 'pg',

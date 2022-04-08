@@ -11,12 +11,14 @@
 const bsv = require('bsv')
 const { BlockchainApi } = require('./blockchain-api')
 const { metadata } = require('run-sdk').util
+const fetch = require('node-fetch')
 
 class BitcoinNodeConnection extends BlockchainApi {
-  constructor (zmq, rpc) {
+  constructor (zmq, rpc, url) {
     super()
     this.zmq = zmq
     this.rpc = rpc
+    this.url = url
     this._onNewMempoolTx = async () => {}
     this._onNewBlock = async () => {}
   }
@@ -30,12 +32,13 @@ class BitcoinNodeConnection extends BlockchainApi {
   }
 
   async fetch (txid) {
-    const response = await this.rpc.getRawTransaction(txid, false)
-    return Buffer.from(response, 'hex')
+    const response = await fetch(`${this.url}/tx/${txid}.bin`)
+    return response.buffer()
   }
 
   async getBlockData (blockHash) {
-    return await this.rpc.getBlockDataByHash(blockHash, false)
+    const response = await fetch(`${this.url}/block/${blockHash}.json`)
+    return response.json()
   }
 
   async getBlockDataByHeight (blockHeight) {
@@ -43,15 +46,13 @@ class BitcoinNodeConnection extends BlockchainApi {
   }
 
   async iterateBlock (blockHash, fn) {
-    const blockHex = await this.rpc.getBlockHexByHash(blockHash)
-    const block = new bsv.Block(Buffer.from(blockHex, 'hex'))
+    const response = await fetch(`${this.url}/block/${blockHash}.bin`)
+    const buff = await response.buffer()
+    const block = new bsv.Block(buff)
     const runTxs = block.transactions.filter(tx => this._isRunTx(tx.toBuffer().toString('hex')))
     await Promise.all(runTxs.map(async tx => {
       await fn(tx.toBuffer())
     }))
-    // for (const runTx of runTxs) {
-    //   await fn(runTx.toBuffer())
-    // }
   }
 
   async getTip () {
