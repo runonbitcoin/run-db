@@ -106,7 +106,7 @@ it's not recommeded for production environments in mainnet at the moment.
 
 * `POST /trust/:txid?` - Trusts a transaction to execute its code, as well as any untrusted ancestors. To trust multiple transactions at once, you may add an array of txids in the body as application/json.
 * `POST /ban/:txid` - Bans a transaction from being executed, and unindexes it and its descendents
-* `POST /tx/:txid?` - Indexes a transaction and any ancestors. You may optionally add the raw hex data for the transaction in the body as text/plain.
+* `POST /tx/:txid?` - Indexes a transaction and any ancestors. Takes the raw hex data for the transaction in the body as text/plain.
 
 * `DELETE /trust/:txid` - Removes trust for a transaction, and unindexes it and its descendents
 * `DELETE /ban/:txid` - Removes a transaction ban, and reindexes it and its descendents
