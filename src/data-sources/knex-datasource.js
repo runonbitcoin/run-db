@@ -375,6 +375,16 @@ class KnexDatasource {
     return rows.map(r => r.up)
   }
 
+  async getUnknownUpstreamTxIds (txid) {
+    const rows = await this.knex(DEPS.NAME)
+      .leftJoin(TX.NAME, TX.txid, DEPS.up)
+      .where(DEPS.down, txid)
+      .where(TX.txid, null)
+      .select(DEPS.up)
+
+    return rows.map(r => r.up)
+  }
+
   async nonExecutedDepsFor (txid) {
     return this.knex(DEPS.NAME)
       .leftJoin(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)

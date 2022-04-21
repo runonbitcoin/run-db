@@ -11,6 +11,9 @@ const Run = require('run-sdk')
 const { beforeEach, afterEach } = require('mocha')
 const { ExecutionManager } = require('../src/execution-manager')
 const { MemoryQueue } = require('../src/queues/memory-queu')
+const { buildTxSize } = require('./test-jigs/tx-size')
+const { buildContainer } = require('./test-jigs/container')
+const bsv = require('bsv')
 
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
@@ -147,6 +150,71 @@ describe('ExecutionManager', () => {
       await emptyQueue
       expect(events).to.have.length(1)
       expect(events[0].txid).to.eql(childTx.txid)
+    })
+  })
+
+  describe('when the tx depends on an unknown transaction', () => {
+    def('deployTx', async () => {
+      const TxSize = buildTxSize()
+      const Container = buildContainer()
+      get.run.transaction(() => {
+        get.run.deploy(TxSize)
+        get.run.deploy(Container)
+      })
+      await get.run.sync()
+      const txid = TxSize.location.split('_')[0]
+      const hex = await get.run.blockchain.fetch(txid)
+      return { txid, hex, buff: Buffer.from(hex, 'hex') }
+    })
+
+    def('classes', async () => {
+      await get.deployTx
+      const TxSize = get.run.inventory.code.find(code => code.name === 'TxSize')
+      const Container = get.run.inventory.code.find(code => code.name === 'Container')
+      return { TxSize, Container }
+    })
+
+    def('randomTx', async () => {
+      const randomTxTxid = await get.run.blockchain.fund(bsv.PrivateKey.fromRandom().toAddress(), 10000)
+      return {
+        txid: randomTxTxid,
+        hex: await get.run.blockchain.fetch(randomTxTxid)
+      }
+    })
+
+    def('instanceTx', async () => {
+      const { TxSize, Container } = await get.classes
+      const { txid: randomTxTxid } = await get.randomTx
+      const berry = await TxSize.load(randomTxTxid)
+      const jig = new Container(berry)
+      await jig.sync()
+
+      const txid = jig.location.split('_')[0]
+      const hex = await get.run.blockchain.fetch(txid)
+      return { txid, hex, buff: Buffer.from(hex, 'hex') }
+    })
+
+    beforeEach(async () => {
+      const { txid: deployTxTxid, buff: rawDeployTx } = await get.deployTx
+      await get.indexer.trust(deployTxTxid)
+
+      await get.indexer.trust(deployTxTxid)
+      await get.manager.indexTxNow(rawDeployTx)
+    })
+    it('queues the unknown transaction', async () => {
+      const { buff } = await get.instanceTx
+      const { txid: randomTxTxid } = await get.randomTx
+
+      const events = []
+      get.execQueue.subscribe((event) => {
+        events.push(event)
+      })
+
+      await get.manager.indexTxNow(buff)
+
+      await emptyQueue
+      expect(events).to.have.length(1)
+      expect(events[0].txid).to.eql(randomTxTxid)
     })
   })
 

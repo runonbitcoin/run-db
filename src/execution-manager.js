@@ -31,7 +31,10 @@ class ExecutionManager {
     const enableProms = result.enables.map(async txid => {
       return this.execQueue.publish({ txid })
     })
-    await Promise.all(enableProms)
+    const unknownDepsProms = result.unknownDeps.map(async txid => {
+      return this.execQueue.publish({ txid })
+    })
+    await Promise.all([...enableProms, ...unknownDepsProms])
   }
 }
 module.exports = { ExecutionManager }

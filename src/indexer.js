@@ -56,7 +56,7 @@ class Indexer {
     await this.ds.addNewTx(txid, time, blockHeight)
 
     const indexed = await this.ds.txIsIndexed(txid)
-    if (indexed) return new IndexerResult(true, [], [], [])
+    if (indexed) return new IndexerResult(true, [], [], [], [])
 
     const parsed = await this.parseTx(txBuf)
     await this.storeTx(parsed)
@@ -65,6 +65,7 @@ class Indexer {
       if (this.executor.executing.has(parsed.txid)) {
         return new IndexerResult(
           true,
+          [],
           [],
           [],
           []
@@ -76,14 +77,17 @@ class Indexer {
           true,
           [],
           [],
+          [],
           await this.ds.searchDownstreamTxidsReadyToExecute(txid)
         )
       }
     }
     const missingDeps = await this.ds.nonExecutedDepsFor(parsed.txid)
+    const unknownDeps = await this.ds.getUnknownUpstreamTxIds(parsed.txid)
     return new IndexerResult(
       false,
       missingDeps,
+      unknownDeps,
       await this.trustList.missingTrustFor(txid, this.ds, parsed.hasCode),
       []
     )
