@@ -61,4 +61,17 @@ describe('MemoryQueue', () => {
     await promise
     expect(calls).to.deep.eql(events)
   })
+
+  describe('publish with responses', () => {
+    it('sends the response', async () => {
+      const queue = new MemoryQueue()
+      await queue.setUp()
+      const replyQueue = await queue.getReplyQueue()
+
+      queue.subscribe((a) => a)
+      const value = { value: Math.random() }
+      const response = await replyQueue.publishAndAwaitResponse(value)
+      expect(response).to.eql(value)
+    })
+  })
 })

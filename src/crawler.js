@@ -9,8 +9,8 @@
 // ------------------------------------------------------------------------------------------------
 
 class Crawler {
-  constructor (indexer, api, ds, logger) {
-    this.indexer = indexer
+  constructor (exexManager, api, ds, logger) {
+    this.execManager = exexManager
     this.api = api
     this.logger = logger
     this.ds = ds
@@ -37,7 +37,7 @@ class Crawler {
   }
 
   async _receiveTransaction (rawTx, blockHeight = null) {
-    await this.indexer.indexTxLater(rawTx, blockHeight)
+    return this.execManager.indexTxNow(rawTx, blockHeight)
   }
 
   async knownHeight () {
@@ -55,9 +55,12 @@ class Crawler {
         ? blockHash
         : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
 
+      const promises = new Set()
       await this.api.iterateBlock(currentHash, async (rawTx) => {
-        await this._receiveTransaction(rawTx, blockHeight)
+        const promise = this._receiveTransaction(rawTx, blockHeight)
+        promises.add(promise)
       })
+      await Promise.all(promises)
     }
     this._knownHeight = currentHeight
 

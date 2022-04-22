@@ -2,6 +2,8 @@ class ExecutionManager {
   constructor (indexer, execQueue) {
     this.indexer = indexer
     this.execQueue = execQueue
+    this.replyQueue = null
+    this.rQueue = null
   }
 
   /**
@@ -11,16 +13,19 @@ class ExecutionManager {
    * @param {number} blockHeight - if tx confirmed in which height.
    */
   async indexTxNow (txBuff, blockHeight = null) {
-    const result = await this.indexer.indexTransaction(txBuff, blockHeight)
-    await this._handleIndexResult(result)
+    // const result = await this.indexer.indexTransaction(txBuff, blockHeight)
+    const txid = await this.indexer.blobs.pushTx(null, txBuff)
+    const rQueue = await this._replyQueue()
+    return rQueue.publishAndAwaitResponse({ txid })
   }
 
   async indexTxLater (txBuff, blockHeight = null) {
     const txid = await this.indexer.blobs.pushTx(null, txBuff)
-    this.execQueue.publish({ txid, blockHeight })
+    await this.execQueue.publish({ txid, blockHeight }, { repplyTo: this.replyQueue })
   }
 
   async setUp () {
+    this.replyQueue = await this.execQueue.getReplyQueue()
     await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
       const result = await this.indexer.indexTxid(txid, blockHeight)
       await this._handleIndexResult(result)
@@ -35,6 +40,13 @@ class ExecutionManager {
       return this.execQueue.publish({ txid })
     })
     await Promise.all([...enableProms, ...unknownDepsProms])
+  }
+
+  async _replyQueue () {
+    if (this.rQueue === null) {
+      this.rQueue = this.execQueue.getReplyQueue()
+    }
+    return this.rQueue
   }
 }
 module.exports = { ExecutionManager }

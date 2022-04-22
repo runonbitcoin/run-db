@@ -22,15 +22,23 @@ class RabbitQueue extends EventQueue {
     }
   }
 
-  async publish (event) {
-    await this.channel.publish(this.name, '', Buffer.from(JSON.stringify(event)), { persistent: true })
+  async publish (event, opts = {}) {
+    await this.channel.publish(this.name, '', Buffer.from(JSON.stringify(event)), opts)
+  }
+
+  async publishWithResponse (event, responseQueue) {
+    // await this.channel.publish(this.name, '', Buffer.from(JSON.stringify(event)), { persistent: true, replyTo: opts.replyTo.name })
+    responseQueue.publishAndAwaitResponse(this, event)
   }
 
   async subscribe (fn) {
     const { consumerTag } = await this.channel.consume(this.name, async (event) => {
       const payload = JSON.parse(event.content)
       try {
-        await fn(payload)
+        const response = await fn(payload)
+        if (event.replyTo) {
+          this.channel.sendToQueue(event.replyTo, Buffer.from(JSON.stringify(response)), { persistent: false })
+        }
         await this.channel.ack(event)
       } catch (e) {
         await this.channel.nack(event)
