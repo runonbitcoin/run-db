@@ -37,7 +37,7 @@ class RabbitQueue extends EventQueue {
       try {
         const response = await fn(payload)
         if (event.replyTo) {
-          this.channel.sendToQueue(event.replyTo, Buffer.from(JSON.stringify(response)), { persistent: false })
+          this.channel.sendToQueue(event.replyTo, Buffer.from(JSON.stringify(response)), { persistent: false, correlationId: event.messageId })
         }
         await this.channel.ack(event)
       } catch (e) {

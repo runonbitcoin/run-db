@@ -1,17 +1,33 @@
 const { nanoid } = require('nanoid')
 
 class RabbitResponseQueue {
-  constructor (channel, namePreffix) {
-    this.channel = channel
-    this.name = `${namePreffix}.${nanoid()}`
+  constructor (parentQueue, name, Constructor) {
+    this.parentQueue = parentQueue
+    this.name = name
+    this.queue = new Constructor(parentQueue.channel, this.name)
+    this.pending = new Map()
   }
 
   async setUp () {
-    this.channel.assertQueue(this.name, { exclusive: true, durable: false, autoDelete: true })
+    await this.queue.set()
+    await this.queue.subscribe(this._onEvent.bind(this))
   }
 
-  async publishAndAwaitResponse (queue, event) {
-    await queue.publish(event, { replyTo: this.id })
+  async publish (event, opts) {
+    this.queue.publish(event, opts)
+  }
+
+  async publishAndAwaitResponse (event) {
+    return new Promise(resolve => {
+      const messageId = nanoid()
+      this.pending.set(messageId, resolve)
+      return this.parentQueue.publish(event, { replyTo: this.name, messageId })
+    })
+  }
+
+  async _onEvent (rawEvent, headers) {
+    const { correlationId } = headers
+    this.pending.get(correlationId)(rawEvent)
   }
 }
 
