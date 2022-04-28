@@ -1,6 +1,6 @@
 class ExecutionManager {
-  constructor (indexer, execQueue) {
-    this.indexer = indexer
+  constructor (blobs, execQueue) {
+    this.blobs = blobs
     this.execQueue = execQueue
     this.replyQueue = null
     this.rQueue = null
@@ -14,40 +14,24 @@ class ExecutionManager {
    * @param {number} blockHeight - if tx confirmed in which height.
    */
   async indexTxNow (txBuff, blockHeight = null) {
-    // const result = await this.indexer.indexTransaction(txBuff, blockHeight)
-    const txid = await this.indexer.blobs.pushTx(null, txBuff)
+    const txid = await this.blobs.pushTx(null, txBuff)
     const rQueue = await this._replyQueue()
     return rQueue.publishAndAwaitResponse({ txid })
   }
 
   async indexTxLater (txBuff, blockHeight = null) {
-    const txid = await this.indexer.blobs.pushTx(null, txBuff)
+    const txid = await this.blobs.pushTx(null, txBuff)
     await this.execQueue.publish({ txid, blockHeight }, { repplyTo: this.replyQueue })
   }
 
   async setUp () {
     this.replyQueue = await this.execQueue.getReplyQueue()
-    this.subscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
-      const result = await this.indexer.indexTxid(txid, blockHeight)
-      await this._handleIndexResult(result)
-      return { txid }
-    })
   }
 
   async tearDown () {
     if (this.subscription !== null) {
       await this.subscription.cancel()
     }
-  }
-
-  async _handleIndexResult (result) {
-    const enableProms = result.enables.map(async txid => {
-      return this.execQueue.publish({ txid })
-    })
-    const unknownDepsProms = result.unknownDeps.map(async txid => {
-      return this.execQueue.publish({ txid })
-    })
-    await Promise.all([...enableProms, ...unknownDepsProms])
   }
 
   async _replyQueue () {
@@ -57,4 +41,5 @@ class ExecutionManager {
     return this.rQueue
   }
 }
+
 module.exports = { ExecutionManager }

@@ -7,43 +7,27 @@
 const ampq = require('amqplib')
 const Indexer = require('../indexer')
 const {
-  NETWORK,
+  RABBITMQ_URI,
+  BLOB_DB_CONNECTION_URI,
+  MAIN_DB_CONNECTION_URI,
   WORKERS,
-  ZMQ_URL,
-  RPC_URL,
-  RABBITMQ_URI
+  NETWORK
 } = require('../config')
 
 const { KnexDatasource } = require('../data-sources/knex-datasource')
 const knex = require('knex')
-const { Crawler, BitcoinNodeConnection, BitcoinZmq, BitcoinRpc } = require('../index')
 const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
 const { TrustAllTrustList } = require('../trust-list')
 const { Executor } = require('../execution')
 const { ExecutionManager } = require('../execution-manager')
 const { RabbitQueue } = require('../queues/rabbit-queue')
+const { ExecutionWorker } = require('../execution-worker')
 
-// ------------------------------------------------------------------------------------------------
-// Globals
-// ------------------------------------------------------------------------------------------------
-
-// const executor = EXECUTOR === 'local'
-//   ? new Executor(NETWORK, WORKERS, database, logger, {
-//       cacheType: WORKER_CACHE_TYPE,
-//       txApiRoot: DATA_API_TX_ROOT,
-//       stateApiRoot: DATA_API_STATE_ROOT,
-//       preserveStdout: PRESERVE_STDOUT,
-//       preserveStdErr: PRESERVE_STDERR
-//     })
-//   : new ApiExecutor(EXECUTE_ENDPOINT, trustList, NETWORK, WORKERS, logger)
 const logger = console
-const zmq = new BitcoinZmq(ZMQ_URL)
-const rpc = new BitcoinRpc(RPC_URL)
-const api = new BitcoinNodeConnection(zmq, rpc, process.env.BITCOIND_REST_URL)
 const network = NETWORK
 const knexInstance = knex({
   client: 'pg',
-  connection: process.env.MAIN_DB_CONNECTION_URI,
+  connection: MAIN_DB_CONNECTION_URI,
   migrations: {
     tableName: 'migrations',
     directory: 'db-migrations'
@@ -55,7 +39,7 @@ const knexInstance = knex({
 })
 const knexBlob = knex({
   client: 'pg',
-  connection: process.env.BLOB_DB_CONNECTION_URI,
+  connection: BLOB_DB_CONNECTION_URI,
   migrations: {
     tableName: 'migrations',
     directory: 'blobs-migrations'
@@ -72,34 +56,32 @@ const executor = new Executor(network, WORKERS, blobs, ds, logger, {
   cacheProviderPath: require.resolve('../worker/knex-cache-provider'),
   workerEnv: {
     BLOB_DB_CLIENT: 'pg',
-    BLOB_DB_CONNECTION_URI: process.env.BLOB_DB_CONNECTION_URI
+    BLOB_DB_CONNECTION_URI: BLOB_DB_CONNECTION_URI
   }
 })
 const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
 let indexManager
-let crawler = null
 let execQueue = null
-let rabbitChannel = null
 let rabbitConnection = null
-
+let worker = null
 // ------------------------------------------------------------------------------------------------
 // main
 // ------------------------------------------------------------------------------------------------
 
 async function main () {
   rabbitConnection = await ampq.connect(RABBITMQ_URI)
-  rabbitChannel = await rabbitConnection.createChannel()
+  const rabbitChannel = await rabbitConnection.createChannel()
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
-  await execQueue.setUp()
   indexManager = new ExecutionManager(blobs, execQueue)
+  worker = new ExecutionWorker(indexer, execQueue)
+  await execQueue.setUp()
   await indexManager.setUp()
-  crawler = new Crawler(indexManager, api, ds, logger)
   await ds.setUp()
   await blobs.setUp()
   await executor.start()
   await indexer.start()
-  await crawler.start(process.env.INITIAL_CRAWL_HEIGHT ? Number(process.env.INITIAL_CRAWL_HEIGHT) : 0)
+  await worker.setUp()
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -108,10 +90,7 @@ async function main () {
 
 async function shutdown () {
   logger.debug('Shutting down')
-  if (crawler !== null) {
-    await crawler.stop()
-  }
-  await indexer.stop()
+  await worker.tearDown()
   await executor.stop()
   await blobs.tearDown()
   await ds.tearDown()
@@ -121,9 +100,6 @@ async function shutdown () {
   await indexManager.tearDown()
   if (execQueue !== null) {
     await execQueue.tearDown()
-  }
-  if (rabbitChannel !== null) {
-    await rabbitChannel.close()
   }
   if (rabbitConnection !== null) {
     await rabbitConnection.close()

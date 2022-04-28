@@ -7,3 +7,4 @@ run.db*
 .idea
 *.sqlite3*
 .runcache
+docker-compose.override.yml

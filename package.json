@@ -25,7 +25,8 @@
   "scripts": {
     "lint": "standard --fix",
     "start": "node --experimental-worker src/bin/start.js",
-    "start-execution-server": "node --experimental-worker src/bin/start-execution-server.js",
+    "start-execution-worker": "node --experimental-worker src/bin/start-execution-worker.js",
+    "start-crawler": "node --experimental-worker src/bin/start-crawler.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
     "bump": "npm version patch && git push --follow-tags && npm publish",

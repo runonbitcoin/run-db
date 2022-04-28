@@ -14,6 +14,7 @@ const { MemoryQueue } = require('../src/queues/memory-queu')
 const { buildTxSize } = require('./test-jigs/tx-size')
 const { buildContainer } = require('./test-jigs/container')
 const bsv = require('bsv')
+const { ExecutionWorker } = require('../src/execution-worker')
 
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
@@ -76,7 +77,7 @@ describe('ExecutionManager', () => {
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
 
   def('execQueue', () => new MemoryQueue())
-  def('manager', () => new ExecutionManager(get.indexer, get.execQueue))
+  def('manager', () => new ExecutionManager(get.blobs, get.execQueue))
 
   beforeEach(async () => {
     await get.ds.setUp()
@@ -93,6 +94,7 @@ describe('ExecutionManager', () => {
 
   def('someRunTx', async () => {
     class Counter extends Run.Jig {}
+
     get.run.deploy(Counter)
     await get.run.sync()
     const txid = Counter.location.split('_')[0]
@@ -109,11 +111,20 @@ describe('ExecutionManager', () => {
     return { txid, hex, buff: Buffer.from(hex, 'hex') }
   })
 
+  def('worker', () => {
+    return new ExecutionWorker(get.indexer, get.execQueue)
+  })
+
   let emptyQueue
   beforeEach(async () => {
     const tx = await get.someRunTx
     await get.indexer.trust(tx.txid)
     emptyQueue = new Promise(resolve => get.execQueue.onEmpty(resolve))
+    await get.worker.setUp()
+  })
+
+  afterEach(async () => {
+    await get.worker.tearDown()
   })
 
   it('executes a single tx', async () => {
@@ -148,8 +159,9 @@ describe('ExecutionManager', () => {
       await get.manager.indexTxNow(tx.buff)
 
       await emptyQueue
-      expect(events).to.have.length(1)
-      expect(events[0].txid).to.eql(childTx.txid)
+      expect(events).to.have.length(2)
+      expect(events[0].txid).to.eql(tx.txid)
+      expect(events[1].txid).to.eql(childTx.txid)
     })
   })
 
@@ -201,20 +213,22 @@ describe('ExecutionManager', () => {
       await get.indexer.trust(deployTxTxid)
       await get.manager.indexTxNow(rawDeployTx)
     })
+
     it('queues the unknown transaction', async () => {
       const { buff } = await get.instanceTx
       const { txid: randomTxTxid } = await get.randomTx
 
-      const events = []
-      get.execQueue.subscribe((event) => {
-        events.push(event)
+      const prom = new Promise(resolve => {
+        get.execQueue.subscribe((event) => {
+          if (event.txid === randomTxTxid) { resolve(event) }
+        })
       })
 
       await get.manager.indexTxNow(buff)
 
-      await emptyQueue
-      expect(events).to.have.length(1)
-      expect(events[0].txid).to.eql(randomTxTxid)
+      const event = await prom
+
+      expect(event.txid).to.eql(randomTxTxid)
     })
   })
 

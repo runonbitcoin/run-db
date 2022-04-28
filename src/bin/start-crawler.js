@@ -5,60 +5,52 @@
  */
 
 const ampq = require('amqplib')
-const Indexer = require('../indexer')
 const {
-  NETWORK,
-  WORKERS,
   ZMQ_URL,
   RPC_URL,
-  RABBITMQ_URI
+  RABBITMQ_URI,
+  BITCOIND_REST_URL,
+  BLOB_DB_CONNECTION_URI,
+  MAIN_DB_CONNECTION_URI,
+  INITIAL_CRAWL_HEIGHT
 } = require('../config')
 
 const { KnexDatasource } = require('../data-sources/knex-datasource')
 const knex = require('knex')
 const { Crawler, BitcoinNodeConnection, BitcoinZmq, BitcoinRpc } = require('../index')
 const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
-const { TrustAllTrustList } = require('../trust-list')
-const { Executor } = require('../execution')
 const { ExecutionManager } = require('../execution-manager')
 const { RabbitQueue } = require('../queues/rabbit-queue')
+const path = require('path')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-// const executor = EXECUTOR === 'local'
-//   ? new Executor(NETWORK, WORKERS, database, logger, {
-//       cacheType: WORKER_CACHE_TYPE,
-//       txApiRoot: DATA_API_TX_ROOT,
-//       stateApiRoot: DATA_API_STATE_ROOT,
-//       preserveStdout: PRESERVE_STDOUT,
-//       preserveStdErr: PRESERVE_STDERR
-//     })
-//   : new ApiExecutor(EXECUTE_ENDPOINT, trustList, NETWORK, WORKERS, logger)
 const logger = console
 const zmq = new BitcoinZmq(ZMQ_URL)
 const rpc = new BitcoinRpc(RPC_URL)
-const api = new BitcoinNodeConnection(zmq, rpc, process.env.BITCOIND_REST_URL)
-const network = NETWORK
+const api = new BitcoinNodeConnection(zmq, rpc, BITCOIND_REST_URL)
+console.log('MAIN_DB_CONNECTION_URI', MAIN_DB_CONNECTION_URI, path.join(__dirname, '..', '..', 'db-migrations'))
 const knexInstance = knex({
   client: 'pg',
-  connection: process.env.MAIN_DB_CONNECTION_URI,
+  connection: MAIN_DB_CONNECTION_URI,
   migrations: {
     tableName: 'migrations',
-    directory: 'db-migrations'
+    directory: path.join(__dirname, '..', '..', 'db-migrations')
   },
   pool: {
     min: 1,
     max: 10
   }
 })
+console.log('BLOB_DB_CONNECTION_URI', BLOB_DB_CONNECTION_URI, path.join(__dirname, '..', '..', 'blobs-migrations'))
 const knexBlob = knex({
   client: 'pg',
-  connection: process.env.BLOB_DB_CONNECTION_URI,
+  connection: BLOB_DB_CONNECTION_URI,
   migrations: {
     tableName: 'migrations',
-    directory: 'blobs-migrations'
+    directory: path.join(__dirname, '..', '..', 'blobs-migrations')
   },
   pool: {
     min: 1,
@@ -67,19 +59,10 @@ const knexBlob = knex({
 })
 const blobs = new KnexBlobStorage(knexBlob)
 const ds = new KnexDatasource(knexInstance)
-const trustList = new TrustAllTrustList()
-const executor = new Executor(network, WORKERS, blobs, ds, logger, {
-  cacheProviderPath: require.resolve('../worker/knex-cache-provider'),
-  workerEnv: {
-    BLOB_DB_CLIENT: 'pg',
-    BLOB_DB_CONNECTION_URI: process.env.BLOB_DB_CONNECTION_URI
-  }
-})
-const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
+
 let indexManager
 let crawler = null
 let execQueue = null
-let rabbitChannel = null
 let rabbitConnection = null
 
 // ------------------------------------------------------------------------------------------------
@@ -88,7 +71,8 @@ let rabbitConnection = null
 
 async function main () {
   rabbitConnection = await ampq.connect(RABBITMQ_URI)
-  rabbitChannel = await rabbitConnection.createChannel()
+  console.log('RABBITMQ_URI', RABBITMQ_URI)
+  const rabbitChannel = await rabbitConnection.createChannel()
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   await execQueue.setUp()
@@ -97,9 +81,7 @@ async function main () {
   crawler = new Crawler(indexManager, api, ds, logger)
   await ds.setUp()
   await blobs.setUp()
-  await executor.start()
-  await indexer.start()
-  await crawler.start(process.env.INITIAL_CRAWL_HEIGHT ? Number(process.env.INITIAL_CRAWL_HEIGHT) : 0)
+  await crawler.start(INITIAL_CRAWL_HEIGHT ? Number(INITIAL_CRAWL_HEIGHT) : 0)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -111,8 +93,6 @@ async function shutdown () {
   if (crawler !== null) {
     await crawler.stop()
   }
-  await indexer.stop()
-  await executor.stop()
   await blobs.tearDown()
   await ds.tearDown()
   if (indexManager !== null) {
@@ -121,9 +101,6 @@ async function shutdown () {
   await indexManager.tearDown()
   if (execQueue !== null) {
     await execQueue.tearDown()
-  }
-  if (rabbitChannel !== null) {
-    await rabbitChannel.close()
   }
   if (rabbitConnection !== null) {
     await rabbitConnection.close()
