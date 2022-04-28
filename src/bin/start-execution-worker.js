@@ -34,7 +34,7 @@ const knexInstance = knex({
   },
   pool: {
     min: 1,
-    max: 10
+    max: 5
   }
 })
 const knexBlob = knex({
@@ -46,7 +46,7 @@ const knexBlob = knex({
   },
   pool: {
     min: 1,
-    max: 10
+    max: 5
   }
 })
 const blobs = new KnexBlobStorage(knexBlob)
