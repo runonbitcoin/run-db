@@ -1,48 +1,48 @@
 version: '3'
 services:
-  bitcoind:
-    image: hojarasca/bitcoinsv-regtest:1.0.10
-    volumes:
-      - bitcoind-data:/bitcoin/data
-    environment:
-      RPCUSER: rundb
-      RPCPASSWORD: rundb
-    ports:
-      - 18332:18332
-      - 28332:28332
+#  bitcoind:
+#    image: hojarasca/bitcoinsv-regtest:1.0.10
+#    volumes:
+#      - bitcoind-data:/bitcoin/data
+#    environment:
+#      RPCUSER: rundb
+#      RPCPASSWORD: rundb
+#    ports:
+#      - 18332:18332
+#      - 28332:28332
 
-  main-run-db:
-    build:
-      context: .
-    command: ["npm", "start"]
-    volumes:
-      - ./src:/app/src
-      - run-db-data:/data
-    environment:
-      DB: /data/run-db.sqlite3
-      BITCOIN_RPC_URL: http://rundb:rundb@bitcoind:18332
-      ZMQ_URL: tcp://bitcoind:28332
-      START_HEIGHT: 0
-      WORKERS: 1
-      PORT: 3000
-      NETWORK: test
-      API: ${API}
-      EXECUTOR: ${EXECUTOR}
-      EXECUTE_ENDPOINT:
+#  main-run-db:
+#    build:
+#      context: .
+#    command: ["npm", "start"]
+#    volumes:
+#      - ./src:/app/src
+#      - run-db-data:/data
+#    environment:
+#      DB: /data/run-db.sqlite3
+#      BITCOIN_RPC_URL: http://rundb:rundb@bitcoind:18332
+#      ZMQ_URL: tcp://bitcoind:28332
+#      START_HEIGHT: 0
+#      WORKERS: 1
+#      PORT: 3000
+#      NETWORK: test
+#      API: ${API}
+#      EXECUTOR: ${EXECUTOR}
+#      EXECUTE_ENDPOINT:
 
-  execution-server:
-    build:
-      context: .
-    command: [ "npm", "start-execution-server" ]
-    volumes:
-      - ./src:/app/src
-      - run-db-data:/data
-    environment:
-      WORKERS: 2
-      PORT: 3001
-      NETWORK: test
-      DATA_API_TX_ROOT: ${DATA_API_TX_ROOT}
-      DATA_API_STATE_ROOT: ${DATA_API_STATE_ROOT}
+#  execution-server:
+#    build:
+#      context: .
+#    command: [ "npm", "start-execution-server" ]
+#    volumes:
+#      - ./src:/app/src
+#      - run-db-data:/data
+#    environment:
+#      WORKERS: 2
+#      PORT: 3001
+#      NETWORK: test
+#      DATA_API_TX_ROOT: ${DATA_API_TX_ROOT}
+#      DATA_API_STATE_ROOT: ${DATA_API_STATE_ROOT}
 
   db:
     image: postgres:latest

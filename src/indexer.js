@@ -209,7 +209,6 @@ class Indexer {
     for (const entry of this.pendingRetries.entries()) {
       clearTimeout(entry[1])
     }
-    await this.executor.stop()
   }
 
   async _onIndexed (txid, result) {

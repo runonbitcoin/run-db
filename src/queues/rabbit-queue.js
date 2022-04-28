@@ -1,24 +1,43 @@
 const { EventQueue } = require('./exec-queue')
+const { nanoid } = require('nanoid')
+const { RabbitResponseQueue } = require('./rabbit-response-queue')
+
+class RabbitSubscription {
+  constructor (channel, consumerTag) {
+    this.channel = channel
+    this.consumerTag = consumerTag
+  }
+
+  async cancel () {
+    await this.channel.cancel(this.consumerTag)
+    this.channel.subscriptions = this.channel.subscriptions.filter(tag => tag !== this.consumerTag)
+  }
+}
 
 class RabbitQueue extends EventQueue {
-  constructor (channel, name) {
+  constructor (channel, name, extraOpts = {}) {
     super()
     this.channel = channel
     this.name = name
     this.subscriptions = []
+    this.extraOpts = extraOpts
   }
 
   async setUp () {
     await this.channel.assertExchange(this.name, 'fanout', {
-      durable: true
+      durable: this.extraOpts.durable || true,
+      exclusive: this.extraOpts.exclusive || false
     })
-    await this.channel.assertQueue(this.name, { durable: true })
+    await this.channel.assertQueue(this.name, {
+      durable: this.extraOpts.durable || true,
+      exclusive: this.extraOpts.exclusive || false
+    })
     await this.channel.bindQueue(this.name, this.name, '')
   }
 
   async tearDown () {
-    for (const tag in this.subscriptions) {
-      await this.channel.cancel(tag)
+    for (const sub in this.subscriptions) {
+      await sub.cancel()
     }
   }
 
@@ -26,9 +45,11 @@ class RabbitQueue extends EventQueue {
     await this.channel.publish(this.name, '', Buffer.from(JSON.stringify(event)), opts)
   }
 
-  async publishWithResponse (event, responseQueue) {
-    // await this.channel.publish(this.name, '', Buffer.from(JSON.stringify(event)), { persistent: true, replyTo: opts.replyTo.name })
-    responseQueue.publishAndAwaitResponse(this, event)
+  async getReplyQueue () {
+    const name = `${this.name}.reply.${nanoid()}`
+    const replyQueue = new RabbitResponseQueue(this, name, this.constructor)
+    await replyQueue.setUp()
+    return replyQueue
   }
 
   async subscribe (fn) {
@@ -36,15 +57,20 @@ class RabbitQueue extends EventQueue {
       const payload = JSON.parse(event.content)
       try {
         const response = await fn(payload)
-        if (event.replyTo) {
-          this.channel.sendToQueue(event.replyTo, Buffer.from(JSON.stringify(response)), { persistent: false, correlationId: event.messageId })
+        if (event.properties.replyTo) {
+          this.channel.sendToQueue(event.properties.replyTo, Buffer.from(response ? JSON.stringify(response) : ''), {
+            persistent: false,
+            correlationId: event.properties.messageId
+          })
         }
         await this.channel.ack(event)
       } catch (e) {
         await this.channel.nack(event)
       }
     })
-    this.subscriptions.push(consumerTag)
+    const rabbitSubscription = new RabbitSubscription(this.channel, consumerTag)
+    this.subscriptions.push(rabbitSubscription)
+    return rabbitSubscription
   }
 }
 

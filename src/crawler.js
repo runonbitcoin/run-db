@@ -34,6 +34,7 @@ class Crawler {
 
     await this.api.onMempoolTx(this._receiveTransaction.bind(this))
     await this.api.onNewBlock(this.receiveBlock.bind(this))
+    await this.api.setUp()
   }
 
   async _receiveTransaction (rawTx, blockHeight = null) {
@@ -49,6 +50,7 @@ class Crawler {
 
   async receiveBlock (blockHeight, blockHash) {
     let currentHeight = await this.knownHeight()
+    blockHeight = blockHeight || (await this.api.getBlockData(blockHash)).height
     while (currentHeight < blockHeight) {
       currentHeight++
       const currentHash = blockHeight === currentHeight
@@ -70,17 +72,12 @@ class Crawler {
 
   async setTip (blockHash) {
     const { height, hash } = await this.api.getBlockData(blockHash)
-    this.ds.setCrawlHash(hash)
-    this.ds.setCrawlHeight(height)
+    await this.ds.setCrawlHash(hash)
+    await this.ds.setCrawlHeight(height)
   }
 
-  stop () {
-    // this.started = false
-    // this.listeningForMempool = false
-    // clearTimeout(this.pollForNewBlocksTimerId)
-    // this.pollForNewBlocksTimerId = null
-    // clearTimeout(this.expireMempoolTransactionsTimerId)
-    // this.expireMempoolTransactionsTimerId = null
+  async stop () {
+    await this.api.tearDown()
   }
 
   async _expireMempoolTransactions () {

@@ -4,6 +4,7 @@ class ExecutionManager {
     this.execQueue = execQueue
     this.replyQueue = null
     this.rQueue = null
+    this.subscription = null
   }
 
   /**
@@ -26,10 +27,17 @@ class ExecutionManager {
 
   async setUp () {
     this.replyQueue = await this.execQueue.getReplyQueue()
-    await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
+    this.subscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
       const result = await this.indexer.indexTxid(txid, blockHeight)
       await this._handleIndexResult(result)
+      return { txid }
     })
+  }
+
+  async tearDown () {
+    if (this.subscription !== null) {
+      await this.subscription.cancel()
+    }
   }
 
   async _handleIndexResult (result) {

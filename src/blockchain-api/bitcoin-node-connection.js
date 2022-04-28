@@ -45,6 +45,16 @@ class BitcoinNodeConnection extends BlockchainApi {
     return await this.rpc.getBlockDataByHeight(blockHeight, false)
   }
 
+  async onMempoolTx (fn) {
+    this.zmq.subscribe('rawtx', fn)
+  }
+
+  async onNewBlock (fn) {
+    this.zmq.subscribe('hashblock', (buff) => {
+      fn(null, buff.toString('hex'))
+    })
+  }
+
   async iterateBlock (blockHash, fn) {
     const response = await fetch(`${this.url}/block/${blockHash}.bin`)
     const buff = await response.buffer()
@@ -59,14 +69,6 @@ class BitcoinNodeConnection extends BlockchainApi {
     const height = await this.rpc.getBlockCount()
     const hash = await this.rpc.getBlockHash(height)
     return { height, hash }
-  }
-
-  onMempoolTx (fn) {
-    this._onNewMempoolTx = fn
-  }
-
-  onNewBlock (fn) {
-    this._onNewBlock = fn
   }
 
   _isRunTx (hexTx) {

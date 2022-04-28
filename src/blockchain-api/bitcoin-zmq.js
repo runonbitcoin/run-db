@@ -3,9 +3,6 @@ try {
   zmq = require('zeromq')
 } catch (e) {}
 
-// this.sock.subscribe('rawtx')
-// this.sock.subscribe('hashblock')
-
 class BitcoinZmq {
   constructor (url) {
     this.sock = zmq.socket('sub')
@@ -16,7 +13,7 @@ class BitcoinZmq {
   async connect () {
     this.sock.connect(this.url)
     this.sock.on('message', (topic, message) => {
-      const handler = this.handlers.get(topic)
+      const handler = this.handlers.get(topic.toString())
       if (handler) {
         handler(message)
       }
@@ -24,18 +21,15 @@ class BitcoinZmq {
   }
 
   async subscribe (topic, handler) {
+    this.sock.subscribe(topic)
     this.handlers.set(topic, handler)
   }
 
   async disconnect () {
-    await this.sock.close()
+    if (!this.sock.closed) {
+      await this.sock.close()
+    }
   }
-
-  // async subscribeRawTx (handler) {
-  //   this.sock.on('message', (_topic, message) => {
-  //     handler(message)
-  //   })
-  // }
 }
 
 module.exports = BitcoinZmq

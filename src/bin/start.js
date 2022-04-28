@@ -76,6 +76,8 @@ const executor = new Executor(network, WORKERS, blobs, ds, logger, {
   }
 })
 const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
+let indexManager
+let crawler = null
 
 // ------------------------------------------------------------------------------------------------
 // main
@@ -87,9 +89,9 @@ async function main () {
   await rabbitChannel.prefetch(20)
   const execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   await execQueue.setUp()
-  const indexManager = new ExecutionManager(indexer, execQueue)
+  indexManager = new ExecutionManager(indexer, execQueue)
   await indexManager.setUp()
-  const crawler = new Crawler(indexManager, api, ds, logger)
+  crawler = new Crawler(indexManager, api, ds, logger)
   await ds.setUp()
   await blobs.setUp()
   await executor.start()
@@ -103,6 +105,16 @@ async function main () {
 
 async function shutdown () {
   logger.debug('Shutting down')
+  if (crawler !== null) {
+    await crawler.stop()
+  }
+  await indexer.stop()
+  await executor.stop()
+  await blobs.tearDown()
+  await ds.tearDown()
+  if (indexManager !== null) {
+    indexManager.tearDown()
+  }
   process.exit(0)
 }
 

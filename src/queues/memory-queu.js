@@ -3,6 +3,17 @@ const _ = require('lodash')
 const { MemoryResponseQueue } = require('./memory-response-queue')
 const { nanoid } = require('nanoid')
 
+class MemorySubscription {
+  constructor (queue, fn) {
+    this.queue = queue
+    this.fn = fn
+  }
+
+  async cancel () {
+    this.queue.subscriptions = this.queue.subscriptions.filter(fn => fn !== this.fn)
+  }
+}
+
 class MemoryQueue extends EventQueue {
   constructor () {
     super()
@@ -42,6 +53,7 @@ class MemoryQueue extends EventQueue {
 
   async subscribe (fn) {
     this.subscriptions.push(fn)
+    return new MemorySubscription(this, fn)
   }
 
   // non interface
