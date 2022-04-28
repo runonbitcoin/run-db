@@ -1,15 +1,15 @@
 version: '3'
 services:
-  bitcoind:
-    image: hojarasca/bitcoinsv-regtest:1.0.10
-    volumes:
-      - bitcoind-data:/bitcoin/data
-    environment:
-      RPCUSER: rundb
-      RPCPASSWORD: rundb
-    ports:
-      - 18332:18332
-      - 28332:28332
+#  bitcoind:
+#    image: hojarasca/bitcoinsv-regtest:1.0.10
+#    volumes:
+#      - bitcoind-data:/bitcoin/data
+#    environment:
+#      RPCUSER: rundb
+#      RPCPASSWORD: rundb
+#    ports:
+#      - 18332:18332
+#      - 28332:28332
 
   crawler:
     build:
