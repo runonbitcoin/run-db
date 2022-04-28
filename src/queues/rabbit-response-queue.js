@@ -9,8 +9,6 @@ class RabbitResponseQueue {
   }
 
   async setUp () {
-    // await this.queue.setUp()
-    // await this.queue.subscribe(this._onEvent.bind(this))
     await this.channel.assertQueue(this.queueName, { durable: false, exclusive: true })
     await this.channel.consume(this.queueName, async (event) => {
       const payload = JSON.parse(event.content)
@@ -19,10 +17,6 @@ class RabbitResponseQueue {
       await this.channel.ack(event)
     })
   }
-
-  // async publish (event, opts) {
-  //   this.queue.publish(event, opts)
-  // }
 
   async publishAndAwaitResponse (event) {
     return new Promise(resolve => {
