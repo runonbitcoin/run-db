@@ -27,7 +27,7 @@ const validateTxid = (aString) => parseTxid(
 // Server
 // ------------------------------------------------------------------------------------------------
 
-const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
+const buildMainServer = (ds, blobs, execManager, logger) => {
   const server = new ApiServer(logger)
 
   server.param('txid', (req, res, next, value) => {
@@ -63,24 +63,24 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
     res.send(rawTx)
   })
 
-  // server.get('/time/:txid', async (req, res) => {
-  //   const txid = req.params.txid
-  //   const time = await database.getTransactionTime(txid)
-  //   if (time) {
-  //     res.json(time)
-  //   } else {
-  //     res.status(404).send(`Not found: ${req.params.txid}\n`)
-  //   }
-  // })
+  server.get('/time/:txid', async (req, res) => {
+    const txid = req.params.txid
+    const time = await ds.getTxTime(txid)
+    if (time) {
+      res.json({ time })
+    } else {
+      res.status(404).send(`Not found: ${req.params.txid}\n`)
+    }
+  })
 
-  // server.get('/spends/:location', async (req, res) => {
-  //   const txid = await database.getSpend(req.params.location)
-  //   if (txid) {
-  //     res.send(txid)
-  //   } else {
-  //     res.status(404).send(`Not spent: ${req.params.location}\n`)
-  //   }
-  // })
+  server.get('/spends/:location', async (req, res) => {
+    const txid = await ds.getSpendingTxid(req.params.location)
+    if (txid) {
+      res.send({ txid })
+    } else {
+      res.status(404).send(`Not spent: ${req.params.location}\n`)
+    }
+  })
 
   server.get('/unspent', async (req, res) => {
     const cls = req.query.class
@@ -108,13 +108,13 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
     }
   })
 
-  // server.get('/trust/:txid?', async (req, res) => {
-  //   if (req.params.txid) {
-  //     res.json(await database.isTrusted(req.params.txid))
-  //   } else {
-  //     res.json(Array.from(await database.getTrustlist()))
-  //   }
-  // })
+  server.get('/trust/:txid', async (req, res) => {
+    res.json(await ds.isTrusted(req.params.txid))
+  })
+
+  server.get('/trust', async (req, res) => {
+    res.json(Array.from(await ds.searchAllTrust()))
+  })
 
   // server.get('/ban/:txid?', async (req, res) => {
   //   if (req.params.txid) {
@@ -124,33 +124,21 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
   //   }
   // })
 
-  // server.get('/status', async (req, res) => {
-  //   const status = {
-  //     height: await database.getHeight(),
-  //     hash: await database.getHash()
-  //   }
-  //   res.json(status)
-  // })
-
-  if (readonly) {
-    return server
-  }
+  server.get('/status', async (req, res) => {
+    const status = {
+      height: await ds.getCrawlHeight(),
+      hash: await ds.getCrawlHash()
+    }
+    res.json(status)
+  })
 
   server.post('/trust', async (req, res) => {
     const { txid, trust } = req.body
-    if (trust) {
-      const trusted = await indexer.trust(txid)
-      res.send({
-        trusted,
-        untrusted: []
-      })
-    } else {
-      const untrusted = await indexer.untrust(txid)
-      res.send({
-        untrusted: untrusted,
-        trusted: []
-      })
-    }
+    const response = await execManager.trustTxNow(txid, trust)
+    res.send({
+      trusted: response.trusted,
+      untrusted: response.untrusted
+    })
   })
 
   // server.post('/ban/:txid', async (req, res) => {
@@ -165,15 +153,15 @@ const buildMainServer = (ds, blobs, indexer, logger, readonly = false) => {
     }
 
     const buff = req.body
-    const response = await indexer.indexTransaction(buff)
-    res.send({ ok: response.executed })
+    const response = await execManager.indexTxNow(buff)
+    res.send({ ok: response.success })
   })
 
-  // server.delete('/trust/:txid', async (req, res) => {
-  //   const txid = req.params.txid
-  //   await database.untrust(txid)
-  //   res.send(`Untrusted ${req.params.txid}\n`)
-  // })
+  server.delete('/trust/:txid', async (req, res) => {
+    const txid = req.params.txid
+    await execManager.trustTxLater(txid, false)
+    res.send(`Untrusted ${req.params.txid}\n`)
+  })
 
   // server.delete('/ban/:txid', async (req, res) => {
   //   const txid = req.params.txid

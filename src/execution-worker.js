@@ -1,21 +1,35 @@
 class ExecutionWorker {
-  constructor (indexer, execQueue) {
+  constructor (indexer, execQueue, trustQueue) {
     this.indexer = indexer
     this.execQueue = execQueue
-    this.subscription = null
+    this.trustQueue = trustQueue
+    this.execSubscription = null
+    this.trustSubscription = null
   }
 
   async setUp () {
-    this.subscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
+    this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
       const result = await this.indexer.indexTxid(txid, blockHeight)
       await this._handleIndexResult(result)
-      return { txid }
+      return { txid, success: result.executed }
+    })
+    this.trustSubscription = await this.trustQueue.subscribe(async ({ txid, trust }) => {
+      if (trust) {
+        const trusted = await this.indexer.trust(txid)
+        return { trusted, untrusted: [] }
+      } else {
+        const untrusted = await this.indexer.untrust(txid)
+        return { untrusted, trusted: [] }
+      }
     })
   }
 
   async tearDown () {
-    if (this.subscription !== null) {
-      await this.subscription.cancel()
+    if (this.execSubscription !== null) {
+      await this.execSubscription.cancel()
+    }
+    if (this.trustSubscription !== null) {
+      await this.trustSubscription.cancel()
     }
   }
 

@@ -41,6 +41,20 @@ services:
       BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
       RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
 
+  api-server:
+    build:
+      context: .
+    command: [ "npm", "run", "start-api" ]
+    volumes:
+      - ./src:/app/src
+    ports:
+      - 3000:3000
+    environment:
+      PORT: 3000
+      MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest
+      BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
+
   psql:
     image: postgres:latest
     environment:

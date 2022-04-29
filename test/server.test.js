@@ -22,6 +22,9 @@ const { buildCounter } = require('./test-jigs/counter')
 const { buildTxSize } = require('./test-jigs/tx-size')
 const { buildContainer } = require('./test-jigs/container')
 const bsv = require('bsv')
+const { ExecutionWorker } = require('../src/execution-worker')
+const { MemoryQueue } = require('../src/queues/memory-queu')
+const { ExecutionManager } = require('../src/execution-manager')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -74,6 +77,11 @@ describe('Server', () => {
   def('trustList', () => new DbTrustList())
   def('indexer', () => new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger))
 
+  def('execQueue', () => new MemoryQueue())
+  def('trustQueue', () => new MemoryQueue())
+  def('worker', () => new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue))
+  def('execManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
+
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
 
   def('counterClass', async () => {
@@ -93,7 +101,7 @@ describe('Server', () => {
   })
 
   def('server', () => {
-    const server = buildMainServer(get.ds, get.blobs, get.indexer, logger)
+    const server = buildMainServer(get.ds, get.blobs, get.execManager, logger)
     server.prepare()
     return server
   })
@@ -103,9 +111,15 @@ describe('Server', () => {
     await get.blobs.setUp()
     await get.executor.start()
     await get.indexer.start()
+
+    await get.execManager.setUp()
+    await get.worker.setUp()
   })
 
   afterEach(async () => {
+    await get.server.stop()
+    await get.worker.tearDown()
+    await get.execManager.tearDown()
     await get.ds.tearDown()
     await get.blobs.tearDown()
     await get.executor.stop()

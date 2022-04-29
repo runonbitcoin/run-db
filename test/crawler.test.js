@@ -18,6 +18,7 @@ const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api
 const Run = require('run-sdk')
 const { ExecutionManager } = require('../src/execution-manager')
 const { MemoryQueue } = require('../src/queues/memory-queu')
+const { ExecutionWorker } = require('../src/execution-worker')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -81,13 +82,10 @@ describe('Crawler', () => {
     return new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
   })
 
-  def('execQueue', () => {
-    return new MemoryQueue()
-  })
+  def('execQueue', () => new MemoryQueue())
+  def('trustQueue', () => new MemoryQueue())
 
-  def('indexManager', () => {
-    return new ExecutionManager(get.indexer, get.execQueue)
-  })
+  def('indexManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
 
   def('api', () => {
     return new TestBlockchainApi()
@@ -128,15 +126,19 @@ describe('Crawler', () => {
 
   def('startHeight', () => 0)
 
+  def('execWorker', () => new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue))
+
   beforeEach(async () => {
     await get.ds.setUp()
     await get.ds.knex.migrate.latest()
     await get.blobs.knex.migrate.latest()
     await get.executor.start()
     await get.indexManager.setUp()
+    await get.execWorker.setUp()
   })
 
   afterEach(async () => {
+    await get.execWorker.tearDown()
     await get.executor.stop()
     await get.ds.tearDown()
     await get.blobs.knex.destroy()

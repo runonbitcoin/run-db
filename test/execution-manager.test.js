@@ -77,7 +77,8 @@ describe('ExecutionManager', () => {
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
 
   def('execQueue', () => new MemoryQueue())
-  def('manager', () => new ExecutionManager(get.blobs, get.execQueue))
+  def('trustQueue', () => new MemoryQueue())
+  def('manager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
 
   beforeEach(async () => {
     await get.ds.setUp()
@@ -112,7 +113,7 @@ describe('ExecutionManager', () => {
   })
 
   def('worker', () => {
-    return new ExecutionWorker(get.indexer, get.execQueue)
+    return new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue)
   })
 
   let emptyQueue

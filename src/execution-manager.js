@@ -1,9 +1,11 @@
 class ExecutionManager {
-  constructor (blobs, execQueue) {
+  constructor (blobs, execQueue, trustQueue) {
     this.blobs = blobs
     this.execQueue = execQueue
-    this.replyQueue = null
-    this.rQueue = null
+    this.trustQueue = trustQueue
+    this.execReplyQueue = null
+    this.execRQueue = null
+    this.trustRQueue = null
     this.subscription = null
   }
 
@@ -15,17 +17,26 @@ class ExecutionManager {
    */
   async indexTxNow (txBuff, blockHeight = null) {
     const txid = await this.blobs.pushTx(null, txBuff)
-    const rQueue = await this._replyQueue()
+    const rQueue = await this._execReplyQueue()
     return rQueue.publishAndAwaitResponse({ txid })
   }
 
   async indexTxLater (txBuff, blockHeight = null) {
     const txid = await this.blobs.pushTx(null, txBuff)
-    await this.execQueue.publish({ txid, blockHeight }, { repplyTo: this.replyQueue })
+    await this.execQueue.publish({ txid, blockHeight }, { repplyTo: this.execReplyQueue })
+  }
+
+  async trustTxLater (txid, trust) {
+    await this.trustQueue.publish({ txid, trust })
+  }
+
+  async trustTxNow (txid, trust) {
+    const rQueue = await this._trustReplyQueue()
+    return rQueue.publishAndAwaitResponse({ txid, trust })
   }
 
   async setUp () {
-    this.replyQueue = await this.execQueue.getReplyQueue()
+    this.execReplyQueue = await this.execQueue.getReplyQueue()
   }
 
   async tearDown () {
@@ -34,11 +45,18 @@ class ExecutionManager {
     }
   }
 
-  async _replyQueue () {
-    if (this.rQueue === null) {
-      this.rQueue = this.execQueue.getReplyQueue()
+  async _execReplyQueue () {
+    if (this.execRQueue === null) {
+      this.execRQueue = this.execQueue.getReplyQueue()
     }
-    return this.rQueue
+    return this.execRQueue
+  }
+
+  async _trustReplyQueue () {
+    if (this.trustRQueue === null) {
+      this.trustRQueue = this.trustQueue.getReplyQueue()
+    }
+    return this.trustRQueue
   }
 }
 

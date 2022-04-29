@@ -58,6 +58,11 @@ class Indexer {
     const indexed = await this.ds.txIsIndexed(txid)
     if (indexed) return new IndexerResult(true, [], [], [], [])
 
+    try {
+      await this.parseTx(txBuf)
+    } catch (e) {
+      console.error(e)
+    }
     const parsed = await this.parseTx(txBuf)
     await this.storeTx(parsed)
 

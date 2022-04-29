@@ -75,6 +75,9 @@ class TestBlockchainApi {
   async waitForall () {
     await Promise.all(this.pending)
   }
+
+  async setUp () {}
+  async tearDown () {}
 }
 
 module.exports = { TestBlockchainApi }
