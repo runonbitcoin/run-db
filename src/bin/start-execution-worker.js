@@ -34,7 +34,7 @@ const knexInstance = knex({
   },
   pool: {
     min: 1,
-    max: 5
+    max: 2
   }
 })
 const knexBlob = knex({
@@ -46,7 +46,7 @@ const knexBlob = knex({
   },
   pool: {
     min: 1,
-    max: 5
+    max: 2
   }
 })
 const blobs = new KnexBlobStorage(knexBlob)
@@ -62,6 +62,7 @@ const executor = new Executor(network, WORKERS, blobs, ds, logger, {
 const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
 let indexManager
 let execQueue = null
+let trustQueue = null
 let rabbitConnection = null
 let worker = null
 // ------------------------------------------------------------------------------------------------
@@ -73,9 +74,12 @@ async function main () {
   const rabbitChannel = await rabbitConnection.createChannel()
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
-  indexManager = new ExecutionManager(blobs, execQueue)
-  worker = new ExecutionWorker(indexer, execQueue)
+  trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
+  indexManager = new ExecutionManager(blobs, execQueue, trustQueue)
+  worker = new ExecutionWorker(indexer, execQueue, trustQueue)
+
   await execQueue.setUp()
+  await trustQueue.setUp()
   await indexManager.setUp()
   await ds.setUp()
   await blobs.setUp()

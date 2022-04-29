@@ -41,7 +41,7 @@ const knexInstance = knex({
   },
   pool: {
     min: 1,
-    max: 5
+    max: 2
   }
 })
 console.log('BLOB_DB_CONNECTION_URI', BLOB_DB_CONNECTION_URI, path.join(__dirname, '..', '..', 'blobs-migrations'))
@@ -54,7 +54,7 @@ const knexBlob = knex({
   },
   pool: {
     min: 1,
-    max: 5
+    max: 2
   }
 })
 const blobs = new KnexBlobStorage(knexBlob)
