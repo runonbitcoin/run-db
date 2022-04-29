@@ -1,7 +1,7 @@
 /**
  * index.js
  *
- * Entry point
+ * Main module
  */
 
 const BitcoinNodeConnection = require('./blockchain-api/bitcoin-node-connection')
@@ -11,8 +11,6 @@ const Bus = require('./bus')
 const Crawler = require('./crawler')
 const Downloader = require('./downloader')
 const Indexer = require('./indexer')
-const MatterCloud = require('./blockchain-api/mattercloud')
-const Planaria = require('./blockchain-api/planaria')
 const RunConnectFetcher = require('./blockchain-api/run-connect')
 const config = require('./config')
 const dataSources = require('./data-sources')
@@ -32,8 +30,6 @@ module.exports = {
   Crawler,
   Downloader,
   Indexer,
-  MatterCloud,
-  Planaria,
   RunConnectFetcher,
   config,
   dataSources,
