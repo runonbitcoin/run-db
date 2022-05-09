@@ -16,7 +16,7 @@ const { io } = require('socket.io-client')
 const MAINNET_BASE_URL = 'https://api.run.network/v1/main'
 const TESTNET_BASE_URL = 'https://api.run.network/v1/test'
 
-const WEBSOCKET_URI = 'https://api.run.network'
+const WEBSOCKET_URI = 'ws://api.run.network'
 
 class RunConnectBlockchainApi {
   constructor (network, authToken, opts = {}) {
@@ -26,14 +26,14 @@ class RunConnectBlockchainApi {
       ? opts.baseUrl
       : (network === 'main' ? MAINNET_BASE_URL : TESTNET_BASE_URL)
     this.wsBaseUri = opts.wsBaseUri || WEBSOCKET_URI
-    const wsPath = opts.wsPath
+    this.wsPath = opts.wsPath
       ? opts.wsPath
       : (network === 'main' ? '/v1/main/socket.io' : '/v1/test/socket.io')
     this._onNewMempoolTx = async () => {}
     this._onNewBlock = async () => {}
     this.timer = null
     this.latestBlockHash = null
-    this.io = io(this.wsBaseUri, { path: wsPath })
+    this.io = null
   }
 
   async setUp (_height, _network) {
@@ -46,9 +46,15 @@ class RunConnectBlockchainApi {
         this.latestBlockHash = newTip.hash
       }
     }, 1000 * 10) // every 10 segs
-    await this.io.on('newRunTx', async ({ txid }) => {
-      const rawTx = await this.fetch(txid)
-      await this._onNewMempoolTx(rawTx)
+    this.io = io(this.wsBaseUri, { path: this.wsPath })
+    return new Promise((resolve, reject) => {
+      this.io.on('newRunTx', async ({ txid }) => {
+        const rawTx = await this.fetch(txid)
+        await this._onNewMempoolTx(rawTx)
+      })
+
+      this.io.on('connect', resolve)
+      this.io.on('connect_error', reject)
     })
   }
 
