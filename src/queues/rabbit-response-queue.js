@@ -9,7 +9,7 @@ class RabbitResponseQueue {
   }
 
   async setUp () {
-    await this.channel.assertQueue(this.queueName, { durable: false, exclusive: true })
+    await this.channel.assertQueue(this.queueName, { durable: false, exclusive: true, autoDelete: true })
     await this.channel.consume(this.queueName, async (event) => {
       const payload = JSON.parse(event.content)
       const correlationId = event.properties.correlationId

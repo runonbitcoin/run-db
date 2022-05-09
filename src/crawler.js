@@ -26,10 +26,9 @@ class Crawler {
 
     while (knownHeight < realTip.height) {
       knownHeight++
-      this.logger.debug('starting block', knownHeight)
+
       const { height, hash } = await this.api.getBlockDataByHeight(knownHeight)
       await this.receiveBlock(height, hash)
-      this.logger.debug('finishing block', knownHeight)
     }
 
     await this.api.onMempoolTx(this._receiveTransaction.bind(this))
@@ -49,6 +48,7 @@ class Crawler {
   }
 
   async receiveBlock (blockHeight, blockHash) {
+    this.logger.debug('starting block', blockHeight)
     let currentHeight = await this.knownHeight()
     blockHeight = blockHeight || (await this.api.getBlockData(blockHash)).height
     while (currentHeight < blockHeight) {
@@ -65,7 +65,7 @@ class Crawler {
       await Promise.all(promises)
     }
     this._knownHeight = currentHeight
-
+    this.logger.debug('finishing block', blockHeight)
     await this.ds.setCrawlHash(blockHash)
     await this.ds.setCrawlHeight(blockHeight)
   }

@@ -22,6 +22,7 @@ const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
 const { ExecutionManager } = require('../execution-manager')
 const { RabbitQueue } = require('../queues/rabbit-queue')
 const path = require('path')
+// const { RunConnectBlockchainApi } = require('../blockchain-api/run-connect')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -31,7 +32,7 @@ const logger = console
 const zmq = new BitcoinZmq(ZMQ_URL)
 const rpc = new BitcoinRpc(RPC_URL)
 const api = new BitcoinNodeConnection(zmq, rpc, BITCOIND_REST_URL)
-console.log('MAIN_DB_CONNECTION_URI', MAIN_DB_CONNECTION_URI, path.join(__dirname, '..', '..', 'db-migrations'))
+
 const knexInstance = knex({
   client: 'pg',
   connection: MAIN_DB_CONNECTION_URI,
@@ -44,7 +45,7 @@ const knexInstance = knex({
     max: 2
   }
 })
-console.log('BLOB_DB_CONNECTION_URI', BLOB_DB_CONNECTION_URI, path.join(__dirname, '..', '..', 'blobs-migrations'))
+
 const knexBlob = knex({
   client: 'pg',
   connection: BLOB_DB_CONNECTION_URI,
@@ -71,7 +72,6 @@ let rabbitConnection = null
 
 async function main () {
   rabbitConnection = await ampq.connect(RABBITMQ_URI)
-  console.log('RABBITMQ_URI', RABBITMQ_URI)
   const rabbitChannel = await rabbitConnection.createChannel()
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
@@ -96,7 +96,7 @@ async function shutdown () {
   await blobs.tearDown()
   await ds.tearDown()
   if (indexManager !== null) {
-    indexManager.tearDown()
+    await indexManager.tearDown()
   }
   await indexManager.tearDown()
   if (execQueue !== null) {
@@ -111,6 +111,5 @@ async function shutdown () {
 // ------------------------------------------------------------------------------------------------
 
 process.on('SIGTERM', shutdown)
-process.on('SIGINT', shutdown)
 
 main()

@@ -57,7 +57,9 @@
     "node-fetch": "^2.6.7",
     "pg": "^8.7.3",
     "reconnecting-eventsource": "^1.1.0",
-    "run-sdk": "0.6.34"
+    "run-sdk": "0.6.35",
+    "socket.io-client": "^4.5.0",
+    "stream-json": "^1.7.4"
   },
   "optionalDependencies": {
     "zeromq": "^5.2.8"

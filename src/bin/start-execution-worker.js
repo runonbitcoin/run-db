@@ -80,7 +80,7 @@ async function main () {
 
   await execQueue.setUp()
   await trustQueue.setUp()
-  await indexManager.setUp()
+  // await indexManager.setUp()
   await ds.setUp()
   await blobs.setUp()
   await executor.start()

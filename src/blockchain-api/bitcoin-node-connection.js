@@ -19,8 +19,6 @@ class BitcoinNodeConnection extends BlockchainApi {
     this.zmq = zmq
     this.rpc = rpc
     this.url = url
-    this._onNewMempoolTx = async () => {}
-    this._onNewBlock = async () => {}
   }
 
   async setUp (_height, _network) {
