@@ -101,7 +101,7 @@ async function execute (txid, hex, trustlist) {
   const tx = await run.import(hex, { txid })
   await tx.cache()
 
-  const cache = run.cache.state
+  const cache = run.cache.newStates
   const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
   const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
   const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)

@@ -110,6 +110,9 @@ describe('Executor', () => {
       await get.blobs.pushJigState(`${tx1.txid}_o2`, get.runCache.get(`jig://${tx1.txid}_o2`))
       const response = await get.executor.execute(tx2.txid, ['*'])
       expect(response.success).to.eql(true)
+      // only returns newly calculated jigs
+      const cacheKeys = Object.keys(response.result.cache)
+      expect(cacheKeys).to.have.length(1)
     })
   })
 })

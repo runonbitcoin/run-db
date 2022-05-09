@@ -13,6 +13,7 @@ class DirectCache {
     this.blobs = blobStorage
     this.logger = logger
     this.state = {}
+    this.newStates = {}
   }
 
   async get (key) {
@@ -39,6 +40,10 @@ class DirectCache {
   async set (key, value) {
     const existedBefore = !!this.state[key]
     this.state[key] = value
+    if (key.startsWith('jig://') || key.startsWith('berry://')) {
+      this.newStates[key] = value
+    }
+
     if (existedBefore) {
       return null
     }
