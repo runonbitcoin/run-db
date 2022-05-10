@@ -5,7 +5,6 @@ exports.up = async (knex) => {
   })
 
   await knex.schema.createTable('deps', t => {
-    t.bigIncrements().primary()
     t.text('up').notNullable()
     t.text('down').notNullable()
     t.unique(['up', 'down'])
@@ -52,6 +51,7 @@ exports.up = async (knex) => {
     t.boolean('indexed')
     t.index(['txid'], 'tx_txid_index')
     t.index(['height'], 'tx_height_index')
+    t.index(['executed', 'txid'], 'tx_executed_index')
   })
 
   await knex.schema.createTable('crawl', t => {
