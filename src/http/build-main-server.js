@@ -63,6 +63,13 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
     res.send(rawTx)
   })
 
+  server.get('/exec/:txid', async (req, res) => {
+    console.log(req.params.txid)
+    const rawTx = await blobs.pullTx(req.params.txid, () => { throw new Error('error') })
+    const result = await execManager.indexTxNow(rawTx)
+    res.json(result)
+  })
+
   server.get('/time/:txid', async (req, res) => {
     const txid = req.params.txid
     const time = await ds.getTxTime(txid)
