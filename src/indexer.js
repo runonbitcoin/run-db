@@ -43,29 +43,37 @@ class Indexer {
   }
 
   async indexTxid (txid, blockHeight = null) {
-    const txBuff = await this.blobs.pullTx(txid)
-    return this.indexTransaction(txBuff, blockHeight)
+    const txBuff = await this.blobs.pullTx(txid, () => null)
+    if (txBuff === null) {
+      await this.ds.addNewTx(txid, new Date(), null)
+      await this.ds.setTransactionExecutionFailed(txid)
+      // console.log(res)
+      return new IndexerResult(
+        false,
+        [],
+        [],
+        [],
+        await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+      )
+    } else {
+      return this.indexTransaction(txBuff, blockHeight)
+    }
   }
 
   async indexTransaction (txBuf, blockHeight = null) {
     const txid = crypto.createHash('sha256').update(
       crypto.createHash('sha256').update(txBuf).digest()
     ).digest().reverse().toString('hex')
-
     const time = new Date()
     await this.ds.addNewTx(txid, time, blockHeight)
 
     const indexed = await this.ds.txIsIndexed(txid)
-    if (indexed) return new IndexerResult(true, [], [], [], [])
-
-    try {
-      await this.parseTx(txBuf)
-    } catch (e) {
-      console.error(e)
+    if (indexed) {
+      return new IndexerResult(true, [], [], [], await this.ds.searchDownstreamTxidsReadyToExecute(txid))
     }
+
     const parsed = await this.parseTx(txBuf)
     await this.storeTx(parsed)
-
     if (parsed.executable) {
       if (this.executor.executing.has(parsed.txid)) {
         return new IndexerResult(
@@ -77,6 +85,7 @@ class Indexer {
         )
       }
       const executed = await this.executeIfPossible(parsed.txid)
+      console.log('executed', executed)
       if (executed) {
         return new IndexerResult(
           true,

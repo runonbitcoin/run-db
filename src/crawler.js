@@ -1,19 +1,18 @@
 /**
+
  * crawler.test.js
  *
  * Generic blockchain crawler that adds and removes transactions to the db
  */
-
-// ------------------------------------------------------------------------------------------------
-// Crawler
-// ------------------------------------------------------------------------------------------------
+const _ = require('lodash')
 
 class Crawler {
-  constructor (exexManager, api, ds, logger) {
-    this.execManager = exexManager
+  constructor (execManager, api, ds, logger, opts = {}) {
+    this.execManager = execManager
     this.api = api
     this.logger = logger
     this.ds = ds
+    this.opts = opts
   }
 
   async start (startHeight) {
@@ -25,10 +24,12 @@ class Crawler {
     }
 
     while (knownHeight < realTip.height) {
-      knownHeight++
-
-      const { height, hash } = await this.api.getBlockDataByHeight(knownHeight)
-      await this.receiveBlock(height, hash)
+      const diffs = _.range(0, this.opts.initialBlockConcurrency || 1)
+      await Promise.all(diffs.map(async (plus) => {
+        const { height, hash } = await this.api.getBlockDataByHeight(knownHeight + plus)
+        await this.receiveBlock(height, hash, true)
+      }))
+      knownHeight += diffs.length
     }
 
     await this.api.onMempoolTx(this._receiveTransaction.bind(this))
@@ -47,27 +48,44 @@ class Crawler {
     return this._knownHeight
   }
 
-  async receiveBlock (blockHeight, blockHash) {
+  async _processBlock (blockHash, blockHeight) {
+    const promises = new Set()
+    let count = 0
+    await this.api.iterateBlock(blockHash, async (rawTx) => {
+      const promise = this._receiveTransaction(rawTx, blockHeight)
+      promises.add(promise)
+      count++
+    })
+    await Promise.all(promises)
+    console.log(`block ${blockHeight} had ${count} txs`)
+  }
+
+  async receiveBlock (blockHeight, blockHash, onlyThis = false) {
     this.logger.debug('starting block', blockHeight)
     let currentHeight = await this.knownHeight()
     blockHeight = blockHeight || (await this.api.getBlockData(blockHash)).height
-    while (currentHeight < blockHeight) {
-      currentHeight++
-      const currentHash = blockHeight === currentHeight
-        ? blockHash
-        : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
-
-      const promises = new Set()
-      await this.api.iterateBlock(currentHash, async (rawTx) => {
-        const promise = this._receiveTransaction(rawTx, blockHeight)
-        promises.add(promise)
-      })
-      await Promise.all(promises)
+    if (onlyThis) {
+      await this._processBlock(blockHash, blockHeight)
+    } else {
+      while (currentHeight < blockHeight) {
+        currentHeight++
+        const currentHash = blockHeight === currentHeight
+          ? blockHash
+          : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
+        await this._processBlock(currentHash, currentHeight)
+      }
     }
+
     this._knownHeight = currentHeight
     this.logger.debug('finishing block', blockHeight)
     await this.ds.setCrawlHash(blockHash)
     await this.ds.setCrawlHeight(blockHeight)
+
+    const txids = await this.ds.searchNonExecutedTxs()
+    console.log(`txids pending of execution: ${txids.length}`)
+    for (const eTxid of txids) {
+      await this.execManager.execQueue.publish({ txid: eTxid })
+    }
   }
 
   async setTip (blockHash) {

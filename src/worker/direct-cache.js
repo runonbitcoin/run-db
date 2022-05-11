@@ -1,11 +1,12 @@
 
-const withTimeMeasure = async (label, fn, logger) => {
-  const start = process.hrtime.bigint()
-  const result = await fn()
-  const end = process.hrtime.bigint()
-  const diff = end - start
-  logger(`[time] ${label}: ${Number(diff / 1000n) / 1000}ms`)
-  return result
+const withTimeMeasure = async (label, fn, _logger) => {
+  // const start = process.hrtime.bigint()
+  // const result = await fn()
+  // const end = process.hrtime.bigint()
+  // const diff = end - start
+  // logger(`[time] ${label}: ${Number(diff / 1000n) / 1000}ms`)
+  // return result
+  return await fn()
 }
 
 class DirectCache {
@@ -26,7 +27,7 @@ class DirectCache {
       this.state[key] = jig
       return jig
     } else if (type === 'tx') {
-      const rawTx = await withTimeMeasure(`fetchz rawtx ${identifier}`, async () => this.blobs.pullTx(identifier, () => null), this.logger)
+      const rawTx = await withTimeMeasure(`fetch rawtx ${identifier}`, async () => this.blobs.pullTx(identifier, () => null), this.logger)
       if (rawTx !== null) {
         const txHex = rawTx.toString('hex')
         this.state[key] = txHex

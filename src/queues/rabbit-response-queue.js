@@ -11,10 +11,15 @@ class RabbitResponseQueue {
   async setUp () {
     await this.channel.assertQueue(this.queueName, { durable: false, exclusive: true, autoDelete: true })
     await this.channel.consume(this.queueName, async (event) => {
-      const payload = JSON.parse(event.content)
-      const correlationId = event.properties.correlationId
-      await this._onEvent(payload, correlationId)
-      await this.channel.ack(event)
+      try {
+        const payload = JSON.parse(event.content)
+        const correlationId = event.properties.correlationId
+        await this._onEvent(payload, correlationId)
+        await this.channel.ack(event)
+      } catch (e) {
+        console.error(e)
+        throw e
+      }
     })
   }
 

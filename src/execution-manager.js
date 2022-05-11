@@ -3,7 +3,6 @@ class ExecutionManager {
     this.blobs = blobs
     this.execQueue = execQueue
     this.trustQueue = trustQueue
-    this.execReplyQueue = null
     this.execRQueue = null
     this.trustRQueue = null
     this.subscription = null
@@ -21,10 +20,11 @@ class ExecutionManager {
     return rQueue.publishAndAwaitResponse({ txid })
   }
 
-  async indexTxLater (txBuff, blockHeight = null) {
-    const txid = await this.blobs.pushTx(null, txBuff)
-    await this.execQueue.publish({ txid, blockHeight }, { repplyTo: this.execReplyQueue })
-  }
+  // async indexTxid (txBuff, blockHeight = null) {
+  //   const txid = await this.blobs.pushTx(null, txBuff)
+  //   const rQueue = await this._execReplyQueue()
+  //   return rQueue.publishAndAwaitResponse({ txid })
+  // }
 
   async trustTxLater (txid, trust) {
     await this.trustQueue.publish({ txid, trust })

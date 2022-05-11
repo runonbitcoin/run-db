@@ -12,7 +12,9 @@ const {
   BITCOIND_REST_URL,
   BLOB_DB_CONNECTION_URI,
   MAIN_DB_CONNECTION_URI,
-  INITIAL_CRAWL_HEIGHT
+  INITIAL_CRAWL_HEIGHT,
+  NETWORK,
+  CRAWLER_IMPLEMENTATION
 } = require('../config')
 
 const { KnexDatasource } = require('../data-sources/knex-datasource')
@@ -22,16 +24,27 @@ const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
 const { ExecutionManager } = require('../execution-manager')
 const { RabbitQueue } = require('../queues/rabbit-queue')
 const path = require('path')
-// const { RunConnectBlockchainApi } = require('../blockchain-api/run-connect')
+const { RunConnectBlockchainApi } = require('../blockchain-api/run-connect')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
 const logger = console
-const zmq = new BitcoinZmq(ZMQ_URL)
-const rpc = new BitcoinRpc(RPC_URL)
-const api = new BitcoinNodeConnection(zmq, rpc, BITCOIND_REST_URL)
+
+let api
+if (CRAWLER_IMPLEMENTATION === 'bitcoin-node') {
+  const zmq = new BitcoinZmq(ZMQ_URL)
+  const rpc = new BitcoinRpc(RPC_URL)
+  api = new BitcoinNodeConnection(zmq, rpc, BITCOIND_REST_URL)
+} else {
+  api = new RunConnectBlockchainApi(NETWORK, '87400211a0a6712a688d5b10b854f0105cc114a1bd53285adfb4dde6d3968983', {
+    excludeApps: ['cryptofights', 'fyx']
+    // baseUrl: 'http://localhost:3000/v1/test',
+    // wsBaseUri: 'ws://localhost:3003',
+    // wsPath: '/ws/socket.io'
+  })
+}
 
 const knexInstance = knex({
   client: 'pg',
@@ -58,7 +71,7 @@ const knexBlob = knex({
     max: 2
   }
 })
-const blobs = new KnexBlobStorage(knexBlob)
+const blobs = new KnexBlobStorage(knexBlob, undefined, api)
 const ds = new KnexDatasource(knexInstance)
 
 let indexManager
@@ -78,7 +91,7 @@ async function main () {
   await execQueue.setUp()
   indexManager = new ExecutionManager(blobs, execQueue)
   await indexManager.setUp()
-  crawler = new Crawler(indexManager, api, ds, logger)
+  crawler = new Crawler(indexManager, api, ds, logger, { initialBlockConcurrency: 20 })
   await ds.setUp()
   await blobs.setUp()
   await crawler.start(INITIAL_CRAWL_HEIGHT ? Number(INITIAL_CRAWL_HEIGHT) : 0)

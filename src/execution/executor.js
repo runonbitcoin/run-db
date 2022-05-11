@@ -75,15 +75,15 @@ class Executor {
 
     this.logger.debug('Enqueueing', txid, 'for execution')
 
-    this.executing.add(txid)
-
     const worker = await this.pool.acquire()
 
     worker.missingDeps = new Set()
 
     const txBuf = await this.blobs.pullTx(txid, () => null)
+
     const hex = txBuf.toString('hex')
 
+    this.executing.add(txid)
     try {
       const result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
       return new ExecutionResult(true, [], result)
@@ -95,6 +95,7 @@ class Executor {
         return new ExecutionResult(false, [], null, e)
       }
     } finally {
+      this.executing.delete(txid)
       this.pool.release(worker)
     }
   }

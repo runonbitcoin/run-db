@@ -34,6 +34,8 @@ class RunConnectBlockchainApi {
     this.timer = null
     this.latestBlockHash = null
     this.io = null
+    this.includeApps = opts.includeApps || []
+    this.excludeApps = opts.excludeApps || []
   }
 
   async setUp (_height, _network) {
@@ -86,10 +88,20 @@ class RunConnectBlockchainApi {
     this._onNewBlock = fn
   }
 
+  _iterateBlockUrl (blockHash) {
+    const queryString = [
+      `blockHash=${blockHash}`,
+      ...this.excludeApps.map(app => `appName:ex=${app}`),
+      ...this.includeApps.map(app => `appName:in=${app}`)
+    ].join('&')
+    const baseUrl = `${this.baseUrl}/run-confirmations`
+    return `${baseUrl}?${queryString}`
+  }
+
   async iterateBlock (blockHash, fn) {
     return new Promise((resolve, reject) => {
       return fetch(
-        `${this.baseUrl}/run-confirmations?blockHash=${blockHash}`,
+        this._iterateBlockUrl(blockHash),
         {
           headers: { Authorization: this.token }
         }

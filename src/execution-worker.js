@@ -9,9 +9,15 @@ class ExecutionWorker {
 
   async setUp () {
     this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
-      const result = await this.indexer.indexTxid(txid, blockHeight)
-      await this._handleIndexResult(result)
-      return { txid, success: result.executed }
+      // console.log('starting: ', txid)
+      try {
+        const result = await this.indexer.indexTxid(txid, blockHeight)
+        await this._handleIndexResult(result)
+        return { txid, success: result.executed }
+      } catch (e) {
+        console.warn(e)
+        return { txid, success: false }
+      }
     })
     this.trustSubscription = await this.trustQueue.subscribe(async ({ txid, trust }) => {
       if (trust) {

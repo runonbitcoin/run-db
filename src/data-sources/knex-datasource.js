@@ -118,7 +118,7 @@ class KnexDatasource {
 
   async setTransactionExecutionFailed (txid) {
     await this.knex(TX.NAME)
-      .update({ [TX.executed]: true, [TX.executed]: false })
+      .update({ [TX.executed]: true, [TX.indexed]: false })
       .where(TX.txid, txid)
   }
 
@@ -158,6 +158,12 @@ class KnexDatasource {
       .first(TX.indexed)
 
     return !!(result && result.indexed)
+  }
+
+  async searchNonExecutedTxs () {
+    return this.knex(TX.NAME)
+      .where(TX.executed, false)
+      .pluck(TX.txid)
   }
 
   async hasFailedDep (txid) {
@@ -348,8 +354,9 @@ class KnexDatasource {
         this.select(`${depTx}.${TX.txid}`).from(knex.ref(DEPS.NAME).as(deps2))
           .leftJoin(knex.ref(TX.NAME).as(depTx), `${deps2}.${DEPS.up}`, `${depTx}.${TX.txid}`)
           .where(`${deps2}.${DEPS.down}`, knex.ref(`${mainTx}.${TX.txid}`))
+          // .where(depTx, '<>', txid)
           .where(qb => {
-            qb.where(`${depTx}.${TX.indexed}`, false).orWhereNull(`${depTx}.${TX.txid}`)
+            qb.where(`${depTx}.${TX.executed}`, false).orWhereNull(`${depTx}.${TX.txid}`)
           })
       }).pluck(`${mainTx}.${TX.txid}`)
   }
@@ -389,7 +396,10 @@ class KnexDatasource {
     return this.knex(DEPS.NAME)
       .leftJoin(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
-      .where(`${TX.NAME}.${TX.indexed}`, false).orWhereNull(`${TX.NAME}.${TX.txid}`)
+      .where(qb => {
+        qb.where(`${TX.NAME}.${TX.indexed}`, false)
+        qb.orWhereNull(`${TX.NAME}.${TX.txid}`)
+      })
       .pluck(`${DEPS.NAME}.${DEPS.up}`)
   }
 

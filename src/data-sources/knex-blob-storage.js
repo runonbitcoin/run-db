@@ -9,9 +9,10 @@ const defaultFilter = {
 }
 
 class KnexBlobStorage {
-  constructor (knex, statateTransformation = defaultFilter) {
+  constructor (knex, statateTransformation = defaultFilter, api = null) {
     this.knex = knex
     this.filter = statateTransformation
+    this.api = api
   }
 
   async setUp () {
@@ -55,6 +56,15 @@ class KnexBlobStorage {
       .where(RAW_TRANSACTIONS.txid, txid)
       .first(RAW_TRANSACTIONS.bytes)
     if (!result) {
+      if (this.api !== null) {
+        try {
+          const rawTx = await this.api.fetch(txid)
+          await this.pushTx(txid, rawTx)
+          return rawTx
+        } catch (e) {
+          // no op
+        }
+      }
       return ifNone()
     }
     return result.bytes
