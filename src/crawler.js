@@ -81,11 +81,11 @@ class Crawler {
     await this.ds.setCrawlHash(blockHash)
     await this.ds.setCrawlHeight(blockHeight)
 
-    const txids = await this.ds.searchNonExecutedTxs()
-    console.log(`txids pending of execution: ${txids.length}`)
-    for (const eTxid of txids) {
-      await this.execManager.execQueue.publish({ txid: eTxid })
-    }
+    // const txids = await this.ds.searchNonExecutedTxs()
+    // console.log(`txids pending of execution: ${txids.length}`)
+    // for (const eTxid of txids) {
+    //   await this.execManager.execQueue.publish({ txid: eTxid })
+    // }
   }
 
   async setTip (blockHash) {
