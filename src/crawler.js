@@ -19,11 +19,11 @@ class Crawler {
     const realTip = await this.api.getTip()
     let knownHeight = await this.ds.getCrawlHeight()
     if (knownHeight < startHeight) {
-      this.ds.setCrawlHeight(startHeight - 1)
-      knownHeight = startHeight - 1
+      this.ds.setCrawlHeight(startHeight)
+      knownHeight = startHeight
     }
 
-    while (knownHeight < realTip.height) {
+    while (knownHeight <= realTip.height) {
       const diffs = _.range(0, this.opts.initialBlockConcurrency || 1)
       await Promise.all(diffs.map(async (plus) => {
         const { height, hash } = await this.api.getBlockDataByHeight(knownHeight + plus)
@@ -57,7 +57,7 @@ class Crawler {
       count++
     })
     await Promise.all(promises)
-    console.log(`block ${blockHeight} had ${count} txs`)
+    this.logger.debug(`block ${blockHeight} had ${count} txs`)
   }
 
   async receiveBlock (blockHeight, blockHash, onlyThis = false) {

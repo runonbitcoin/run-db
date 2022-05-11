@@ -24,6 +24,11 @@ class MemoryQueue extends EventQueue {
     this.replyQueues = new Map()
   }
 
+  async tearDown () {
+    this.subscriptions = []
+    await this.current
+  }
+
   async publish (event, opts = {}) {
     this.pending.push(event)
     this.current = this.current.then(() => {

@@ -88,9 +88,13 @@ describe('ExecutionManager', () => {
   })
 
   afterEach(async () => {
+    await get.execQueue.tearDown()
+    await get.trustQueue.tearDown()
     await get.executor.stop()
     await get.ds.tearDown()
     await get.blobs.knex.destroy()
+    await get.indexer.stop()
+    await get.manager.tearDown()
   })
 
   def('someRunTx', async () => {
@@ -228,7 +232,6 @@ describe('ExecutionManager', () => {
       await get.manager.indexTxNow(buff)
 
       const event = await prom
-
       expect(event.txid).to.eql(randomTxTxid)
     })
   })
@@ -237,12 +240,13 @@ describe('ExecutionManager', () => {
     it('does not queue its found deps', async () => {
       const childTx = await get.childRunTx
       const events = []
-      get.execQueue.subscribe((_event) => {
-        expect.fail('should not queue anything')
+      get.execQueue.subscribe((event) => {
+        events.push(event)
       })
 
       await get.manager.indexTxNow(childTx.buff)
-      expect(events).to.have.length(0)
+      expect(events).to.have.length(1)
+      expect(events[0].txid).to.eql(childTx.txid)
     })
   })
 })

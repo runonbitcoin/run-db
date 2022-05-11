@@ -85,7 +85,6 @@ class Indexer {
         )
       }
       const executed = await this.executeIfPossible(parsed.txid)
-      console.log('executed', executed)
       if (executed) {
         return new IndexerResult(
           true,
