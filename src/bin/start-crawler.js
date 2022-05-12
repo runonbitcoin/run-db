@@ -14,7 +14,8 @@ const {
   MAIN_DB_CONNECTION_URI,
   INITIAL_CRAWL_HEIGHT,
   NETWORK,
-  CRAWLER_IMPLEMENTATION
+  CRAWLER_IMPLEMENTATION,
+  INITIAL_BLOCK_CONCURRENCY
 } = require('../config')
 
 const { KnexDatasource } = require('../data-sources/knex-datasource')
@@ -91,7 +92,7 @@ async function main () {
   await execQueue.setUp()
   indexManager = new ExecutionManager(blobs, execQueue)
   await indexManager.setUp()
-  crawler = new Crawler(indexManager, api, ds, logger, { initialBlockConcurrency: 20 })
+  crawler = new Crawler(indexManager, api, ds, logger, { initialBlockConcurrency: INITIAL_BLOCK_CONCURRENCY })
   await ds.setUp()
   await blobs.setUp()
   await crawler.start(INITIAL_CRAWL_HEIGHT ? Number(INITIAL_CRAWL_HEIGHT) : 0)

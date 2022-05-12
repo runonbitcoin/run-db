@@ -16,7 +16,7 @@ const { io } = require('socket.io-client')
 const MAINNET_BASE_URL = 'https://api.run.network/v1/main'
 const TESTNET_BASE_URL = 'https://api.run.network/v1/test'
 
-const WEBSOCKET_URI = 'ws://api.run.network'
+const WEBSOCKET_URI = 'wss://api.run.network'
 
 class RunConnectBlockchainApi {
   constructor (network, authToken, opts = {}) {
