@@ -12,12 +12,14 @@ const {
   BLOB_DB_CONNECTION_URI
 } = require('../config')
 
-const { KnexDatasource } = require('../data-sources/knex-datasource')
-const knex = require('knex')
-const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
-const { ExecutionManager } = require('../execution-manager')
-const { RabbitQueue } = require('../queues/rabbit-queue')
-const { buildMainServer } = require('../http')
+const {
+  KnexDatasource,
+  knex,
+  KnexBlobStorage,
+  ExecutionManager,
+  RabbitQueue,
+  buildMainServer
+} = require('../index')
 
 // ------------------------------------------------------------------------------------------------
 // Globals

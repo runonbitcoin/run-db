@@ -6,3 +6,4 @@ coverage
 run.db*
 *.sqlite3
 .idea
+.runcache

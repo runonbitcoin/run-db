@@ -18,14 +18,26 @@ const {
   INITIAL_BLOCK_CONCURRENCY
 } = require('../config')
 
-const { KnexDatasource } = require('../data-sources/knex-datasource')
-const knex = require('knex')
-const { Crawler, BitcoinNodeConnection, BitcoinZmq, BitcoinRpc } = require('../index')
-const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
-const { ExecutionManager } = require('../execution-manager')
-const { RabbitQueue } = require('../queues/rabbit-queue')
+const {
+  KnexDatasource,
+  knex,
+  Crawler,
+  BitcoinNodeConnection,
+  BitcoinZmq,
+  BitcoinRpc,
+  KnexBlobStorage,
+  ExecutionManager,
+  RabbitQueue,
+  RunConnectBlockchainApi
+} = require('../index')
+
 const path = require('path')
-const { RunConnectBlockchainApi } = require('../blockchain-api/run-connect')
+
+// const { Crawler, BitcoinNodeConnection, BitcoinZmq, BitcoinRpc } = require('../index')
+// const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
+// const { ExecutionManager } = require('../execution-manager')
+// const { RabbitQueue } = require('../queues/rabbit-queue')
+// const { RunConnectBlockchainApi } = require('../blockchain-api/run-connect')
 
 // ------------------------------------------------------------------------------------------------
 // Globals

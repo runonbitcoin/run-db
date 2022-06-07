@@ -14,13 +14,15 @@ const {
   NETWORK
 } = require('../config')
 
-const { KnexDatasource } = require('../data-sources/knex-datasource')
-const knex = require('knex')
-const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
-const { TrustAllTrustList } = require('../trust-list')
-const { Executor } = require('../execution')
-const { RabbitQueue } = require('../queues/rabbit-queue')
-const { ExecutionWorker } = require('../execution-worker')
+const {
+  KnexDatasource,
+  knex,
+  KnexBlobStorage,
+  TrustAllTrustList,
+  Executor,
+  RabbitQueue,
+  ExecutionWorker
+} = require('../index')
 
 const logger = console
 const network = NETWORK
@@ -106,6 +108,5 @@ async function shutdown () {
 // ------------------------------------------------------------------------------------------------
 
 process.on('SIGTERM', shutdown)
-process.on('SIGINT', shutdown)
 
 main()
