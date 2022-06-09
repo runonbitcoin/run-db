@@ -2,9 +2,10 @@ const { Worker } = require('worker_threads')
 const { Port } = require('./port')
 
 class WorkerThread {
-  constructor (path, workerData) {
+  constructor (path, workerData, opts = {}) {
     this.path = path
     this.workerData = workerData
+    this.portOpts = opts
     this.port = null
   }
 
@@ -12,7 +13,7 @@ class WorkerThread {
     this.worker = new Worker(this.path, {
       workerData: this.workerData
     })
-    this.port = new Port(this.worker)
+    this.port = new Port(this.worker, this.portOpts)
     await this.port.setUp()
   }
 

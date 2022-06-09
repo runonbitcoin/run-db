@@ -7,10 +7,14 @@ const { TOPICS } = require('./topics')
  */
 
 class Port {
-  constructor (jsPort) {
+  constructor (jsPort, opts = {}) {
     this.port = jsPort
     this.handlers = new Map()
     this.pending = new Map()
+    this.generalOpts = {
+      timeout: 10000, // default timeout 10s
+      ...opts
+    }
   }
 
   async setUp () {
@@ -18,13 +22,21 @@ class Port {
   }
 
   async tearDown () {
+    for (const { time } of this.pending.values()) {
+      clearTimeout(time)
+    }
     this.port.close()
   }
 
-  async send (topic, body) {
+  async send (topic, body, opts = {}) {
     const id = nanoid()
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      const timer = setTimeout(() => {
+        this.pending.delete(id)
+        reject(new Error('timeout'))
+      }, opts.timeout || this.generalOpts.timeout)
+
+      this.pending.set(id, { resolve, reject, timer })
       this.port.postMessage({ id, topic, body })
     })
   }
@@ -52,15 +64,16 @@ class Port {
         throw new Error('malformed response message. response and error at the same time')
       }
 
-      const handler = this.pending.get(replyTo)
-      if (!handler) {
+      const pending = this.pending.get(replyTo)
+      if (!pending) {
         return
       }
 
+      clearTimeout(pending.timeout)
       if (error) {
-        handler.reject(error)
+        pending.reject(error)
       } else {
-        handler.resolve((response))
+        pending.resolve((response))
       }
       this.pending.delete(replyTo)
     } else {
