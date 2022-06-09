@@ -1,6 +1,6 @@
 {
-  "name": "run-db",
-  "version": "2.0.0-alpha.1",
+  "name": "@runonbitcoin/run-db-private",
+  "version": "2.0.0-alpha.3",
   "description": "A local database that indexes jig states from RUN transactions",
   "keywords": [
     "run",
@@ -20,8 +20,9 @@
     "bitcoin sv"
   ],
   "license": "MIT",
-  "repository": "git://github.com/runonbitcoin/run-db.git",
+  "repository": "https://github.com/runonbitcoin/run-db-private",
   "main": "src/index.js",
+  "public": false,
   "scripts": {
     "lint": "standard --fix",
     "start": "node --experimental-worker src/bin/start.js",
