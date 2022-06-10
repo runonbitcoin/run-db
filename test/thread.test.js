@@ -5,7 +5,7 @@ describe('SubThread', () => {
   it('executes in subthread', async () => {
     const worker = new WorkerThread(require.resolve('./test-workers/ping-pong.js'), {})
     await worker.setUp()
-    const result = await worker.port.send('ping', {})
+    const result = await worker.send('ping', {})
     expect(result).to.eql({ data: 'pong' })
     await worker.tearDown()
   })
@@ -14,7 +14,7 @@ describe('SubThread', () => {
     const data = { a: Math.random(), b: Math.random() }
     const worker = new WorkerThread(require.resolve('./test-workers/worker-data.js'), data)
     await worker.setUp()
-    const result = await worker.port.send('data', {})
+    const result = await worker.send('data', {})
     expect(result).to.eql(data)
     await worker.tearDown()
   })
@@ -28,7 +28,7 @@ describe('SubThread', () => {
         resolve()
         expect(msg).to.eql(data)
       })
-      worker.port.send('send', { topic: 'sometopic', body: data })
+      worker.send('send', { topic: 'sometopic', body: data })
     })
     await worker.tearDown()
   })
@@ -36,14 +36,14 @@ describe('SubThread', () => {
   it('can timeout', async () => {
     const worker = new WorkerThread(require.resolve('./test-workers/do-nothing.js'), {})
     await worker.setUp()
-    await expect(worker.port.send('something', {}, { timeout: 10 })).to.eventually.be.rejectedWith('timeout')
+    await expect(worker.send('something', {}, { timeout: 10 })).to.eventually.be.rejectedWith('timeout')
     await worker.tearDown()
   })
 
   it('can timeout with general opts', async () => {
     const worker = new WorkerThread(require.resolve('./test-workers/do-nothing.js'), {}, { timeout: 10 })
     await worker.setUp()
-    await expect(worker.port.send('something', {})).to.eventually.be.rejectedWith('timeout')
+    await expect(worker.send('something', {})).to.eventually.be.rejectedWith('timeout')
     await worker.tearDown()
   })
 })

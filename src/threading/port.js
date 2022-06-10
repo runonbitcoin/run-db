@@ -25,7 +25,7 @@ class Port {
     for (const { time } of this.pending.values()) {
       clearTimeout(time)
     }
-    this.port.close()
+    // this.port.close()
   }
 
   async send (topic, body, opts = {}) {

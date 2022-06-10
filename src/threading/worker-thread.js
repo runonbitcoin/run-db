@@ -18,11 +18,16 @@ class WorkerThread {
   }
 
   async tearDown () {
+    await this.port.tearDown()
     await this.worker.terminate()
   }
 
   subscribe (topic, handler) {
     this.port.subscribe(topic, handler)
+  }
+
+  async send (topic, body, opts) {
+    return this.port.send(topic, body, opts)
   }
 }
 
