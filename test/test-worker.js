@@ -1,5 +1,4 @@
-const Bus = require('../src/bus')
-const { parentPort } = require('worker_threads')
+const { instance } = require('../src/threading/parent-process')
 
 const execute = (...params) => {
   if (params[0] === Buffer.alloc(32).fill(1).toString('hex')) {
@@ -8,4 +7,5 @@ const execute = (...params) => {
   return { solution: 42, params }
 }
 
-Bus.listen(parentPort, { execute })
+instance.subscribe('execute', execute)
+instance.setUp()

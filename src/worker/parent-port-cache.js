@@ -1,5 +1,4 @@
-const Bus = require('../bus')
-const { parentPort } = require('worker_threads')
+const { instance } = require('../threading/parent-process')
 
 class ParentPortCache {
   constructor () {
@@ -12,7 +11,7 @@ class ParentPortCache {
       return this.state[key]
     }
 
-    return await Bus.sendRequest(parentPort, 'cacheGet', [key])
+    return await instance.send('cacheGet', { key })
   }
 
   async set (key, value) {

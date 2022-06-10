@@ -22,22 +22,28 @@ class Port {
   }
 
   async tearDown () {
-    for (const { time } of this.pending.values()) {
-      clearTimeout(time)
+    for (const { timer } of this.pending.values()) {
+      clearTimeout(timer)
     }
     // this.port.close()
   }
 
   async send (topic, body, opts = {}) {
+    opts = { withResponse: true, ...opts }
     const id = nanoid()
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id)
-        reject(new Error('timeout'))
-      }, opts.timeout || this.generalOpts.timeout)
+      if (topic !== 'response') {
+        const timer = setTimeout(() => {
+          this.pending.delete(id)
+          reject(new Error('timeout'))
+        }, opts.timeout || this.generalOpts.timeout)
 
-      this.pending.set(id, { resolve, reject, timer })
-      this.port.postMessage({ id, topic, body })
+        this.pending.set(id, { resolve, reject, timer })
+        this.port.postMessage({ id, topic, body })
+      } else {
+        this.port.postMessage({ id, topic, body })
+        resolve()
+      }
     })
   }
 
@@ -56,10 +62,6 @@ class Port {
         throw new Error('malformed response message. missing replyTo')
       }
 
-      if (!error && !response) {
-        throw new Error('malformed response message. message or error should be present')
-      }
-
       if (error && response) {
         throw new Error('malformed response message. response and error at the same time')
       }
@@ -69,7 +71,7 @@ class Port {
         return
       }
 
-      clearTimeout(pending.timeout)
+      clearTimeout(pending.timer)
       if (error) {
         pending.reject(error)
       } else {

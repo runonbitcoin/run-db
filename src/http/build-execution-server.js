@@ -1,22 +1,22 @@
 const { ApiServer } = require('./api-server')
 const genericPool = require('generic-pool')
-const { Worker } = require('worker_threads')
-const Bus = require('../bus')
 const { ApiError } = require('./api-error')
 const { parseTxid } = require('../util/parse-txid')
 const { ExecutionError } = require('../execution/execution-error')
+const { WorkerThread } = require('../threading/worker-thread')
 
 const buildExecutionServer = (logger, count, blobStorage, workerPath, network, workerOpts = {}) => {
   const factory = {
     create: async () => {
-      const worker = new Worker(workerPath, {
-        workerData: {
+      const worker = new WorkerThread(
+        {
           network: network,
           cacheProviderPath: require.resolve('../worker/knex-cache-provider.js'),
           ...workerOpts
-        }
-      })
-      Bus.listen(worker, {})
+        },
+        { timeout: 10 * 1000 }
+      )
+      await worker.setUp()
       return worker
     },
 
@@ -68,7 +68,7 @@ const buildExecutionServer = (logger, count, blobStorage, workerPath, network, w
     try {
       logger.info(`executing: ${txid}`)
       const start = process.hrtime.bigint()
-      const response = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList], ExecutionError)
+      const response = await worker.send('execute', { txid, hex, trustList })
       const end = process.hrtime.bigint()
       logger.info(`finished: ${txid}. ${Number((end - start) / 1000n) / 1000}ms`)
       pool.release(worker).catch(logger.error)

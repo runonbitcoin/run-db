@@ -4,11 +4,10 @@
  * Background worker that executes RUN transactions
  */
 
-const { parentPort, workerData } = require('worker_threads')
 const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
-const Bus = require('../bus')
+const { instance, workerData } = require('../threading/parent-process')
 const { DEBUG } = require('../config')
 const stream = require('stream')
 
@@ -41,7 +40,8 @@ if (cacheType === 'direct' && (!txApiRoot || !stateApiRoot)) {
   throw new Error('missing api root for direct cache')
 }
 
-Bus.listen(parentPort, { execute })
+instance.subscribe('execute', execute)
+instance.setUp().catch(e => { throw e })
 
 // On Node 15+, when the Blockchain fetch method throws for missing dependencies, it causes
 // and unhandled promise rejection error. However, it can't reproduce outside of Run-DB.
@@ -58,7 +58,7 @@ class Blockchain {
   constructor (txid) { this.txid = txid }
   get network () { return network }
   async broadcast (_hex) { return this.txid }
-  async fetch (txid) { return await Bus.sendRequest(parentPort, 'blockchainFetch', [txid]) }
+  async fetch (txid) { return await instance.send('blockchainFetch', { txid }) }
   async utxos (_script) { throw new Error('not implemented: utxos') }
   async spends (_txid, _vout) { throw new Error('not implemented: spends') }
   async time (_txid) { throw new Error('not implemented: time') }
@@ -85,7 +85,7 @@ logger.debug = DEBUG ? console.debug.bind(console) : () => {}
 const cacheProvider = new CacheProvider(originalLog)
 const setupCache = cacheProvider.setUp()
 
-async function execute (txid, hex, trustlist) {
+async function execute ({ txid, hex, trustList }) {
   await setupCache
   run.cache = await cacheProvider.get()
 
@@ -95,7 +95,7 @@ async function execute (txid, hex, trustlist) {
   run.client = false
   run.preverify = false
 
-  trustlist.forEach(txid => run.trust(txid))
+  trustList.forEach(txid => run.trust(txid))
   run.trust('cache')
 
   const tx = await run.import(hex, { txid })

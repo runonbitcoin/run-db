@@ -11,7 +11,8 @@ class WorkerThread {
 
   async setUp () {
     this.worker = new Worker(this.path, {
-      workerData: this.workerData
+      workerData: this.workerData,
+      env: this.portOpts.env || {}
     })
     this.port = new Port(this.worker, this.portOpts)
     await this.port.setUp()

@@ -3,11 +3,9 @@
  *
  * Executes RUN transactions and calculates state
  */
-
-const { Worker } = require('worker_threads')
-const Bus = require('../bus')
 const genericPool = require('generic-pool')
 const { ExecutionResult } = require('../model/execution-result')
+const { WorkerThread } = require('../threading/worker-thread')
 
 // ------------------------------------------------------------------------------------------------
 // Executor
@@ -26,13 +24,7 @@ class Executor {
       cacheProviderPath: opts.cacheProviderPath || null
     }
     this.workerEnv = opts.workerEnv || {}
-
-    this.onIndexed = null
-    this.onExecuteFailed = null
     this.onMissingDeps = null
-
-    // this.workers = []
-    // this.workerRequests = []
     this.executing = new Set()
     this.pool = null
   }
@@ -41,18 +33,21 @@ class Executor {
     const factory = {
       create: async () => {
         const path = require.resolve('../worker/worker.js')
-        const worker = new Worker(path, {
-          workerData: { network: this.network, ...this.workerOpts },
-          env: this.workerEnv
-        })
-        const cacheGet = (txid) => this._onCacheGet(txid)
-        const blockchainFetch = (txid) => this._onBlockchainFetch(worker, txid)
-        const handlers = { cacheGet, blockchainFetch }
-        Bus.listen(worker, handlers)
+
+        const cacheGet = ({ key }) => this._onCacheGet(key)
+        const blockchainFetch = ({ txid }) => this._onBlockchainFetch(worker, txid)
+        const worker = new WorkerThread(
+          path,
+          { network: this.network, ...this.workerOpts },
+          { timeout: 10 * 1000, env: this.workerEnv }
+        )
+        await worker.setUp()
+        worker.subscribe('cacheGet', cacheGet)
+        worker.subscribe('blockchainFetch', blockchainFetch)
         return worker
       },
       destroy: async (worker) => {
-        await worker.terminate()
+        await worker.tearDown()
       }
     }
 
@@ -65,7 +60,6 @@ class Executor {
   }
 
   async stop () {
-    this.logger.debug('Stopping all workers')
     await this.pool.drain()
     await this.pool.clear()
   }
@@ -85,7 +79,7 @@ class Executor {
 
     this.executing.add(txid)
     try {
-      const result = await Bus.sendRequest(worker, 'execute', [txid, hex, trustList])
+      const result = await worker.send('execute', { txid, hex, trustList })
       return new ExecutionResult(true, [], result)
     } catch (e) {
       if (worker.missingDeps.size) {

@@ -7,7 +7,6 @@
 const BitcoinNodeConnection = require('./blockchain-api/bitcoin-node-connection')
 const BitcoinRpc = require('./blockchain-api/bitcoin-rpc')
 const BitcoinZmq = require('./blockchain-api/bitcoin-zmq')
-const Bus = require('./bus')
 const Indexer = require('./indexer')
 const RunConnectFetcher = require('./blockchain-api/run-connect')
 const config = require('./config')
@@ -32,7 +31,6 @@ module.exports = {
   BitcoinNodeConnection,
   BitcoinRpc,
   BitcoinZmq,
-  Bus,
   CacheProvider,
   Clock,
   Crawler,

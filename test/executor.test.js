@@ -105,6 +105,7 @@ describe('Executor', () => {
     it('works', async () => {
       const tx1 = await get.tx1
       const tx2 = await get.tx2
+      await get.blobs.pushTx(tx1.txid, tx1.buff)
       await get.blobs.pushTx(tx2.txid, tx2.buff)
       await get.blobs.pushJigState(`${tx1.txid}_o1`, get.runCache.get(`jig://${tx1.txid}_o1`))
       await get.blobs.pushJigState(`${tx1.txid}_o2`, get.runCache.get(`jig://${tx1.txid}_o2`))

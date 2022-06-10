@@ -22,7 +22,7 @@ async function fetchExecution (server, txid, params) {
   })
 }
 
-describe('execution-server', () => {
+describe.skip('execution-server', () => {
   let bs
   let server
 
