@@ -23,6 +23,8 @@ const preserveStdout = workerData.preserveStdout || false
 const preserveStdErr = workerData.preserveStdErr || false
 const originalLog = console.log
 const CacheProvider = require(workerData.cacheProviderPath || './parent-port-cache-provider.js')
+const { RemoteError } = require('../threading/remote-error')
+const { DepNotFound } = require('../execution/dep-not-found')
 
 // Prepare console
 
@@ -98,22 +100,30 @@ async function execute ({ txid, hex, trustList }) {
   trustList.forEach(txid => run.trust(txid))
   run.trust('cache')
 
-  const tx = await run.import(hex, { txid })
-  await tx.cache()
+  try {
+    const tx = await run.import(hex, { txid })
+    await tx.cache()
 
-  const cache = run.cache.newStates
-  const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
-  const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
-  const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)
-  const customLocks = creationsWithLocks.map(creation => [creation.location, creation.owner])
-  const locks = customLocks.map(([location, lock]) => [location, lock.constructor.origin])
-  const creationsWithoutLocks = tx.outputs.filter(creation => typeof creation.owner === 'string')
-  const addressify = owner => owner.length >= 64 ? new bsv.PublicKey(owner).toAddress().toString() : owner
-  const addresses = creationsWithoutLocks.map(creation => [creation.location, addressify(creation.owner)])
-  const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
-  const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
-  const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
-  return { cache, classes, locks, scripthashes }
+    const cache = run.cache.newStates
+    const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
+    const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
+    const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)
+    const customLocks = creationsWithLocks.map(creation => [creation.location, creation.owner])
+    const locks = customLocks.map(([location, lock]) => [location, lock.constructor.origin])
+    const creationsWithoutLocks = tx.outputs.filter(creation => typeof creation.owner === 'string')
+    const addressify = owner => owner.length >= 64 ? new bsv.PublicKey(owner).toAddress().toString() : owner
+    const addresses = creationsWithoutLocks.map(creation => [creation.location, addressify(creation.owner)])
+    const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
+    const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
+    const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
+    return { success: true, cache, classes, locks, scripthashes }
+  } catch (e) {
+    if (e instanceof RemoteError && e.className === DepNotFound.name) {
+      return { success: false, missingDeps: [e.data.txid] }
+    } else {
+      return { success: false, error: e }
+    }
+  }
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 const { nanoid } = require('nanoid')
 const { TOPICS } = require('./topics')
+const { RemoteError } = require('./remote-error')
 
 /**
  * Message structure:
@@ -73,9 +74,9 @@ class Port {
 
       clearTimeout(pending.timer)
       if (error) {
-        pending.reject(error)
+        pending.reject(new RemoteError(error.className, error.data))
       } else {
-        pending.resolve((response))
+        pending.resolve(response)
       }
       this.pending.delete(replyTo)
     } else {
@@ -85,7 +86,7 @@ class Port {
         const response = await handler(msg.body)
         return this.send('response', { replyTo: msg.id, response, error: null })
       } catch (e) {
-        return this.send('response', { replyTo: msg.id, response: null, error: { message: e.message } })
+        return this.send('response', { replyTo: msg.id, response: null, error: { className: e.constructor.name, data: JSON.parse(JSON.stringify(e)), message: e.message } })
       }
     }
   }

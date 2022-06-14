@@ -66,6 +66,7 @@
     "zeromq": "^5.2.8"
   },
   "devDependencies": {
+    "@runonbitcoin/nimble": "^1.0.13",
     "@vscode/sqlite3": "^5.0.7",
     "bdd-lazy-var": "^2.6.1",
     "chai": "^4.3.4",

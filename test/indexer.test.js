@@ -16,6 +16,7 @@ const knex = require('knex')
 const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { def, get } = require('bdd-lazy-var/getter')
 const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
+const { buildTxSize } = require('./test-jigs/tx-size')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -143,16 +144,7 @@ describe('Indexer', () => {
     ))
 
     def('TxSize', async () => {
-      class TxSize extends Run.Berry {
-        static async pluck (location, fetch) {
-          const hex = fetch(location)
-          return new this(hex.length)
-        }
-
-        init (size) {
-          this.size = size
-        }
-      }
+      const TxSize = buildTxSize()
 
       get.run.deploy(TxSize)
       await get.run.sync()
