@@ -46,7 +46,10 @@ class ExecutionWorker {
     const unknownDepsProms = result.unknownDeps.map(async txid => {
       return this.execQueue.publish({ txid })
     })
-    await Promise.all([...enableProms, ...unknownDepsProms])
+    const missingDeps = result.missingDeps.map(async txid => {
+      return this.execQueue.publish({ txid })
+    })
+    await Promise.all([...enableProms, ...unknownDepsProms, ...missingDeps])
   }
 }
 

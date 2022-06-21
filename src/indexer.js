@@ -15,9 +15,10 @@ const { IndexerResult } = require('./model/indexer-result')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (_database, ds, blobs, trustList, executor, network, logger) {
+  constructor (ds, blobs, trustList, executor, network, execSet, logger) {
     this.onFailToIndex = null
     this.pendingRetries = new Map()
+    this.execSet = execSet
 
     this.logger = logger
     this.ds = ds
@@ -47,14 +48,15 @@ class Indexer {
     if (txBuff === null) {
       await this.ds.addNewTx(txid, new Date(), null)
       await this.ds.setTransactionExecutionFailed(txid)
-      // console.log(res)
-      return new IndexerResult(
+      const result = new IndexerResult(
         false,
         [],
         [],
         [],
         await this.ds.searchDownstreamTxidsReadyToExecute(txid)
       )
+      await this.execSet.remove(txid)
+      return result
     } else {
       return this.indexTransaction(txBuff, blockHeight)
     }
@@ -67,6 +69,12 @@ class Indexer {
     const time = new Date()
     await this.ds.addNewTx(txid, time, blockHeight)
 
+    const result = await this._doIndexing(txid, txBuf)
+    await this.execSet.remove(txid)
+    return result
+  }
+
+  async _doIndexing (txid, txBuf) {
     const indexed = await this.ds.txIsIndexed(txid)
     if (indexed) {
       return new IndexerResult(true, [], [], [], await this.ds.searchDownstreamTxidsReadyToExecute(txid))
@@ -234,7 +242,6 @@ class Indexer {
     await this.ds.performOnTransaction(async (ds) => {
       await ds.setExecutedForTx(txid, 1)
       await ds.setIndexedForTx(txid, 1)
-      await ds.removeTxFromExecuting(txid)
 
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
@@ -251,6 +258,8 @@ class Indexer {
           )
         } else if (key.startsWith('berry://')) {
           const location = key.slice('berry://'.length)
+          const klass = classes.find(([loc]) => loc === location)
+          await ds.setBerryMetadata(location, klass && klass[1])
           await this.blobs.pushJigState(location, cache[key])
         }
       }

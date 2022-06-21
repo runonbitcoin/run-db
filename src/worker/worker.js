@@ -105,8 +105,9 @@ async function execute ({ txid, hex, trustList }) {
     await tx.cache()
 
     const cache = run.cache.newStates
-    const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
-    const classes = jigs.map(jig => [jig.location, jig.constructor.origin])
+    // const jigs = tx.outputs.filter(creation => creation instanceof Run.Jig)
+    const jigs = await Promise.all(Object.keys(cache).map(key => key.split('://')[1]).map(location => run.load(location)))
+    const classes = jigs.map(jig => [jig.location.replace(/&hash=[a-fA-F0-9]*/, ''), jig.constructor.origin])
     const creationsWithLocks = tx.outputs.filter(creation => creation.owner instanceof Run.api.Lock)
     const customLocks = creationsWithLocks.map(creation => [creation.location, creation.owner])
     const locks = customLocks.map(([location, lock]) => [location, lock.constructor.origin])

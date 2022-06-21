@@ -12,10 +12,7 @@ const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 const { buildMainServer } = require('../src/http/build-main-server')
 const { Executor } = require('../src/execution/executor')
-const knex = require('knex')
-const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { def, get } = require('bdd-lazy-var/getter')
-const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const Run = require('run-sdk')
 const { buildCounter } = require('./test-jigs/counter')
@@ -25,6 +22,8 @@ const bsv = require('bsv')
 const { ExecutionWorker } = require('../src/execution-worker')
 const { MemoryQueue } = require('../src/queues/memory-queu')
 const { ExecutionManager } = require('../src/execution-manager')
+const { ExecutingSet } = require('../src/executing-set')
+const { buildBlobs, buildDs } = require('./test-env')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -36,51 +35,19 @@ const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {
 // ------------------------------------------------------------------------------------------------
 
 describe('Server', () => {
-  def('ds', () => {
-    const knexInstance = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbMain?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'db-migrations'
-      },
-      useNullAsDefault: true
-    })
+  def('ds', () => buildDs())
 
-    return new KnexDatasource(knexInstance, logger, false)
-  })
-
-  def('blobs', () => {
-    const blobsKnex = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbBlobs?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'blobs-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexBlobStorage(blobsKnex, {
-      serialize: JSON.stringify,
-      deserialize: JSON.parse
-    })
-  })
+  def('blobs', () => buildBlobs())
   def('network', () => 'test')
   def('executor', () => new Executor(get.network, 1, get.blobs, get.ds, logger, {}))
   def('trustList', () => new DbTrustList())
-  def('indexer', () => new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger))
+  def('execSet', () => new ExecutingSet(get.ds))
+  def('indexer', () => new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger))
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
   def('worker', () => new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue))
-  def('execManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
+  def('execManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
 
@@ -350,6 +317,7 @@ describe('Server', () => {
         await get.indexer.indexTransaction(randomTx.buff)
         await get.indexer.indexTransaction(deploy.buff)
         await get.indexer.indexTransaction(instance.buff)
+        console.log('coso')
       })
 
       it('returns the state if the state exists', async () => {

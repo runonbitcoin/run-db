@@ -1,10 +1,6 @@
 const { expect } = require('chai')
 const { get, def } = require('bdd-lazy-var/getter')
-const knex = require('knex')
-const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
-const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
-const { Executor } = require('../src/execution/executor')
 const Indexer = require('../src/indexer')
 const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api')
 const Run = require('run-sdk')
@@ -15,59 +11,25 @@ const { buildTxSize } = require('./test-jigs/tx-size')
 const { buildContainer } = require('./test-jigs/container')
 const bsv = require('bsv')
 const { ExecutionWorker } = require('../src/execution-worker')
+const { buildDs, buildBlobs, buildExecutor } = require('./test-env')
+const { ExecutingSet } = require('../src/executing-set')
 
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
 describe('ExecutionManager', () => {
-  def('ds', () => {
-    const knexInstance = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbMain?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'db-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexDatasource(knexInstance, logger, false)
-  })
+  def('ds', () => buildDs())
 
   def('trustList', () => {
     return new DbTrustList(get.ds)
   })
 
-  def('blobs', () => {
-    const blobsKnex = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbBlobs?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'blobs-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexBlobStorage(blobsKnex, {
-      serialize: JSON.stringify,
-      deserialize: JSON.parse
-    })
-  })
+  def('blobs', buildBlobs)
 
   def('network', () => 'test')
 
-  def('executor', () => {
-    return new Executor(get.network, 1, get.blobs, get.ds, logger, {})
-  })
-
+  def('executor', () => buildExecutor(get.network, get.blobs, get.ds))
   def('indexer', () => {
-    return new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
+    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger)
   })
 
   def('api', () => {
@@ -78,7 +40,8 @@ describe('ExecutionManager', () => {
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
-  def('manager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
+  def('execSet', () => new ExecutingSet(get.ds))
+  def('manager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
   beforeEach(async () => {
     await get.ds.setUp()
@@ -247,6 +210,37 @@ describe('ExecutionManager', () => {
       await get.manager.indexTxNow(childTx.buff)
       expect(events).to.have.length(1)
       expect(events[0].txid).to.eql(childTx.txid)
+    })
+  })
+
+  describe('when the tx starts to execute but did not finish', () => {
+    let finishExecResolve
+    const finishExecPromise = new Promise(resolve => { finishExecResolve = resolve })
+
+    let startExecResolve
+    const startExecPromise = new Promise(resolve => { startExecResolve = resolve })
+
+    def('executor', () => ({
+      start: () => {},
+      stop: () => {},
+      execute: async () => {
+        return new Promise((resolve) => {
+          startExecResolve()
+          finishExecPromise.then(() => resolve({ success: true, result: { cache: {} } }))
+        })
+      },
+      executing: new Set()
+    }))
+
+    it('adds the tx to executing set and when it finishes it gets remobed', async () => {
+      const tx = await get.someRunTx
+      const finishIndexPromise = get.manager.indexTxNow(tx.buff)
+
+      await startExecPromise
+      expect(await get.execSet.check(tx.txid)).to.eql(true)
+      finishExecResolve()
+      await finishIndexPromise
+      expect(await get.execSet.check(tx.txid)).to.eql(false)
     })
   })
 })

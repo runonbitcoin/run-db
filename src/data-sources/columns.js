@@ -50,6 +50,7 @@ const JIG = {
 const BERRY = {
   NAME: 'berry',
   location: 'location',
+  klass: 'class',
   state: 'state'
 }
 

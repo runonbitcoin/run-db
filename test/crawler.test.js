@@ -10,15 +10,14 @@ const { def, get } = require('bdd-lazy-var/getter')
 const Indexer = require('../src/indexer')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { Executor } = require('../src/execution/executor')
-const { KnexDatasource } = require('../src/data-sources/knex-datasource')
-const knex = require('knex')
-const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 const { Crawler } = require('../src/crawler')
 const { TestBlockchainApi } = require('../src/blockchain-api/test-blockchain-api')
 const Run = require('run-sdk')
 const { ExecutionManager } = require('../src/execution-manager')
 const { MemoryQueue } = require('../src/queues/memory-queu')
 const { ExecutionWorker } = require('../src/execution-worker')
+const { ExecutingSet } = require('../src/executing-set')
+const { buildBlobs, buildDs } = require('./test-env')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -31,46 +30,13 @@ const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {
 // ------------------------------------------------------------------------------------------------
 
 describe('Crawler', () => {
-  def('ds', () => {
-    const knexInstance = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbMain?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'db-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexDatasource(knexInstance, logger, false)
-  })
+  def('ds', () => buildDs())
 
   def('trustList', () => {
     return new DbTrustList()
   })
 
-  def('blobs', () => {
-    const blobsKnex = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbBlobs?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'blobs-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexBlobStorage(blobsKnex, {
-      serialize: JSON.stringify,
-      deserialize: JSON.parse
-    })
-  })
+  def('blobs', () => buildBlobs())
 
   def('network', () => 'test')
 
@@ -78,14 +44,16 @@ describe('Crawler', () => {
     return new Executor(get.network, 1, get.blobs, get.ds, logger, {})
   })
 
+  def('execSet', () => new ExecutingSet(get.ds))
+
   def('indexer', () => {
-    return new Indexer(null, get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
+    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger)
   })
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
 
-  def('indexManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue))
+  def('indexManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
   def('api', () => {
     return new TestBlockchainApi()

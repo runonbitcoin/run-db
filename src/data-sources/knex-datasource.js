@@ -222,11 +222,16 @@ class KnexDatasource {
   }
 
   async removeTxFromExecuting (txid) {
-    await this.knex(EXECUTING.NAME).where(EXECUTING.txid, txid).del()
+    return await this.knex(EXECUTING.NAME).where(EXECUTING.txid, txid).del()
   }
 
   async findAllExecutingTxids () {
     return this.knex(EXECUTING.NAME).pluck(EXECUTING.txid)
+  }
+
+  async checkExecuting (txid) {
+    const result = await this.knex(EXECUTING.NAME).where({ txid }).pluck(EXECUTING.txid)
+    return result.length > 0
   }
 
   async txidTrustedAndReadyToExecute (txid) {
@@ -435,22 +440,12 @@ class KnexDatasource {
     }
   }
 
-  async setJigState (location, stateObject) {
-    await this.knex(JIG.NAME)
-      .insert({ [JIG.location]: location, [JIG.state]: JSON.stringify(stateObject) })
-      .onConflict().ignore()
-  }
-
-  async setBerryState (location, stateObject) {
+  async setBerryMetadata (location, klass) {
     await this.knex(BERRY.NAME)
-      .insert({ [BERRY.location]: location, [BERRY.state]: JSON.stringify(stateObject) })
-      .onConflict().ignore()
-  }
-
-  async setBerryMetadata (location) {
-    await this.knex(BERRY.NAME)
-      .insert({ [BERRY.location]: location })
-      .onConflict().ignore()
+      .insert({
+        [BERRY.location]: location,
+        [BERRY.klass]: klass
+      })
   }
 
   async getBerryState (location) {

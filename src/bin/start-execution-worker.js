@@ -23,6 +23,7 @@ const {
   RabbitQueue,
   ExecutionWorker
 } = require('../index')
+const { ExecutingSet } = require('../executing-set')
 
 const logger = console
 const network = NETWORK
@@ -60,7 +61,8 @@ const executor = new Executor(network, WORKERS, blobs, ds, logger, {
     BLOB_DB_CONNECTION_URI: BLOB_DB_CONNECTION_URI
   }
 })
-const indexer = new Indexer(null, ds, blobs, trustList, executor, network, logger)
+const execSet = new ExecutingSet(ds)
+const indexer = new Indexer(ds, blobs, trustList, executor, network, execSet, logger)
 let execQueue = null
 let trustQueue = null
 let rabbitConnection = null

@@ -1,8 +1,9 @@
 class ExecutionManager {
-  constructor (blobs, execQueue, trustQueue) {
+  constructor (blobs, execQueue, trustQueue, executingSet) {
     this.blobs = blobs
     this.execQueue = execQueue
     this.trustQueue = trustQueue
+    this.executingSet = executingSet
     this.execRQueue = null
     this.trustRQueue = null
     this.subscription = null
@@ -17,7 +18,10 @@ class ExecutionManager {
   async indexTxNow (txBuff, blockHeight = null) {
     const txid = await this.blobs.pushTx(null, txBuff)
     const rQueue = await this._execReplyQueue()
-    return rQueue.publishAndAwaitResponse({ txid })
+    this.executingSet.add(txid)
+    const result = await rQueue.publishAndAwaitResponse({ txid })
+    this.executingSet.remove(txid)
+    return result
   }
 
   // async indexTxid (txBuff, blockHeight = null) {
@@ -27,6 +31,8 @@ class ExecutionManager {
   // }
 
   async trustTxLater (txid, trust) {
+    if (this.executingSet.check(txid)) { return }
+    this.executingSet.add(txid)
     await this.trustQueue.publish({ txid, trust })
   }
 

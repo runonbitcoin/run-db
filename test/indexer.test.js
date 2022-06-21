@@ -12,11 +12,12 @@ const Run = require('run-sdk')
 // const { DEFAULT_TRUSTLIST } = require('../src/config')
 const { DbTrustList } = require('../src/trust-list/db-trust-list')
 const { Executor } = require('../src/execution/executor')
-const knex = require('knex')
-const { KnexDatasource } = require('../src/data-sources/knex-datasource')
 const { def, get } = require('bdd-lazy-var/getter')
-const { KnexBlobStorage } = require('../src/data-sources/knex-blob-storage')
 const { buildTxSize } = require('./test-jigs/tx-size')
+const { buildDs, buildBlobs } = require('./test-env')
+const { buildCounter } = require('./test-jigs/counter')
+const { ExecutingSet } = require('../src/executing-set')
+const { txidFromLocation } = require('../src/util/txid-from-location')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -32,22 +33,7 @@ const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {
 // ------------------------------------------------------------------------------------------------
 
 describe('Indexer', () => {
-  def('ds', () => {
-    const knexInstance = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbMain?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'db-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexDatasource(knexInstance, logger, false)
-  })
+  def('ds', buildDs)
 
   let trustList
   let blobStorage
@@ -61,25 +47,7 @@ describe('Indexer', () => {
     return new DbTrustList()
   })
 
-  def('blobs', () => {
-    const blobsKnex = knex({
-      client: 'sqlite3',
-      connection: {
-        filename: 'file:memDbBlobs?mode=memory&cache=shared',
-        flags: ['OPEN_URI', 'OPEN_SHAREDCACHE']
-      },
-      migrations: {
-        tableName: 'migrations',
-        directory: 'blobs-migrations'
-      },
-      useNullAsDefault: true
-    })
-
-    return new KnexBlobStorage(blobsKnex, {
-      serialize: JSON.stringify,
-      deserialize: JSON.parse
-    })
-  })
+  def('blobs', () => buildBlobs())
 
   beforeEach(async () => {
     trustList = get.trustList
@@ -94,7 +62,6 @@ describe('Indexer', () => {
   })
 
   it.skip('mark a transaction as failed when a dependency already failed', async () => {
-    const database = null
     const run = new Run({ network: 'mock' })
 
     class Counter extends Run.Jig {
@@ -118,19 +85,19 @@ describe('Indexer', () => {
     const txHex2 = await run.blockchain.fetch(txid2)
     const txHex3 = await run.blockchain.fetch(txid3)
 
-    const executor = new Executor('test', 1, database, logger)
-    const indexer = new Indexer(database, run.blockchain, executor, 1, 1, logger, 0, Infinity, [])
+    const executor = new Executor('test', 1, null, logger)
+    const indexer = new Indexer(run.blockchain, executor, 1, 1, logger, 0, Infinity, [])
     await indexer.start()
     const promise = indexed(indexer, txid2)
-    await database.trust(txid1)
-    await database.addTransaction(txid1, txHex1)
-    await database.addTransaction(txid2, txHex2)
+    await null.trust(txid1)
+    await null.addTransaction(txid1, txHex1)
+    await null.addTransaction(txid2, txHex2)
     await promise
-    await database.setTransactionExecutionFailed(txid2)
+    await null.setTransactionExecutionFailed(txid2)
 
-    await database.addTransaction(txid3, txHex3)
+    await null.addTransaction(txid3, txHex3)
 
-    const metadata = await database.getTxMetadata(txid3)
+    const metadata = await null.getTxMetadata(txid3)
     expect(metadata.executable).to.eql(0)
 
     await indexer.stop()
@@ -164,15 +131,7 @@ describe('Indexer', () => {
     })
 
     def('Counter', async () => {
-      class Counter extends Run.Jig {
-        init () {
-          this.count = 0
-        }
-
-        inc () {
-          this.count += 1
-        }
-      }
+      const Counter = buildCounter()
 
       get.run.deploy(Counter)
       await get.run.sync()
@@ -189,8 +148,10 @@ describe('Indexer', () => {
       return new Executor('test', 1, blobStorage, get.ds, logger)
     })
 
+    def('execSet', () => new ExecutingSet(get.ds))
+
     def('indexer', () =>
-      new Indexer(null, get.ds, blobStorage, trustList, get.executor, 'test', logger)
+      new Indexer(get.ds, blobStorage, trustList, get.executor, 'test', get.execSet, logger)
     )
 
     beforeEach(async () => {
@@ -233,7 +194,8 @@ describe('Indexer', () => {
       it('returns executed as true', async () => {
         const Counter = await get.Counter
 
-        await get.indexer.trust(Counter.location.split('_')[0])
+        const txid = txidFromLocation(Counter.location)
+        await get.indexer.trust(txid)
 
         const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
 
@@ -241,6 +203,20 @@ describe('Indexer', () => {
       })
 
       it('craetes the spend')
+
+      describe('when the tx is in the exec set', () => {
+        it('removes the tx from exec set', async () => {
+          const Counter = await get.Counter
+          const txid = txidFromLocation(Counter.location)
+          await get.indexer.trust(txid)
+
+          await get.execSet.add(txid)
+          expect(await get.execSet.check(txid)).to.eql(true)
+          await get.indexer.indexTransaction(await get.txBuf, null, null)
+          const coso = await get.execSet.check(txid)
+          expect(coso).to.eql(false)
+        })
+      })
     })
 
     describe('when the tx execution fails because there is a missing state on the blob storage', async () => {
