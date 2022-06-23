@@ -68,9 +68,6 @@ class Executor {
 
   async execute (txid, trustList) {
     if (this.executing.has(txid)) return new ExecutionResult(false, [], null)
-
-    this.logger.debug('Enqueueing', txid, 'for execution')
-
     const worker = await this.pool.acquire()
     const txBuf = await this.blobs.pullTx(txid, () => null)
 
@@ -79,10 +76,7 @@ class Executor {
     this.executing.add(txid)
     try {
       const result = await worker.send('execute', { txid, hex, trustList })
-      if (result.missingDeps) {
-        return new ExecutionResult(false, result.missingDeps, null, null)
-      }
-      return new ExecutionResult(true, [], result)
+      return new ExecutionResult(result.success, result.missingDeps, result, result.error)
     } catch (e) {
       return new ExecutionResult(false, [], null, e)
     } finally {

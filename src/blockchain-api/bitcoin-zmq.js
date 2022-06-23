@@ -5,19 +5,20 @@ try {
 
 class BitcoinZmq {
   constructor (url) {
-    this.sock = zmq.socket('sub')
+    this.sock = new zmq.Subscriber()
     this.url = url
     this.handlers = new Map()
   }
 
   async connect () {
-    this.sock.connect(this.url)
-    this.sock.on('message', (topic, message) => {
+    await this.sock.connect(this.url)
+    for await (const [topic, msg] of this.sock) {
+      const txid = msg.toString('hex')
       const handler = this.handlers.get(topic.toString())
       if (handler) {
-        handler(message)
+        handler(txid)
       }
-    })
+    }
   }
 
   async subscribe (topic, handler) {

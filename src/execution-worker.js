@@ -1,15 +1,15 @@
 class ExecutionWorker {
-  constructor (indexer, execQueue, trustQueue) {
+  constructor (indexer, execSet, execQueue, trustQueue) {
     this.indexer = indexer
     this.execQueue = execQueue
     this.trustQueue = trustQueue
+    this.execSet = execSet
     this.execSubscription = null
     this.trustSubscription = null
   }
 
   async setUp () {
     this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
-      // console.log('starting: ', txid)
       try {
         const result = await this.indexer.indexTxid(txid, blockHeight)
         await this._handleIndexResult(result)
@@ -40,16 +40,18 @@ class ExecutionWorker {
   }
 
   async _handleIndexResult (result) {
-    const enableProms = result.enables.map(async txid => {
+    const newTxidsToIndex = await Promise.all([...result.unknownDeps, ...result.missingDeps].map(async txid => {
+      return this.execSet.check(txid) ? null : txid // We only want the ones that are not there.
+    }))
+      .then(list => list.filter(txid => txid))
+      .then(list => [...list, ...result.enables]) // the enable ones are always included to avoid race conditions.
+
+    const promises = newTxidsToIndex.map(async txid => {
+      await this.execSet.add(txid)
       return this.execQueue.publish({ txid })
     })
-    const unknownDepsProms = result.unknownDeps.map(async txid => {
-      return this.execQueue.publish({ txid })
-    })
-    const missingDeps = result.missingDeps.map(async txid => {
-      return this.execQueue.publish({ txid })
-    })
-    await Promise.all([...enableProms, ...unknownDepsProms, ...missingDeps])
+
+    await Promise.all(promises)
   }
 }
 

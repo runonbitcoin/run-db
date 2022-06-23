@@ -53,6 +53,7 @@ services:
       PORT: 3000
       MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest
       BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
+      BITCOIND_REST_URL: http://bitcoind:18332/rest
       RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
 
   psql:

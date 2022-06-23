@@ -160,9 +160,11 @@ class KnexDatasource {
     return !!(result && result.indexed)
   }
 
-  async searchNonExecutedTxs () {
+  async searchNonExecutedTxs (limit) {
     return this.knex(TX.NAME)
       .where(TX.executed, false)
+      .orderBy(TX.time, 'ASC')
+      .limit(limit)
       .pluck(TX.txid)
   }
 

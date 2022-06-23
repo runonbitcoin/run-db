@@ -35,7 +35,6 @@ class ApiExecutor {
 
   async execute (txid) {
     if (this.executing.has(txid)) return
-    this.logger.debug('Enqueueing', txid, 'for execution')
     const token = await this.pool.acquire()
     try {
       this.executing.add(txid)

@@ -37,7 +37,8 @@ class Crawler {
     await this.api.setUp()
   }
 
-  async _receiveTransaction (rawTx, blockHeight = null) {
+  async _receiveTransaction (txid, blockHeight = null) {
+    const rawTx = await this.api.fetch(txid)
     return this.execManager.indexTxNow(rawTx, blockHeight)
   }
 

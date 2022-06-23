@@ -63,7 +63,7 @@
     "stream-json": "^1.7.4"
   },
   "optionalDependencies": {
-    "zeromq": "^5.2.8"
+    "zeromq": "^6.0.0-beta.6"
   },
   "devDependencies": {
     "@runonbitcoin/nimble": "^1.0.13",

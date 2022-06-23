@@ -9,6 +9,7 @@ const { parseTxid } = require('../util/parse-txid')
 const { ApiError } = require('./api-error')
 const Run = require('run-sdk')
 const crypto = require('crypto')
+const BitcoinNodeConnection = require('../blockchain-api/bitcoin-node-connection')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -22,6 +23,8 @@ const validateTxid = (aString) => parseTxid(
     throw new ApiError('wrong argument: txid', 'wrong-arguments', 400, { txid: aString })
   }
 )
+
+const blockchain = new BitcoinNodeConnection(null, null, process.env.BITCOIND_REST_URL)
 
 // ------------------------------------------------------------------------------------------------
 // Server
@@ -168,6 +171,33 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
     const txid = req.params.txid
     await execManager.trustTxLater(txid, false)
     res.send(`Untrusted ${req.params.txid}\n`)
+  })
+
+  server.post('/exec-missing', async (req, res) => {
+    const txsToExec = await ds.searchNonExecutedTxs(10000)
+    const queue = execManager.execQueue
+    const set = execManager.executingSet
+    await Promise.all(
+      txsToExec.map(async txid => {
+        await set.add(txid)
+        await queue.publish({ txid })
+      })
+    )
+    res.send({ ok: true })
+  })
+
+  server.post('/exec-txid/:txid', async (req, res) => {
+    const txid = req.params.txid
+    const queue = execManager.execQueue
+    const set = execManager.executingSet
+    await blobs.pullTx(txid, async () => {
+      const buff = await blockchain.fetch(txid)
+      await blobs.pushTx(txid, buff)
+      return buff
+    })
+    await set.add(txid)
+    await queue.publish({ txid })
+    res.send({ ok: true })
   })
 
   // server.delete('/ban/:txid', async (req, res) => {

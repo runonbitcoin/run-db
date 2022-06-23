@@ -19,9 +19,9 @@ const {
   knex,
   KnexBlobStorage,
   TrustAllTrustList,
-  Executor,
   RabbitQueue,
-  ExecutionWorker
+  ExecutionWorker,
+  execution: { Executor }
 } = require('../index')
 const { ExecutingSet } = require('../executing-set')
 
@@ -77,7 +77,8 @@ async function main () {
   await rabbitChannel.prefetch(1)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
-  worker = new ExecutionWorker(indexer, execQueue, trustQueue)
+  const execSet = new ExecutingSet(ds)
+  worker = new ExecutionWorker(indexer, execSet, execQueue, trustQueue)
 
   await execQueue.setUp()
   await trustQueue.setUp()

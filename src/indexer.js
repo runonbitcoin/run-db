@@ -66,12 +66,19 @@ class Indexer {
     const txid = crypto.createHash('sha256').update(
       crypto.createHash('sha256').update(txBuf).digest()
     ).digest().reverse().toString('hex')
-    const time = new Date()
-    await this.ds.addNewTx(txid, time, blockHeight)
+    this.logger.debug(`[${txid}] received`)
+    try {
+      const time = new Date()
+      await this.ds.addNewTx(txid, time, blockHeight)
 
-    const result = await this._doIndexing(txid, txBuf)
-    await this.execSet.remove(txid)
-    return result
+      const result = await this._doIndexing(txid, txBuf)
+      await this.execSet.remove(txid)
+      this.logger.debug(`[${txid}] finished`)
+      return result
+    } catch (e) {
+      await this.execSet.remove(txid)
+      throw e
+    }
   }
 
   async _doIndexing (txid, txBuf) {
@@ -118,13 +125,17 @@ class Indexer {
     const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
     if (canExecuteNow) {
       const trustList = await this.trustList.executionTrustList(this.ds)
+      this.logger.debug(`[${txid}] executing`)
       const result = await this.executor.execute(txid, trustList)
       if (result.success) {
+        this.logger.debug(`[${txid}] success`)
         await this._onIndexed(txid, result.result)
-      } else if (result.missingDeps.length > 0) {
+      } else if (result.missingDeps && result.missingDeps.length > 0) {
         await this._onMissingDeps(txid, result.missingDeps)
+        this.logger.debug(`[${txid}] failed, missing deps.`)
         return false
       } else {
+        this.logger.debug(`[${txid}] failed`)
         await this._onExecuteFailed(txid, result.error, false)
         return false
       }
@@ -170,7 +181,6 @@ class Indexer {
     let bsvtx = null
 
     if (!hex) { throw new Error('No hex') }
-
     bsvtx = new bsv.Transaction(hex)
     const txid = bsvtx.hash
 
@@ -220,10 +230,10 @@ class Indexer {
 
   async start () {
     this.logger.debug('Starting indexer')
-    const txids = await this.ds.findAllExecutingTxids()
-    for (const txid of txids) {
-      await this.executeIfPossible(txid)
-    }
+    // const txids = await this.ds.findAllExecutingTxids()
+    // for (const txid of txids) {
+    //   await this.executeIfPossible(txid)
+    // }
   }
 
   async stop () {
@@ -235,14 +245,13 @@ class Indexer {
   async _onIndexed (txid, result) {
     this.pendingRetries.delete(txid)
     if (!await this.ds.txExists(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid}`)
+    this.logger.debug(`[${txid}] Executed`)
 
     const { cache, classes, locks, scripthashes } = result
 
     await this.ds.performOnTransaction(async (ds) => {
       await ds.setExecutedForTx(txid, 1)
       await ds.setIndexedForTx(txid, 1)
-
       for (const key of Object.keys(cache)) {
         if (key.startsWith('jig://')) {
           const location = key.slice('jig://'.length)

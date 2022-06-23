@@ -19,7 +19,7 @@ class ExecutionManager {
     const txid = await this.blobs.pushTx(null, txBuff)
     const rQueue = await this._execReplyQueue()
     this.executingSet.add(txid)
-    const result = await rQueue.publishAndAwaitResponse({ txid })
+    const result = await rQueue.publishAndAwaitResponse({ txid, blockHeight: blockHeight })
     this.executingSet.remove(txid)
     return result
   }
@@ -31,7 +31,6 @@ class ExecutionManager {
   // }
 
   async trustTxLater (txid, trust) {
-    if (this.executingSet.check(txid)) { return }
     this.executingSet.add(txid)
     await this.trustQueue.publish({ txid, trust })
   }

@@ -32,6 +32,7 @@ const {
 } = require('../index')
 
 const path = require('path')
+const { ExecutingSet } = require('../executing-set')
 
 // const { Crawler, BitcoinNodeConnection, BitcoinZmq, BitcoinRpc } = require('../index')
 // const { KnexBlobStorage } = require('../data-sources/knex-blob-storage')
@@ -86,10 +87,12 @@ const knexBlob = knex({
 })
 const blobs = new KnexBlobStorage(knexBlob, undefined, api)
 const ds = new KnexDatasource(knexInstance)
+const execSet = new ExecutingSet(ds)
 
 let indexManager
 let crawler = null
 let execQueue = null
+let trustQueue = null
 let rabbitConnection = null
 
 // ------------------------------------------------------------------------------------------------
@@ -101,8 +104,10 @@ async function main () {
   const rabbitChannel = await rabbitConnection.createChannel()
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
+  trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
   await execQueue.setUp()
-  indexManager = new ExecutionManager(blobs, execQueue)
+  await trustQueue.setUp()
+  indexManager = new ExecutionManager(blobs, execQueue, trustQueue, execSet)
   await indexManager.setUp()
   crawler = new Crawler(indexManager, api, ds, logger, { initialBlockConcurrency: INITIAL_BLOCK_CONCURRENCY })
   await ds.setUp()
@@ -127,6 +132,9 @@ async function shutdown () {
   await indexManager.tearDown()
   if (execQueue !== null) {
     await execQueue.tearDown()
+  }
+  if (trustQueue !== null) {
+    await trustQueue.tearDown()
   }
   if (rabbitConnection !== null) {
     await rabbitConnection.close()

@@ -20,6 +20,7 @@ const {
   RabbitQueue,
   buildMainServer
 } = require('../index')
+const { ExecutingSet } = require('../executing-set')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -69,7 +70,8 @@ async function main () {
   await rabbitChannel.prefetch(20)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
-  indexManager = new ExecutionManager(blobs, execQueue, trustQueue)
+  const execSet = new ExecutingSet(ds)
+  indexManager = new ExecutionManager(blobs, execQueue, trustQueue, execSet)
   server = buildMainServer(ds, blobs, indexManager, logger)
   await execQueue.setUp()
   await trustQueue.setUp()

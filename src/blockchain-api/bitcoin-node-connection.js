@@ -31,6 +31,9 @@ class BitcoinNodeConnection extends BlockchainApi {
 
   async fetch (txid) {
     const response = await fetch(`${this.url}/tx/${txid}.bin`)
+    if (response.status !== 200) {
+      throw new Error('error fetching tx')
+    }
     return response.buffer()
   }
 
@@ -44,7 +47,7 @@ class BitcoinNodeConnection extends BlockchainApi {
   }
 
   async onMempoolTx (fn) {
-    this.zmq.subscribe('rawtx', fn)
+    this.zmq.subscribe('hashtx', fn)
   }
 
   async onNewBlock (fn) {
