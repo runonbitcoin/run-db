@@ -1,198 +1,331 @@
 /**
- * indexer.js
+ * indexer.test.js
  *
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
 
-const Database = require('./database')
-const Downloader = require('./downloader')
-const Executor = require('./executor')
-const Crawler = require('./crawler')
+const crypto = require('crypto')
+const Run = require('run-sdk')
+const bsv = require('bsv')
+const _ = require('lodash')
+const { IndexerResult } = require('./model/indexer-result')
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
-    this.onDownload = null
-    this.onFailToDownload = null
-    this.onIndex = null
+  constructor (ds, blobs, trustList, executor, network, execSet, logger) {
     this.onFailToIndex = null
-    this.onBlock = null
-    this.onReorg = null
+    this.pendingRetries = new Map()
+    this.execSet = execSet
 
     this.logger = logger
-    this.database = database
-    this.api = api
+    this.ds = ds
+    this.blobs = blobs
+    this.trustList = trustList
     this.network = network
-    this.startHeight = startHeight
-    this.mempoolExpiration = mempoolExpiration
-    this.defaultTrustlist = defaultTrustlist
 
-    const fetchFunction = this.api.fetch ? this.api.fetch.bind(this.api) : null
+    this.executor = executor
+  }
 
-    this.downloader = new Downloader(fetchFunction, numParallelDownloads)
-    this.executor = new Executor(network, numParallelExecutes, this.database, this.logger)
-    this.crawler = new Crawler(api, this.logger)
+  async trust (txid) {
+    const trusted = await this.trustList.trust(txid, this.ds)
 
-    this.database.onReadyToExecute = this._onReadyToExecute.bind(this)
-    this.database.onAddTransaction = this._onAddTransaction.bind(this)
-    this.database.onDeleteTransaction = this._onDeleteTransaction.bind(this)
-    this.database.onTrustTransaction = this._onTrustTransaction.bind(this)
-    this.database.onUntrustTransaction = this._onUntrustTransaction.bind(this)
-    this.database.onBanTransaction = this._onBanTransaction.bind(this)
-    this.database.onUnbanTransaction = this._onUnbanTransaction.bind(this)
-    this.database.onUnindexTransaction = this._onUnindexTransaction.bind(this)
-    this.database.onRequestDownload = this._onRequestDownload.bind(this)
-    this.downloader.onDownloadTransaction = this._onDownloadTransaction.bind(this)
-    this.downloader.onFailedToDownloadTransaction = this._onFailedToDownloadTransaction.bind(this)
-    this.downloader.onRetryingDownload = this._onRetryingDownload.bind(this)
-    this.executor.onIndexed = this._onIndexed.bind(this)
-    this.executor.onExecuteFailed = this._onExecuteFailed.bind(this)
-    this.executor.onMissingDeps = this._onMissingDeps.bind(this)
-    this.crawler.onCrawlError = this._onCrawlError.bind(this)
-    this.crawler.onCrawlBlockTransactions = this._onCrawlBlockTransactions.bind(this)
-    this.crawler.onRewindBlocks = this._onRewindBlocks.bind(this)
-    this.crawler.onMempoolTransaction = this._onMempoolTransaction.bind(this)
-    this.crawler.onExpireMempoolTransactions = this._onExpireMempoolTransactions.bind(this)
+    for (const txid of trusted) {
+      await this.executeIfPossible(txid)
+    }
+    return trusted
+  }
+
+  async untrust (txid) {
+    await this.trustList.untrust(txid, this.ds)
+    return [txid]
+  }
+
+  async indexTxid (txid, blockHeight = null) {
+    const txBuff = await this.blobs.pullTx(txid, () => null)
+    if (txBuff === null) {
+      await this.ds.addNewTx(txid, new Date(), null)
+      await this.ds.setTransactionExecutionFailed(txid)
+      const result = new IndexerResult(
+        false,
+        [],
+        [],
+        [],
+        await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+      )
+      await this.execSet.remove(txid)
+      return result
+    } else {
+      return this.indexTransaction(txBuff, blockHeight)
+    }
+  }
+
+  async indexTransaction (txBuf, blockHeight = null) {
+    const txid = crypto.createHash('sha256').update(
+      crypto.createHash('sha256').update(txBuf).digest()
+    ).digest().reverse().toString('hex')
+    this.logger.debug(`[${txid}] received`)
+    try {
+      const time = new Date()
+      await this.ds.addNewTx(txid, time, blockHeight)
+
+      const result = await this._doIndexing(txid, txBuf)
+      await this.execSet.remove(txid)
+      this.logger.debug(`[${txid}] finished`)
+      return result
+    } catch (e) {
+      await this.execSet.remove(txid)
+      throw e
+    }
+  }
+
+  async _doIndexing (txid, txBuf) {
+    const indexed = await this.ds.txIsIndexed(txid)
+    if (indexed) {
+      return new IndexerResult(true, [], [], [], await this.ds.searchDownstreamTxidsReadyToExecute(txid))
+    }
+
+    const parsed = await this.parseTx(txBuf)
+    await this.storeTx(parsed)
+    if (parsed.executable) {
+      if (this.executor.executing.has(parsed.txid)) {
+        return new IndexerResult(
+          true,
+          [],
+          [],
+          [],
+          []
+        )
+      }
+      const executed = await this.executeIfPossible(parsed.txid)
+      if (executed) {
+        return new IndexerResult(
+          true,
+          [],
+          [],
+          [],
+          await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+        )
+      }
+    }
+    const missingDeps = await this.ds.nonExecutedDepsFor(parsed.txid)
+    const unknownDeps = await this.ds.getUnknownUpstreamTxIds(parsed.txid)
+    return new IndexerResult(
+      false,
+      missingDeps,
+      unknownDeps,
+      await this.trustList.missingTrustFor(txid, this.ds, parsed.hasCode),
+      []
+    )
+  }
+
+  async executeIfPossible (txid) {
+    const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
+    if (canExecuteNow) {
+      const trustList = await this.trustList.executionTrustList(this.ds)
+      this.logger.debug(`[${txid}] executing`)
+      const result = await this.executor.execute(txid, trustList)
+      if (result.success) {
+        this.logger.debug(`[${txid}] success`)
+        await this._onIndexed(txid, result.result)
+      } else if (result.missingDeps && result.missingDeps.length > 0) {
+        await this._onMissingDeps(txid, result.missingDeps)
+        this.logger.debug(`[${txid}] failed, missing deps.`)
+        return false
+      } else {
+        this.logger.debug(`[${txid}] failed`)
+        await this._onExecuteFailed(txid, result.error, false)
+        return false
+      }
+    }
+    return canExecuteNow
+  }
+
+  async storeTx (parsedTx) {
+    await this.ds.performOnTransaction(async (ds) => {
+      const bytes = parsedTx.txBuf
+
+      await this.blobs.pushTx(parsedTx.txid, bytes)
+      await ds.setExecutableForTx(parsedTx.txid, parsedTx.executable)
+
+      for (const location of parsedTx.inputs) {
+        await ds.upsertSpend(location, parsedTx.txid)
+      }
+      for (const location of parsedTx.outputs) {
+        await ds.setAsUnspent(location)
+      }
+
+      if (parsedTx.executable) {
+        await ds.setHasCodeForTx(parsedTx.txid, parsedTx.hasCode)
+
+        for (const depTxid of parsedTx.deps) {
+          await ds.addDep(depTxid, parsedTx.txid)
+
+          const failed = await ds.getFailedTx(depTxid)
+          if (failed) {
+            await ds.setTransactionExecutionFailed(parsedTx.txid, ds)
+            return
+          }
+        }
+      } else {
+        await ds.setIndexedForTx(parsedTx.txid, true)
+      }
+    })
+  }
+
+  async parseTx (txBuf) {
+    const hex = txBuf.toString('hex')
+    let metadata = null
+    let bsvtx = null
+
+    if (!hex) { throw new Error('No hex') }
+    bsvtx = new bsv.Transaction(hex)
+    const txid = bsvtx.hash
+
+    const inputs = bsvtx.inputs.map(input => {
+      return `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
+    })
+
+    const outputs = _.zip(bsvtx.outputs, _.range(bsvtx.outputs.length))
+      .filter(([output, _index]) => !output.script.isDataOut() && !output.script.isSafeDataOut())
+      .map(([_output, index]) => `${txid}_o${index}`)
+
+    let executable
+    try {
+      metadata = Run.util.metadata(hex)
+      executable = true
+    } catch (e) {
+      // this.logger.error(`${txid} => ${e.message}`)
+      // await this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
+      // return
+      return {
+        txid,
+        hex,
+        deps: [],
+        inputs: [],
+        outputs: [],
+        hasCode: false,
+        executable: false,
+        txBuf
+      }
+    }
+
+    const deps = Run.util.deps(hex)
+
+    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+
+    return {
+      txid,
+      hex,
+      deps,
+      inputs,
+      outputs,
+      hasCode,
+      executable,
+      txBuf
+    }
   }
 
   async start () {
     this.logger.debug('Starting indexer')
-
-    this.executor.start()
-    this.defaultTrustlist.forEach(txid => this.database.trust(txid))
-    this.database.loadTransactionsToExecute()
-    const height = this.database.getHeight() || this.startHeight
-    const hash = this.database.getHash()
-    if (this.api.connect) await this.api.connect(height, this.network)
-
-    this.logger.debug('Loading transactions to download')
-    this.database.getTransactionsToDownload().forEach(txid => this.downloader.add(txid))
-
-    this.crawler.start(height, hash)
+    // const txids = await this.ds.findAllExecutingTxids()
+    // for (const txid of txids) {
+    //   await this.executeIfPossible(txid)
+    // }
   }
 
   async stop () {
-    this.crawler.stop()
-    if (this.api.disconnect) await this.api.disconnect()
-    this.downloader.stop()
-    await this.executor.stop()
+    for (const entry of this.pendingRetries.entries()) {
+      clearTimeout(entry[1])
+    }
   }
 
-  _onDownloadTransaction (txid, hex, height, time) {
-    this.logger.info(`Downloaded ${txid} (${this.downloader.remaining()} remaining)`)
-    if (!this.database.hasTransaction(txid)) return
-    if (height) this.database.setTransactionHeight(txid, height)
-    if (time) this.database.setTransactionTime(txid, time)
-    this.database.parseAndStoreTransaction(txid, hex)
-    if (this.onDownload) this.onDownload(txid)
+  async _onIndexed (txid, result) {
+    this.pendingRetries.delete(txid)
+    if (!await this.ds.txExists(txid)) return // Check not re-orged
+    this.logger.debug(`[${txid}] Executed`)
+
+    const { cache, classes, locks, scripthashes } = result
+
+    await this.ds.performOnTransaction(async (ds) => {
+      await ds.setExecutedForTx(txid, 1)
+      await ds.setIndexedForTx(txid, 1)
+      for (const key of Object.keys(cache)) {
+        if (key.startsWith('jig://')) {
+          const location = key.slice('jig://'.length)
+          await this.blobs.pushJigState(location, cache[key])
+          const klass = classes.find(([loc]) => loc === location)
+          const lock = locks.find(([loc]) => loc === location)
+          const scriptHash = scripthashes.find(([loc]) => loc === location)
+          await ds.setJigMetadata(
+            location,
+            klass && klass[1],
+            lock && lock[1],
+            scriptHash && scriptHash[1]
+          )
+        } else if (key.startsWith('berry://')) {
+          const location = key.slice('berry://'.length)
+          const klass = classes.find(([loc]) => loc === location)
+          await ds.setBerryMetadata(location, klass && klass[1])
+          await this.blobs.pushJigState(location, cache[key])
+        }
+      }
+    })
   }
 
-  _onFailedToDownloadTransaction (txid, e) {
-    this.logger.error('Failed to download', txid, e.toString())
-    if (this.onFailToDownload) this.onFailToDownload(txid)
-  }
-
-  _onRetryingDownload (txid, secondsToRetry) {
-    this.logger.info('Retrying download', txid, 'after', secondsToRetry, 'seconds')
-  }
-
-  _onIndexed (txid, result) {
-    if (!this.database.hasTransaction(txid)) return // Check not re-orged
-    this.logger.info(`Executed ${txid}`)
-    this.database.storeExecutedTransaction(txid, result)
-    if (this.onIndex) this.onIndex(txid)
-  }
-
-  _onExecuteFailed (txid, e) {
-    this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-    this.database.setTransactionExecutionFailed(txid)
+  async _onExecuteFailed (txid, e, shouldRetry = false) {
+    if (shouldRetry) {
+      const timeout = setTimeout(() => { this._onReadyToExecute(txid) }, 10000)
+      this.pendingRetries.set(txid, timeout)
+    } else {
+      this.pendingRetries.delete(txid)
+      this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
+      await this._setTransactionExecutionFailed(txid)
+    }
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
 
-  _onReadyToExecute (txid) {
-    this.executor.execute(txid)
+  async _onReadyToExecute (txid) {
+    await this.executor.execute(txid)
+      .catch((e) =>
+        console.warn(`error executing tx ${txid}: ${e.message}`)
+      )
   }
 
-  _onAddTransaction (txid) {
-    this.logger.info('Added', txid)
+  async _setTransactionExecutionFailed (txid, ds = null) {
+    ds = ds || this.ds
+    await ds.setExecutableForTx(txid, 0)
+    await ds.setExecutedForTx(txid, 1)
+    await ds.setIndexedForTx(txid, 0)
+    await ds.removeTxFromExecuting(txid)
+
+    // We try executing downstream transactions if this was marked executable but it wasn't.
+    // This allows an admin to manually change executable status in the database.
+
+    // let executable = false
+    // try {
+    //   const rawTx = await this.getTransactionHex(txid)
+    //   Run.util.metadata(rawTx)
+    //   executable = true
+    // } catch (e) { }
+
+    // if (!executable) {
+    const downstream = await ds.searchDownstreamForTxid(txid)
+    for (const downtxid of downstream) {
+      await this._setTransactionExecutionFailed(downtxid, ds)
+    }
   }
 
-  _onDeleteTransaction (txid) {
-    this.logger.info('Removed', txid)
-    this.downloader.remove(txid)
-  }
-
-  _onTrustTransaction (txid) {
-    this.logger.info('Trusted', txid)
-  }
-
-  _onUntrustTransaction (txid) {
-    this.logger.info('Untrusted', txid)
-  }
-
-  _onBanTransaction (txid) {
-    this.logger.info('Banned', txid)
-  }
-
-  _onUnbanTransaction (txid) {
-    this.logger.info('Unbanned', txid)
-  }
-
-  _onUnindexTransaction (txid) {
-    this.logger.info('Unindexed', txid)
-  }
-
-  _onRequestDownload (txid) {
-    this.downloader.add(txid)
-  }
-
-  _onMissingDeps (txid, deptxids) {
+  async _onMissingDeps (txid, deptxids) {
     this.logger.debug(`Discovered ${deptxids.length} dep(s) for ${txid}`)
-    this.database.addMissingDeps(txid, deptxids)
-    deptxids.forEach(deptxid => this.downloader.add(deptxid))
-  }
 
-  _onCrawlError (e) {
-    this.logger.error(`Crawl error: ${e.toString()}`)
-  }
-
-  _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
-    this.logger.info(`Crawled block ${height} for ${txids.length} transactions`)
-    this.database.addBlock(txids, txhexs, height, hash, time)
-    if (this.onBlock) this.onBlock(height)
-  }
-
-  _onRewindBlocks (newHeight) {
-    this.logger.info(`Rewinding to block ${newHeight}`)
-
-    const txids = this.database.getTransactionsAboveHeight(newHeight)
-
-    this.database.transaction(() => {
-      // Put all transactions back into the mempool. This is better than deleting them, because
-      // when we assume they will just go into a different block, we don't need to re-execute.
-      // If they don't make it into a block, then they will be expired in time.
-      txids.forEach(txid => this.database.unconfirmTransaction(txid))
-
-      this.database.setHeight(newHeight)
-      this.database.setHash(null)
+    await this.ds.performOnTransaction(async (ds) => {
+      for (const deptxid of deptxids) {
+        await ds.addDep(deptxid, txid)
+      }
     })
-
-    if (this.onReorg) this.onReorg(newHeight)
-  }
-
-  _onMempoolTransaction (txid, hex) {
-    this.database.addTransaction(txid, hex, Database.HEIGHT_MEMPOOL, null)
-  }
-
-  _onExpireMempoolTransactions () {
-    const expirationTime = Math.round(Date.now() / 1000) - this.mempoolExpiration
-
-    const expired = this.database.getMempoolTransactionsBeforeTime(expirationTime)
-    const deleted = new Set()
-    this.database.transaction(() => expired.forEach(txid => this.database.deleteTransaction(txid, deleted)))
   }
 }
 

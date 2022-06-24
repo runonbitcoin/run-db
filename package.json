@@ -1,6 +1,6 @@
 {
-  "name": "run-db",
-  "version": "1.0.31",
+  "name": "@runonbitcoin/run-db-private",
+  "version": "2.0.0-alpha.3",
   "description": "A local database that indexes jig states from RUN transactions",
   "keywords": [
     "run",
@@ -20,18 +20,26 @@
     "bitcoin sv"
   ],
   "license": "MIT",
-  "repository": "git://github.com/runonbitcoin/run-db.git",
+  "repository": "https://github.com/runonbitcoin/run-db-private",
   "main": "src/index.js",
+  "public": false,
   "scripts": {
     "lint": "standard --fix",
-    "start": "node --experimental-worker .",
+    "start": "node --experimental-worker src/bin/start.js",
+    "start-execution-worker": "node --experimental-worker src/bin/start-execution-worker.js",
+    "start-crawler": "node --experimental-worker src/bin/start-crawler.js",
+    "start-api": "node --experimental-worker src/bin/start-api.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
-    "bump": "npm version patch && git push --follow-tags && npm publish"
+    "bump": "npm version patch && git push --follow-tags && npm publish",
+    "migrate": "knex migrate:up",
+    "migrate:down": "knex migrate:down",
+    "blobs-migrate": "knex --knexfile blobs-knexfile.js migrate:up"
   },
   "dependencies": {
     "abort-controller": "^3.0.0",
-    "axios": "^0.21.1",
+    "amqplib": "^0.8.0",
+    "axios": "^0.21.2",
     "better-sqlite3": "^7.4.1",
     "body-parser": "^1.19.0",
     "cors": "^2.8.5",
@@ -39,19 +47,36 @@
     "event-stream": "^4.0.1",
     "eventsource": "^1.1.0",
     "express": "^4.17.1",
+    "express-async-handler": "^1.2.0",
+    "fastq": "^1.13.0",
+    "generic-pool": "^3.8.2",
+    "helmet": "^5.0.1",
+    "knex": "^1.0.3",
+    "lodash": "^4.17.21",
     "morgan": "^1.10.0",
-    "node-fetch": "^2.6.1",
+    "nanoid": "^3.1.30",
+    "node-fetch": "^2.6.7",
+    "pg": "^8.7.3",
     "reconnecting-eventsource": "^1.1.0",
-    "run-sdk": "^0.6.18"
+    "run-sdk": "0.6.35",
+    "socket.io-client": "^4.5.0",
+    "stream-json": "^1.7.4"
   },
   "optionalDependencies": {
-    "zeromq": "^5.2.8"
+    "zeromq": "^6.0.0-beta.6"
   },
   "devDependencies": {
+    "@runonbitcoin/nimble": "^1.0.13",
+    "@vscode/sqlite3": "^5.0.7",
+    "bdd-lazy-var": "^2.6.1",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^8.3.2",
+    "mocha": "^9.2.1",
     "nyc": "^15.1.0",
-    "standard": "^16.0.3"
+    "standard": "^16.0.3",
+    "supertest": "^6.2.2"
+  },
+  "standard": {
+    "env": "mocha"
   }
 }

@@ -1,0 +1,85 @@
+version: '3'
+services:
+#  bitcoind:
+#    image: hojarasca/bitcoinsv-regtest:1.0.10
+#    volumes:
+#      - bitcoind-data:/bitcoin/data
+#    environment:
+#      RPCUSER: rundb
+#      RPCPASSWORD: rundb
+#    ports:
+#      - 18332:18332
+#      - 28332:28332
+
+  crawler:
+    build:
+      context: .
+    command: ["npm", "run", "start-crawler"]
+    volumes:
+      - ./src:/app/src
+    environment:
+      MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest
+      BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
+      NETWORK: test
+      BITCOIND_REST_URL: http://bitcoind:18332/rest
+      ZMQ_URL: tcp://bitcoind:28332
+      RPC_URL: http://rundb:rundb@bitcoind:18332
+
+
+  execution-worker:
+    build:
+      context: .
+    command: [ "npm", "run", "start-execution-worker" ]
+    volumes:
+      - ./src:/app/src
+    environment:
+      WORKERS: 1
+      PORT: 3001
+      NETWORK: test
+      MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest
+      BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
+
+  api-server:
+    build:
+      context: .
+    command: [ "npm", "run", "start-api" ]
+    volumes:
+      - ./src:/app/src
+    ports:
+      - 3000:3000
+    environment:
+      PORT: 3000
+      MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest
+      BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
+      BITCOIND_REST_URL: http://bitcoind:18332/rest
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
+
+  psql:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: someuser
+      POSTGRES_PASSWORD: sosecret
+      POSTGRES_DB: rundb_regtest
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    ports:
+      - 5432:5432
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./dev/create-dbs.sh:/docker-entrypoint-initdb.d/create-dbs.sh
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+#      - ./dev/rabbitmq.conf:/etc/rabbitmq/conf.d/10-default-guest-user.conf
+    ports:
+      - 5674:5672
+      - 15674:15672
+
+volumes:
+  bitcoind-data:
+  rabbitmq-data:
+  run-db-data:
+  db-data:

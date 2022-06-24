@@ -11,20 +11,43 @@ require('dotenv').config()
 // ------------------------------------------------------------------------------------------------
 
 const API = process.env.API || 'mattercloud'
-const MATTERCLOUD_KEY = process.env.MATTERCLOUD_KEY
-const PLANARIA_TOKEN = process.env.PLANARIA_TOKEN
-const NETWORK = process.env.NETWORK || 'main'
+const DATA_API_ROOT = process.env.DATA_API_ROOT || null
+const DATA_SOURCE = process.env.DATA_SOURCE || 'sqlite'
 const DB = process.env.DB || 'run.db'
-const PORT = typeof process.env.PORT !== 'undefined' ? parseInt(process.env.PORT) : 0
-const WORKERS = typeof process.env.WORKERS !== 'undefined' ? parseInt(process.env.WORKERS) : 4
-const FETCH_LIMIT = typeof process.env.FETCH_LIMIT !== 'undefined' ? parseInt(process.env.FETCH_LIMIT) : 20
-const START_HEIGHT = process.env.START_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
-const TIMEOUT = typeof process.env.TIMEOUT !== 'undefined' ? parseInt(process.env.TIMEOUT) : 10000
-const MEMPOOL_EXPIRATION = typeof process.env.MEMPOOL_EXPIRATION !== 'undefined' ? parseInt(process.env.MEMPOOL_EXPIRATION) : 60 * 60 * 24
-const ZMQ_URL = process.env.ZMQ_URL || null
-const RPC_URL = process.env.RPC_URL || null
 const DEBUG = process.env.DEBUG || false
+const EXECUTE_ENDPOINT = process.env.EXECUTE_ENDPOINT || null
+const EXECUTOR = process.env.EXECUTOR || 'local'
+const FETCH_LIMIT = typeof process.env.FETCH_LIMIT !== 'undefined' ? parseInt(process.env.FETCH_LIMIT) : 20
+const MATTERCLOUD_KEY = process.env.MATTERCLOUD_KEY
+const MEMPOOL_EXPIRATION = typeof process.env.MEMPOOL_EXPIRATION !== 'undefined' ? parseInt(process.env.MEMPOOL_EXPIRATION) : 60 * 60 * 24
+const NETWORK = process.env.NETWORK || 'main'
+const PLANARIA_TOKEN = process.env.PLANARIA_TOKEN
+const PORT = typeof process.env.PORT !== 'undefined' ? parseInt(process.env.PORT) : 0
+const PRESERVE_STDERR = process.env.PRESERVE_STDERR || false
+const PRESERVE_STDOUT = process.env.PRESERVE_STDOUT || false
+const RPC_URL = process.env.RPC_URL || null
 const SERVE_ONLY = process.env.SERVE_ONLY || false
+const INITIAL_CRAWL_HEIGHT = process.env.INITIAL_CRAWL_HEIGHT || (NETWORK === 'test' ? 1382000 : 650000)
+const TIMEOUT = typeof process.env.TIMEOUT !== 'undefined' ? parseInt(process.env.TIMEOUT) : 10000
+const TRUST_LIST = process.env.TRUST_LIST || 'db'
+const WORKERS = typeof process.env.WORKERS !== 'undefined' ? parseInt(process.env.WORKERS) : 4
+const WORKER_CACHE_TYPE = process.env.WORKER_CACHE_TYPE || 'parent'
+const ZMQ_URL = process.env.ZMQ_URL || null
+let DATA_API_STATE_ROOT = process.env.DATA_API_STATE_ROOT || null
+let DATA_API_TX_ROOT = process.env.DATA_API_TX_ROOT || null
+const RABBITMQ_URI = process.env.RABBITMQ_URI
+const BITCOIND_REST_URL = process.env.BITCOIND_REST_URL
+const MAIN_DB_CONNECTION_URI = process.env.MAIN_DB_CONNECTION_URI
+const BLOB_DB_CONNECTION_URI = process.env.BLOB_DB_CONNECTION_URI
+const CRAWLER_IMPLEMENTATION = process.env.CRAWLER_IMPLEMENTATION
+const INITIAL_BLOCK_CONCURRENCY = process.env.INITIAL_BLOCK_CONCURRENCY
+  ? Number(process.env.INITIAL_BLOCK_CONCURRENCY)
+  : 1
+
+if (!DATA_API_TX_ROOT && !DATA_API_STATE_ROOT && DATA_API_ROOT) {
+  DATA_API_TX_ROOT = `${DATA_API_ROOT}/tx`
+  DATA_API_STATE_ROOT = `${DATA_API_ROOT}/state`
+}
 
 require('axios').default.defaults.timeout = TIMEOUT
 
@@ -102,18 +125,33 @@ const DEFAULT_TRUSTLIST = ENV_VAR_DEFAULT_TRUSTLIST || [
 
 module.exports = {
   API,
-  MATTERCLOUD_KEY,
-  PLANARIA_TOKEN,
-  NETWORK,
+  DATA_API_STATE_ROOT,
+  DATA_API_TX_ROOT,
+  DATA_SOURCE,
   DB,
-  PORT,
-  WORKERS,
-  FETCH_LIMIT,
-  START_HEIGHT,
-  MEMPOOL_EXPIRATION,
-  DEFAULT_TRUSTLIST,
-  ZMQ_URL,
-  RPC_URL,
   DEBUG,
-  SERVE_ONLY
+  DEFAULT_TRUSTLIST,
+  EXECUTE_ENDPOINT,
+  EXECUTOR,
+  FETCH_LIMIT,
+  MATTERCLOUD_KEY,
+  MEMPOOL_EXPIRATION,
+  NETWORK,
+  PLANARIA_TOKEN,
+  PORT,
+  PRESERVE_STDERR,
+  PRESERVE_STDOUT,
+  RPC_URL,
+  SERVE_ONLY,
+  INITIAL_CRAWL_HEIGHT,
+  TRUST_LIST,
+  WORKERS,
+  WORKER_CACHE_TYPE,
+  ZMQ_URL,
+  RABBITMQ_URI,
+  BITCOIND_REST_URL,
+  MAIN_DB_CONNECTION_URI,
+  BLOB_DB_CONNECTION_URI,
+  CRAWLER_IMPLEMENTATION,
+  INITIAL_BLOCK_CONCURRENCY
 }

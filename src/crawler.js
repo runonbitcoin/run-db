@@ -1,148 +1,116 @@
 /**
- * crawler.js
+
+ * crawler.test.js
  *
  * Generic blockchain crawler that adds and removes transactions to the db
  */
-
-// ------------------------------------------------------------------------------------------------
-// Crawler
-// ------------------------------------------------------------------------------------------------
+const _ = require('lodash')
 
 class Crawler {
-  constructor (api, logger) {
+  constructor (execManager, api, ds, logger, opts = {}) {
+    this.execManager = execManager
     this.api = api
     this.logger = logger
-    this.height = null
-    this.hash = null
-    this.pollForNewBlocksInterval = 10000
-    this.pollForNewBlocksTimerId = null
-    this.expireMempoolTransactionsInterval = 60000
-    this.expireMempoolTransactionsTimerId = null
-    this.rewindCount = 10
-    this.started = false
-    this.listeningForMempool = false
-
-    this.onCrawlError = null
-    this.onCrawlBlockTransactions = null
-    this.onRewindBlocks = null
-    this.onMempoolTransaction = null
-    this.onExpireMempoolTransactions = null
+    this.ds = ds
+    this.opts = opts
   }
 
-  start (height, hash) {
-    this.logger.debug('Starting crawler')
-
-    if (this.started) return
-
-    this.started = true
-    this.height = height
-    this.hash = hash
-
-    this._pollForNewBlocks()
-    this._expireMempoolTransactions()
-  }
-
-  stop () {
-    this.started = false
-    this.listeningForMempool = false
-    clearTimeout(this.pollForNewBlocksTimerId)
-    this.pollForNewBlocksTimerId = null
-    clearTimeout(this.expireMempoolTransactionsTimerId)
-    this.expireMempoolTransactionsTimerId = null
-  }
-
-  _expireMempoolTransactions () {
-    if (!this.started) return
-
-    this.logger.debug('Expiring mempool transactions')
-
-    if (this.onExpireMempoolTransactions) this.onExpireMempoolTransactions()
-
-    this.expireMempoolTransactionsTimerId = setTimeout(
-      this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
-  }
-
-  async _pollForNewBlocks () {
-    if (!this.started) return
-
-    try {
-      await this._pollForNextBlock()
-    } catch (e) {
-      if (this.onCrawlError) this.onCrawlError(e)
-      // Swallow, we'll retry
+  async start (startHeight) {
+    const realTip = await this.api.getTip()
+    let knownHeight = await this.ds.getCrawlHeight()
+    if (knownHeight < startHeight) {
+      this.ds.setCrawlHeight(startHeight)
+      knownHeight = startHeight
     }
 
-    if (!this.started) return
+    while (knownHeight <= realTip.height) {
+      const diffs = _.range(0, this.opts.initialBlockConcurrency || 1)
+      await Promise.all(diffs.map(async (plus) => {
+        const { height, hash } = await this.api.getBlockDataByHeight(knownHeight + plus)
+        await this.receiveBlock(height, hash, true)
+      }))
+      knownHeight += diffs.length
+    }
 
-    this.pollForNewBlocksTimerId = setTimeout(this._pollForNewBlocks.bind(this), this.pollForNewBlocksInterval)
+    await this.api.onMempoolTx(this._receiveTransaction.bind(this))
+    await this.api.onNewBlock(this.receiveBlock.bind(this))
+    await this.api.setUp()
   }
 
-  async _pollForNextBlock () {
-    if (!this.started) return
+  async _receiveTransaction (txid, blockHeight = null) {
+    const rawTx = await this.api.fetch(txid)
+    return this.execManager.indexTxNow(rawTx, blockHeight)
+  }
 
-    this.logger.debug('Polling for next block')
-
-    // Save the current query so we can check for a race condition after
-    const currHeight = this.height
-    const currHash = this.hash
-
-    const block = this.api.getNextBlock && await this.api.getNextBlock(currHeight, currHash)
-
-    // Case: shutting down
-    if (!this.started) return
-
-    // Case: race condition, block already updated by another poller
-    if (this.height !== currHeight) return
-
-    // Case: reorg
-    if (block && block.reorg) {
-      this.logger.debug('Reorg detected')
-      this._rewindAfterReorg()
-      setTimeout(() => this._pollForNextBlock(), 0)
-      return
+  async knownHeight () {
+    if (!this._knownHeight) {
+      this._knownHeight = await this.ds.getCrawlHeight()
     }
+    return this._knownHeight
+  }
 
-    // Case: at the chain tip
-    if (!block || block.height <= this.height) {
-      this.logger.debug('No new blocks')
-      await this._listenForMempool()
-      return
-    }
+  async _processBlock (blockHash, blockHeight) {
+    const promises = new Set()
+    let count = 0
+    await this.api.iterateBlock(blockHash, async (rawTx) => {
+      const promise = this._receiveTransaction(rawTx, blockHeight)
+      promises.add(promise)
+      count++
+    })
+    await Promise.all(promises)
+    this.logger.debug(`block ${blockHeight} had ${count} txs`)
+  }
 
-    // Case: received a block
-    if (block) {
-      this.logger.debug('Received new block at height', block.height)
-      if (this.onCrawlBlockTransactions) {
-        this.onCrawlBlockTransactions(block.height, block.hash, block.time, block.txids, block.txhexs)
+  async receiveBlock (blockHeight, blockHash, onlyThis = false) {
+    this.logger.debug('starting block', blockHeight)
+    let currentHeight = await this.knownHeight()
+    blockHeight = blockHeight || (await this.api.getBlockData(blockHash)).height
+    if (onlyThis) {
+      await this._processBlock(blockHash, blockHeight)
+    } else {
+      while (currentHeight < blockHeight) {
+        currentHeight++
+        const currentHash = blockHeight === currentHeight
+          ? blockHash
+          : await this.api.getBlockDataByHeight(currentHeight).then(block => block.hash)
+        await this._processBlock(currentHash, currentHeight)
       }
-      this.height = block.height
-      this.hash = block.hash
-      setTimeout(() => this._pollForNextBlock(), 0)
-    }
-  }
-
-  _rewindAfterReorg () {
-    const newHeight = this.height - this.rewindCount
-    if (this.onRewindBlocks) this.onRewindBlocks(newHeight)
-    this.height = newHeight
-    this.hash = null
-  }
-
-  async _listenForMempool () {
-    if (this.listeningForMempool) return
-
-    if (this.api.listenForMempool) {
-      await this.api.listenForMempool(this._onMempoolRunTransaction.bind(this))
     }
 
-    this.listeningForMempool = true
+    this._knownHeight = currentHeight
+    this.logger.debug('finishing block', blockHeight)
+    await this.ds.setCrawlHash(blockHash)
+    await this.ds.setCrawlHeight(blockHeight)
+
+    // const txids = await this.ds.searchNonExecutedTxs()
+    // console.log(`txids pending of execution: ${txids.length}`)
+    // for (const eTxid of txids) {
+    //   await this.execManager.execQueue.publish({ txid: eTxid })
+    // }
   }
 
-  _onMempoolRunTransaction (txid, rawtx) {
-    if (this.onMempoolTransaction) this.onMempoolTransaction(txid, rawtx)
+  async setTip (blockHash) {
+    const { height, hash } = await this.api.getBlockData(blockHash)
+    await this.ds.setCrawlHash(hash)
+    await this.ds.setCrawlHeight(height)
+  }
+
+  async stop () {
+    await this.api.tearDown()
+  }
+
+  async _expireMempoolTransactions () {
+    // if (!this.started) return
+    //
+    // this.logger.debug('Expiring mempool transactions')
+    //
+    // if (this.onExpireMempoolTransactions) { await this.onExpireMempoolTransactions() }
+    //
+    // this.expireMempoolTransactionsTimerId = setTimeout(
+    //   this._expireMempoolTransactions.bind(this), this.expireMempoolTransactionsInterval)
   }
 }
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Crawler
+module.exports = { Crawler }

@@ -1,0 +1,4 @@
+require: test/setup.js
+recursive: true
+extension: [".test.js"]
+ui: 'bdd-lazy-var/getter'
