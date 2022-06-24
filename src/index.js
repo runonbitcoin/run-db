@@ -3,7 +3,6 @@
  *
  * Main module
  */
-
 const BitcoinNodeConnection = require('./blockchain-api/bitcoin-node-connection')
 const BitcoinRpc = require('./blockchain-api/bitcoin-rpc')
 const BitcoinZmq = require('./blockchain-api/bitcoin-zmq')
@@ -18,6 +17,7 @@ const trustList = require('./trust-list')
 const { CacheProvider } = require('./worker/cache-provider')
 const { Clock } = require('./clock')
 const { Crawler } = require('./crawler')
+const { ExecutingSet } = require('./executing-set')
 const { ExecutionManager } = require('./execution-manager')
 const { ExecutionWorker } = require('./execution-worker')
 const { KnexBlobStorage } = require('./data-sources/knex-blob-storage')
@@ -34,6 +34,7 @@ module.exports = {
   CacheProvider,
   Clock,
   Crawler,
+  ExecutingSet,
   ExecutionManager,
   ExecutionWorker,
   Indexer,
