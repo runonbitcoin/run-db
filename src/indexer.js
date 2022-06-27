@@ -112,6 +112,7 @@ class Indexer {
     }
     const missingDeps = await this.ds.nonExecutedDepsFor(parsed.txid)
     const unknownDeps = await this.ds.getUnknownUpstreamTxIds(parsed.txid)
+    this.logger.debug(`[${txid}] missing deps: [ ${missingDeps.join(', ')} ]. unknown deps: [ ${unknownDeps.join(', ')} ]`)
     return new IndexerResult(
       false,
       missingDeps,
@@ -132,7 +133,7 @@ class Indexer {
         await this._onIndexed(txid, result.result)
       } else if (result.missingDeps && result.missingDeps.length > 0) {
         await this._onMissingDeps(txid, result.missingDeps)
-        this.logger.debug(`[${txid}] failed, missing deps.`)
+        this.logger.debug(`[${txid}] failed, missing deps: [ ${result.missingDeps.join(', ')} ].`)
         return false
       } else {
         this.logger.debug(`[${txid}] failed`)
