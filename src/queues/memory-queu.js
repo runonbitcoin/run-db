@@ -21,6 +21,7 @@ class MemoryQueue extends EventQueue {
     this.subscriptions = []
     this.current = Promise.resolve()
     this._onEmpty = () => {}
+    this._onAck = () => {}
     this.replyQueues = new Map()
   }
 
@@ -38,6 +39,7 @@ class MemoryQueue extends EventQueue {
           if (opts.replyTo) {
             await this.replyQueues.get(opts.replyTo).publish(result, { correlationId: opts.messageId })
           }
+          await this._onAck(event, result)
         }
       ))
     }).then(() => {
@@ -65,6 +67,10 @@ class MemoryQueue extends EventQueue {
 
   async onEmpty (fn) {
     this._onEmpty = fn
+  }
+
+  async onAck (fn) {
+    this._onAck = fn
   }
 }
 

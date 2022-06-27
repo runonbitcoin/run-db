@@ -80,7 +80,7 @@ describe('ExecutionManager', () => {
   })
 
   def('worker', () => {
-    return new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue)
+    return new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue)
   })
 
   let emptyQueue
@@ -187,7 +187,7 @@ describe('ExecutionManager', () => {
       const { txid: randomTxTxid } = await get.randomTx
 
       const prom = new Promise(resolve => {
-        get.execQueue.subscribe((event) => {
+        get.execQueue.onAck((event) => {
           if (event.txid === randomTxTxid) { resolve(event) }
         })
       })

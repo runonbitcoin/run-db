@@ -94,7 +94,7 @@ describe('Crawler', () => {
 
   def('startHeight', () => 0)
 
-  def('execWorker', () => new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue))
+  def('execWorker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue))
 
   beforeEach(async () => {
     await get.ds.setUp()

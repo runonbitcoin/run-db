@@ -20,7 +20,7 @@ describe('ExecutionWorker', () => {
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
 
-  def('worker', () => new ExecutionWorker(get.indexer, get.execQueue, get.trustQueue))
+  def('worker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue))
 
   beforeEach(async () => {
     await get.ds.setUp()
