@@ -76,12 +76,17 @@ class Executor {
     this.executing.add(txid)
     try {
       const result = await worker.send('execute', { txid, hex, trustList })
+      await this.pool.release(worker)
       return new ExecutionResult(result.success, result.missingDeps, result, result.error)
     } catch (e) {
+      if (e.message === 'timeout') {
+        await this.pool.destroy(worker)
+        return new ExecutionResult(false, [], null, e)
+      }
+      await this.pool.release(worker)
       return new ExecutionResult(false, [], null, e)
     } finally {
       this.executing.delete(txid)
-      this.pool.release(worker)
     }
   }
 

@@ -174,7 +174,9 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
   })
 
   server.post('/exec-missing', async (req, res) => {
-    const txsToExec = await ds.searchNonExecutedTxs(10000)
+    const limit = req.query.limit
+    const txsToExec = await ds.searchNonExecutedTxs(limit ? Number(limit) : 100)
+    console.log(txsToExec)
     const queue = execManager.execQueue
     const set = execManager.executingSet
     await Promise.all(

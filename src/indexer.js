@@ -82,9 +82,11 @@ class Indexer {
   }
 
   async _doIndexing (txid, txBuf) {
-    const indexed = await this.ds.txIsIndexed(txid)
-    if (indexed) {
-      return new IndexerResult(true, [], [], [], await this.ds.searchDownstreamTxidsReadyToExecute(txid))
+    const executed = await this.ds.txIsExecuted(txid)
+    if (executed) {
+      const enables = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+      console.log(`[${txid}] already executed. enables: ${enables}`)
+      return new IndexerResult(true, [], [], [], enables)
     }
 
     const parsed = await this.parseTx(txBuf)
@@ -297,7 +299,6 @@ class Indexer {
 
   async _setTransactionExecutionFailed (txid, ds = null) {
     ds = ds || this.ds
-    await ds.setExecutableForTx(txid, 0)
     await ds.setExecutedForTx(txid, 1)
     await ds.setIndexedForTx(txid, 0)
     await ds.removeTxFromExecuting(txid)

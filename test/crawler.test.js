@@ -212,6 +212,32 @@ describe('Crawler', () => {
         const tx1WasIndexed = await get.ds.txIsIndexed(txid)
         expect(tx1WasIndexed).to.eql(true)
       })
+
+      it('sets the height for all the txs', async () => {
+        await get.crawler.start(get.startHeight)
+        get.api.closeBlock('blockhash1')
+        const { txid, buff } = await get.anotherRunTx
+        const old1 = get.api._onNewBlock
+        const old2 = get.api._onNewMempoolTx
+        await get.indexer.trust(txid)
+        get.api.onNewBlock(async () => {})
+        get.api.onMempoolTx(async () => {})
+        get.api.closeBlock('empty1')
+        get.api.newMempoolTx(txid, buff)
+        await get.api.waitForall()
+        get.api.closeBlock('nonempty')
+
+        // get.api.closeBlock('empty2')
+        get.api.onNewBlock(old1)
+        get.api.onMempoolTx(old2)
+        const promise = new Promise(resolve => get.execQueue.onEmpty(resolve))
+        get.api.closeBlock('empty2')
+        await get.api.waitForall()
+        await promise
+
+        const height = await get.ds.getTxHeight(txid)
+        expect(height).to.eql(3)
+      })
     })
   })
 

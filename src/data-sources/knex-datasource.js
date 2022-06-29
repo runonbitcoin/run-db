@@ -160,12 +160,26 @@ class KnexDatasource {
     return !!(result && result.indexed)
   }
 
+  async txIsExecuted (txid) {
+    const result = await this.knex(TX.NAME)
+      .where(TX.txid, txid)
+      .first(TX.executed)
+
+    return !!(result && result.executed)
+  }
+
   async searchNonExecutedTxs (limit) {
-    return this.knex(TX.NAME)
-      .where(TX.executed, false)
-      .orderBy(TX.time, 'ASC')
+    return this.knex(DEPS.NAME)
+      .select('downTx.txid')
+      .leftJoin('tx as upTx', 'upTx.txid', 'deps.up')
+      .leftJoin('tx as downTx', 'downTx.txid', 'deps.down')
+      .where('downTx.executed', false)
+      .where('downTx.indexed', false)
+      // .where('downTx.executable', true)
+      .groupBy('downTx.txid')
+      .havingRaw('bool_and("upTx"."indexed" = true and "upTx"."executed" = true) = true')
       .limit(limit)
-      .pluck(TX.txid)
+      .pluck('downTx.txid')
   }
 
   async hasFailedDep (txid) {
@@ -404,7 +418,8 @@ class KnexDatasource {
       .leftJoin(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
       .where(qb => {
-        qb.where(`${TX.NAME}.${TX.indexed}`, false)
+        qb.where(`${TX.NAME}.${TX.executed}`, false)
+        qb.orWhere(`${TX.NAME}.${TX.executable}`, true)
         qb.orWhereNull(`${TX.NAME}.${TX.txid}`)
       })
       .pluck(`${DEPS.NAME}.${DEPS.up}`)

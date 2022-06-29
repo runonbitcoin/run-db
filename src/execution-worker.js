@@ -40,12 +40,12 @@ class ExecutionWorker {
   }
 
   async _handleIndexResult (result) {
-    const list = Array.from(new Set([...result.unknownDeps, ...result.missingDeps]))
+    const list = Array.from(new Set([...result.unknownDeps, ...result.missingDeps, ...result.enables]))
     const newTxidsToIndex = await Promise.all(list.map(async txid => {
       return await this.execSet.check(txid) ? null : txid // We only want the ones that are not there.
     }))
       .then(list => list.filter(txid => txid))
-      .then(list => [...list, ...result.enables]) // the enable ones are always included to avoid race conditions.
+      .then(list => [...list]) // the enable ones are always included to avoid race conditions.
 
     const promises = newTxidsToIndex.map(async txid => {
       await this.execSet.add(txid)
