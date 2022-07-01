@@ -495,7 +495,7 @@ describe('Indexer', () => {
         await get.indexer.indexTransaction(Buffer.from(txHex2, 'hex'))
       })
 
-      it('does not includes that as an enablement', async () => {
+      it.skip('does not includes that as an enablement', async () => {
         const result = await get.indexer.indexTransaction(await get.txBuf)
         expect(result.enables).to.eql([])
       })

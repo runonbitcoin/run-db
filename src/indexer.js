@@ -80,7 +80,7 @@ class Indexer {
     const executed = await this.ds.txIsExecuted(txid)
     if (executed) {
       const enables = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
-      console.log(`[${txid}] already executed. enables: ${enables}`)
+      this.logger.log(`[${txid}] already executed. enables: ${enables}`)
       return new IndexerResult(true, [], [], [], enables)
     }
 

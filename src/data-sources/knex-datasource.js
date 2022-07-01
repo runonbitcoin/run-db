@@ -325,31 +325,12 @@ class KnexDatasource {
   }
 
   async searchDownstreamTxidsReadyToExecute (txid) {
-    const knex = this.knex
-    const mainDeps = 'mainDeps'
-    const mainTx = 'mainTx'
-    return knex(knex.ref(DEPS.NAME).as(mainDeps))
-      .join(knex.ref(TX.NAME).as(mainTx), `${mainTx}.${TX.txid}`, `${mainDeps}.${DEPS.down}`)
-      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
-      .leftJoin(TRUST.NAME, `${mainTx}.${TX.txid}`, `${TRUST.NAME}.${TRUST.txid}`)
-      .where(`${mainDeps}.${DEPS.up}`, txid)
-      .where(`${mainTx}.${TX.executable}`, true)
-      .where(`${mainTx}.${TX.executed}`, false)
-      .whereNull(`${BAN.NAME}.${BAN.txid}`)
-      .where(qb => {
-        qb.where(`${mainTx}.${TX.hasCode}`, false).orWhere(`${TRUST.NAME}.${TRUST.value}`, true)
-      })
-      .whereNotExists(function () {
-        const depTx = 'depTx'
-        const deps2 = 'deps2'
-        this.select(`${depTx}.${TX.txid}`).from(knex.ref(DEPS.NAME).as(deps2))
-          .leftJoin(knex.ref(TX.NAME).as(depTx), `${deps2}.${DEPS.up}`, `${depTx}.${TX.txid}`)
-          .where(`${deps2}.${DEPS.down}`, knex.ref(`${mainTx}.${TX.txid}`))
-          // .where(depTx, '<>', txid)
-          .where(qb => {
-            qb.where(`${depTx}.${TX.executed}`, false).orWhereNull(`${depTx}.${TX.txid}`)
-          })
-      }).pluck(`${mainTx}.${TX.txid}`)
+    return await this.knex(DEPS.NAME)
+      .innerJoin(TX.NAME, TX.txid, `${DEPS.NAME}.${DEPS.down}`)
+      .where(`${TX.NAME}.${TX.executable}`, true)
+      .where(`${TX.NAME}.${TX.executed}`, false)
+      .where(`${DEPS.NAME}.${DEPS.up}`, txid)
+      .pluck(`${TX.NAME}.${TX.txid}`)
   }
 
   async searchDownstreamForTxid (txid) {
