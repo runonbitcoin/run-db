@@ -30,12 +30,7 @@ class Indexer {
   }
 
   async trust (txid) {
-    const trusted = await this.trustList.trust(txid, this.ds)
-
-    for (const txid of trusted) {
-      await this.executeIfPossible(txid)
-    }
-    return trusted
+    return await this.trustList.trust(txid, this.ds)
   }
 
   async untrust (txid) {
@@ -125,7 +120,19 @@ class Indexer {
   }
 
   async executeIfPossible (txid) {
-    const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
+    const deps = await this.ds.fullDepsFor(txid)
+    let canExecuteNow = true
+    if (deps.some(d => !d.isReady())) {
+      canExecuteNow = false
+    } else if (deps.some(d => d.hasFailed())) {
+      canExecuteNow = false
+    } else if (deps.some(d => d.isBanned())) {
+      canExecuteNow = false
+    } else if (!this.trustList.trustedToExecute(txid)) {
+      canExecuteNow = false
+    }
+
+    // const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
     if (canExecuteNow) {
       const trustList = await this.trustList.executionTrustList(this.ds)
       this.logger.debug(`[${txid}] executing`)

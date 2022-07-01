@@ -317,7 +317,6 @@ describe('Server', () => {
         await get.indexer.indexTransaction(randomTx.buff)
         await get.indexer.indexTransaction(deploy.buff)
         await get.indexer.indexTransaction(instance.buff)
-        console.log('coso')
       })
 
       it('returns the state if the state exists', async () => {

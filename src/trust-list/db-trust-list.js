@@ -3,8 +3,14 @@ class DbTrustList {
     return ds.searchAllTrust()
   }
 
-  async checkExecutability (txid, ds) {
-    return ds.txidTrustedAndReadyToExecute(txid)
+  async trustedToExecute (txid, ds) {
+    const { tx, deps } = await ds.getTxAndDeps(txid)
+
+    const txidsToCheck = [tx, ...deps]
+      .filter(txMetadata => !txMetadata.hasCode)
+      .map(txMetadata => txMetadata.txid)
+
+    return ds.allTrusted(txidsToCheck)
   }
 
   async isTrusted (txid, ds) {

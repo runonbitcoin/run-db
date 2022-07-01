@@ -5,6 +5,7 @@
  */
 const { HEIGHT_MEMPOOL, CRAWL_HASH, CRAWL_HEIGHT } = require('../constants')
 const { TX, DEPS, EXECUTING, TRUST, BAN, SPEND, JIG, BERRY, CRAWL } = require('./columns')
+const { TxMetadata } = require('../model/tx-metadata')
 
 class KnexDatasource {
   constructor (knex, logger, readonly = false) {
@@ -250,59 +251,17 @@ class KnexDatasource {
     return result.length > 0
   }
 
-  async txidTrustedAndReadyToExecute (txid) {
-    const mainTx = 'mainTx'
-    const knex = this.knex
-    const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
-      .leftJoin(TRUST.NAME, `${TRUST.NAME}.${TRUST.txid}`, `${mainTx}.${TX.txid}`)
-      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
-      .where(`${mainTx}.${TX.txid}`, txid)
-      .where(`${mainTx}.${TX.executable}`, true)
-      .where(`${mainTx}.${TX.executed}`, false)
-      .where(qb => {
-        qb.where(`${mainTx}.${TX.hasCode}`, false)
-          .orWhere(`${TRUST.NAME}.${TRUST.value}`, true)
-      })
-      .whereNull(`${BAN.NAME}.${BAN.txid}`)
-      .whereNotExists(function () {
-        const depTx = 'depTx'
-        this.select(TX.txid).from(DEPS.NAME)
-          .leftJoin(knex.ref(TX.NAME).as(depTx), DEPS.up, `${depTx}.${TX.txid}`)
-          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
-          .where(qb => {
-            qb.whereNull(`${depTx}.${TX.txid}`).orWhere(qb => {
-              qb.where(`${depTx}.${TX.executable}`, true)
-              qb.where(`${depTx}.${TX.executed}`, false)
-            })
-          })
-      }).first(`${mainTx}.${TX.txid}`)
+  async getTxAndDeps (txid) {
+    const currentTx = await this.knex(TX.NAME).where(`${TX.txid}`, txid)
+    const deps = await this.knex(DEPS.NAME)
+      .select(`${TX.NAME}.*`)
+      .join(TX.NAME, `${TX.NAME}.txid`, `${DEPS.NAME}.${DEPS.up}`)
+      .where(`${DEPS.NAME}.${DEPS.down}`, txid)
 
-    return !!row
-  }
-
-  async txidIsReadyToExecute (txid) {
-    const mainTx = 'mainTx'
-    const knex = this.knex
-    const row = await knex(this.knex.ref(TX.NAME).as(mainTx))
-      .leftJoin(BAN.NAME, `${BAN.NAME}.${BAN.txid}`, `${mainTx}.${TX.txid}`)
-      .where(`${mainTx}.${TX.txid}`, txid)
-      .where(`${mainTx}.${TX.executable}`, true)
-      .where(`${mainTx}.${TX.executed}`, false)
-      .whereNull(`${BAN.NAME}.${BAN.txid}`)
-      .whereNotExists(function () {
-        const depTx = 'depTx'
-        this.select(TX.txid).from(DEPS.NAME)
-          .leftJoin(knex.ref(TX.NAME).as(depTx), DEPS.up, `${depTx}.${TX.txid}`)
-          .where(DEPS.down, knex.ref(`${mainTx}.${TX.txid}`))
-          .where(qb => {
-            qb.whereNull(`${depTx}.${TX.txid}`).orWhere(qb => {
-              qb.where(`${depTx}.${TX.executable}`, true)
-              qb.where(`${depTx}.${TX.executed}`, false)
-            })
-          })
-      }).first(`${mainTx}.${TX.txid}`)
-
-    return !!row
+    return {
+      tx: TxMetadata.fromObject(currentTx),
+      deps: deps.map(o => TxMetadata.fromObject(o))
+    }
   }
 
   async checkDependenciesWereExecutedOk (txid) {
@@ -315,6 +274,17 @@ class KnexDatasource {
         })
       }).count()
     return count === 0
+  }
+
+  async fullDepsFor (txid) {
+    const result = await this.knex(DEPS.NAME)
+      .select(`${TX.NAME}.*`)
+      .select({ isBanned: `${BAN.NAME}.${BAN.txid}` })
+      .join(TX.NAME, `${TX.NAME}.txid`, `${DEPS.NAME}.${DEPS.up}`)
+      .leftJoin(`${BAN.NAME}`, `${TX.NAME}.${TX.txid}`, `${BAN.NAME}.${BAN.txid}`)
+      .where(`${DEPS.NAME}.${DEPS.down}`, txid)
+
+    return result.map(o => TxMetadata.fromObject(o))
   }
 
   // spends
@@ -612,6 +582,14 @@ class KnexDatasource {
       .first(TRUST.txid)
 
     return !!row
+  }
+
+  async allTrusted (txids) {
+    const response = await this.knex(TRUST.NAME)
+      .whereIn(TRUST.txid, txids)
+      .count()
+
+    return response.count === txids.length
   }
 
   async setTrust (txid, trusted) {

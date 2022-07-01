@@ -3,8 +3,8 @@ class TrustAllTrustList {
     return ['*']
   }
 
-  async checkExecutability (txid, ds) {
-    return ds.txidIsReadyToExecute(txid)
+  async trustedToExecute (_txid, _ds) {
+    return true
   }
 
   async trust (txid, _ds) {

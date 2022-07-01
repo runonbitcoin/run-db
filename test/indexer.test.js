@@ -506,6 +506,28 @@ describe('Indexer', () => {
       })
     })
 
+    describe('when the app of the tx is banned', () => {
+      beforeEach(async () => {
+        const Counter = await get.Counter
+        await get.indexer.trust(Counter.location.split('_')[0])
+      })
+
+      it('executes immediately', async () => {
+        const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
+
+        const instance = new (await get.Counter)()
+        await instance.sync()
+
+        const txid = instance.location.split('_')[0]
+        const txHex = await get.run.blockchain.fetch(txid)
+        const txBuf2 = Buffer.from(txHex, 'hex')
+
+        await get.indexer.indexTransaction(await txBuf2, null, null)
+
+        expect(response.executed).to.eql(true)
+      })
+    })
+
     describe('when the tx enables the execution of another tx', () => {
       def('txHex', async () => {
         const Counter = await get.Counter
