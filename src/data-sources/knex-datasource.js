@@ -325,11 +325,13 @@ class KnexDatasource {
   }
 
   async searchDownstreamTxidsReadyToExecute (txid) {
-    return await this.knex(DEPS.NAME)
+    return this.knex(DEPS.NAME)
       .innerJoin(TX.NAME, TX.txid, `${DEPS.NAME}.${DEPS.down}`)
       .where(`${TX.NAME}.${TX.executable}`, true)
       .where(`${TX.NAME}.${TX.executed}`, false)
+      .where(`${TX.NAME}.${TX.indexed}`, false)
       .where(`${DEPS.NAME}.${DEPS.up}`, txid)
+      .limit(100)
       .pluck(`${TX.NAME}.${TX.txid}`)
   }
 
