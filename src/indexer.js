@@ -15,7 +15,7 @@ const { IndexerResult } = require('./model/indexer-result')
 // ------------------------------------------------------------------------------------------------
 
 class Indexer {
-  constructor (ds, blobs, trustList, executor, network, execSet, logger) {
+  constructor (ds, blobs, trustList, executor, network, execSet, logger, ignoredApps = []) {
     this.onFailToIndex = null
     this.pendingRetries = new Map()
     this.execSet = execSet
@@ -25,6 +25,7 @@ class Indexer {
     this.blobs = blobs
     this.trustList = trustList
     this.network = network
+    this.ignoredApps = ignoredApps
 
     this.executor = executor
   }
@@ -85,6 +86,11 @@ class Indexer {
     }
 
     const parsed = await this.parseTx(txBuf)
+
+    if (this.ignoredApps.includes(parsed.appName)) {
+      return new IndexerResult(true, [], [], [], [])
+    }
+
     await this.storeTx(parsed)
     if (parsed.executable) {
       if (this.executor.executing.has(parsed.txid)) {
@@ -225,6 +231,7 @@ class Indexer {
     const deps = Run.util.deps(hex)
 
     const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+    const appName = metadata.app
 
     return {
       txid,
@@ -234,7 +241,8 @@ class Indexer {
       outputs,
       hasCode,
       executable,
-      txBuf
+      txBuf,
+      appName
     }
   }
 

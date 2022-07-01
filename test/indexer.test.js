@@ -104,7 +104,8 @@ describe('Indexer', () => {
   })
 
   describe('#indexTransaction', () => {
-    def('run', () => new Run({ network: 'mock' }))
+    def('appName', () => 'unittest')
+    def('run', () => new Run({ network: 'mock', app: get.appName }))
     def('txBuf', async () => Buffer.from(
       await get.txHex,
       'hex'
@@ -150,8 +151,9 @@ describe('Indexer', () => {
 
     def('execSet', () => new ExecutingSet(get.ds))
 
+    def('ignoredApps', () => [])
     def('indexer', () =>
-      new Indexer(get.ds, blobStorage, trustList, get.executor, 'test', get.execSet, logger)
+      new Indexer(get.ds, blobStorage, trustList, get.executor, 'test', get.execSet, logger, get.ignoredApps)
     )
 
     beforeEach(async () => {
@@ -506,13 +508,16 @@ describe('Indexer', () => {
       })
     })
 
-    describe('when the app of the tx is banned', () => {
+    describe('when the app is ignored', () => {
+      def('appName', () => 'ignoredApp')
+      def('ignoredApps', () => [get.appName])
+
       beforeEach(async () => {
         const Counter = await get.Counter
         await get.indexer.trust(Counter.location.split('_')[0])
       })
 
-      it('executes immediately', async () => {
+      it('returns as it were already executed', async () => {
         const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
 
         const instance = new (await get.Counter)()
@@ -522,9 +527,19 @@ describe('Indexer', () => {
         const txHex = await get.run.blockchain.fetch(txid)
         const txBuf2 = Buffer.from(txHex, 'hex')
 
-        await get.indexer.indexTransaction(await txBuf2, null, null)
+        const response2 = await get.indexer.indexTransaction(await txBuf2, null, null)
 
         expect(response.executed).to.eql(true)
+        expect(response.enables).to.eql([])
+        expect(response.missingDeps).to.eql([])
+        expect(response.missingTrust).to.eql([])
+        expect(response.unknownDeps).to.eql([])
+
+        expect(response2.executed).to.eql(true)
+        expect(response2.enables).to.eql([])
+        expect(response2.missingDeps).to.eql([])
+        expect(response2.missingTrust).to.eql([])
+        expect(response2.unknownDeps).to.eql([])
       })
     })
 
