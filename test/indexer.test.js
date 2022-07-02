@@ -339,7 +339,7 @@ describe('Indexer', () => {
         return await TxSize.load(randomTx.txid)
       })
 
-      it('adds the berry tx in the list of missing deps', async () => {
+      it('adds the berry tx in the list of unknown deps', async () => {
         const TxSize = await get.TxSize
         const Container = await get.Container
         const aBerry = await get.aBerry
@@ -353,9 +353,9 @@ describe('Indexer', () => {
         const txBuf = Buffer.from(txHex, 'hex')
 
         const result = await get.indexer.indexTransaction(txBuf)
-        expect(result.missingDeps).to.include(Container.location.split('_')[0])
-        expect(result.missingDeps).to.include(TxSize.location.split('_')[0])
-        expect(result.missingDeps).to.include(randomTx.txid)
+        expect(result.unknownDeps).to.include(Container.location.split('_')[0])
+        expect(result.unknownDeps).to.include(TxSize.location.split('_')[0])
+        expect(result.unknownDeps).to.include(randomTx.txid)
       })
     })
 
@@ -434,7 +434,7 @@ describe('Indexer', () => {
 
         const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
         const depTxid = Counter.location.split('_')[0]
-        expect(response.missingDeps).to.eql([depTxid])
+        expect(response.unknownDeps).to.eql([depTxid])
       })
     })
 

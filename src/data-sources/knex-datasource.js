@@ -368,12 +368,19 @@ class KnexDatasource {
 
   async nonExecutedDepsFor (txid) {
     return this.knex(DEPS.NAME)
-      .leftJoin(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
+      .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
+      // .where(`${TX.NAME}.${TX.executed}`, false)
+      // .where(`${TX.NAME}.${TX.executable}`, true)
       .where(qb => {
-        qb.where(`${TX.NAME}.${TX.executed}`, false)
-        qb.orWhere(`${TX.NAME}.${TX.executable}`, true)
-        qb.orWhereNull(`${TX.NAME}.${TX.txid}`)
+        qb.where(qb2 => {
+          qb2.where(`${TX.NAME}.${TX.executed}`, false)
+          qb2.where(`${TX.NAME}.${TX.executable}`, true)
+        })
+        qb.orWhere(qb2 => {
+          qb2.where(`${TX.NAME}.${TX.executable}`, false)
+          qb2.where(`${TX.NAME}.${TX.indexed}`, false)
+        })
       })
       .pluck(`${DEPS.NAME}.${DEPS.up}`)
   }
