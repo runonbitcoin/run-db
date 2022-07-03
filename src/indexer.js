@@ -88,6 +88,8 @@ class Indexer {
     const parsed = await this.parseTx(txBuf)
 
     if (this.ignoredApps.includes(parsed.appName)) {
+      this.logger.debug(`[${txid}] ignored app tx: ${parsed.appName}`)
+      await this.ds.deleteTx(txid)
       return new IndexerResult(true, [], [], [], [])
     }
 

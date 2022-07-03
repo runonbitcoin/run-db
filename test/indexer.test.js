@@ -541,6 +541,15 @@ describe('Indexer', () => {
         expect(response2.missingTrust).to.eql([])
         expect(response2.unknownDeps).to.eql([])
       })
+
+      it('removes the transaction if it was alraedy on the db', async () => {
+        const Counter = await get.Counter
+        const txid = txidFromLocation(Counter.location)
+        await get.ds.addNewTx(txid, null, null)
+        const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
+        expect(response.executed).to.eql(true)
+        expect(await get.ds.txExists(txid)).to.eql(false)
+      })
     })
 
     describe('when the tx enables the execution of another tx', () => {
