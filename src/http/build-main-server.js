@@ -174,7 +174,7 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
   })
 
   server.post('/exec-missing', async (req, res) => {
-    const limit = req.query.limit
+    const { limit, cascade } = req.query
     const txsToExec = await ds.searchNonExecutedTxs(limit ? Number(limit) : 100)
     console.log(txsToExec)
     const queue = execManager.execQueue
@@ -182,7 +182,7 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
     await Promise.all(
       txsToExec.map(async txid => {
         await set.add(txid)
-        await queue.publish({ txid })
+        await queue.publish({ txid, cascade: !(cascade === 'false') })
       })
     )
     res.send({ ok: true })
