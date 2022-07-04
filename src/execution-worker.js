@@ -9,10 +9,12 @@ class ExecutionWorker {
   }
 
   async setUp () {
-    this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight }) => {
+    this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight, cascade = true }) => {
       try {
         const result = await this.indexer.indexTxid(txid, blockHeight)
-        await this._handleIndexResult(result)
+        if (cascade) {
+          await this._handleIndexResult(result)
+        }
         return { txid, success: result.executed }
       } catch (e) {
         console.warn(e)

@@ -65,4 +65,100 @@ describe('ExecutionWorker', () => {
 
     await get.blobs.pullJigState(Counter.location, () => expect.fail('state should be present'))
   })
+
+  describe('cascade', () => {
+    def('instanceTx', async () => {
+      const { Counter } = await get.counterTx
+      const instance = new Counter()
+      await instance.sync()
+
+      const txid = txidFromLocation(instance.location)
+      const txHex = await get.run.blockchain.fetch(txid)
+      return {
+        tx: { txid, buff: Buffer.from(txHex, 'hex') },
+        instance
+      }
+    })
+
+    it('starts other executions when set to true', async () => {
+      const { tx: { txid: txid1, buff: buff1 }, Counter } = await get.counterTx
+      const { tx: { txid: txid2, buff: buff2 }, instance } = await get.instanceTx
+
+      await get.blobs.pushTx(txid1, buff1)
+      await get.blobs.pushTx(txid2, buff2)
+
+      let count = 0
+      await get.execQueue.publish({ txid: txid2, cascade: true })
+      await new Promise(resolve => get.execQueue.onAck(() => {
+        count++
+        if (count >= 3) {
+          resolve()
+        }
+      }))
+
+      await get.execQueue.current
+      expect(get.execQueue.pending).to.have.length(0)
+      await get.blobs.pullJigState(Counter.location, () => expect.fail('state should be present'))
+      await get.blobs.pullJigState(instance.location, () => expect.fail('state should be present'))
+    })
+
+    it('does not starts other dependency executions when set to false', async () => {
+      const { tx: { txid: txid1, buff: buff1 }, Counter } = await get.counterTx
+      const { tx: { txid: txid2, buff: buff2 }, instance } = await get.instanceTx
+
+      await get.blobs.pushTx(txid1, buff1)
+      await get.blobs.pushTx(txid2, buff2)
+
+      // let count = 0
+      await get.execQueue.publish({ txid: txid2, cascade: false })
+
+      await get.execQueue.current
+      expect(get.execQueue.pending).to.have.length(0)
+      const res1 = await get.blobs.pullJigState(Counter.location, () => null)
+      const res2 = await get.blobs.pullJigState(instance.location, () => null)
+      expect(res1).to.eql(null)
+      expect(res2).to.eql(null)
+    })
+
+    it('does starts other dependency executions when not set', async () => {
+      const { tx: { txid: txid1, buff: buff1 }, Counter } = await get.counterTx
+      const { tx: { txid: txid2, buff: buff2 }, instance } = await get.instanceTx
+
+      await get.blobs.pushTx(txid1, buff1)
+      await get.blobs.pushTx(txid2, buff2)
+
+      let count = 0
+      await get.execQueue.publish({ txid: txid2 }) // cascade not set
+      await new Promise(resolve => get.execQueue.onAck(() => {
+        count++
+        if (count >= 3) {
+          resolve()
+        }
+      }))
+
+      await get.execQueue.current
+      expect(get.execQueue.pending).to.have.length(0)
+      await get.blobs.pullJigState(Counter.location, () => expect.fail('state should be present'))
+      await get.blobs.pullJigState(instance.location, () => expect.fail('state should be present'))
+    })
+
+    it('starts enablements when set to true', async () => {
+      const { tx: { txid: txid1, buff: buff1 }, Counter } = await get.counterTx
+      const { tx: { txid: txid2, buff: buff2 }, instance } = await get.instanceTx
+
+      await get.blobs.pushTx(txid1, buff1)
+      await get.blobs.pushTx(txid2, buff2)
+
+      // let count = 0
+      await get.execQueue.publish({ txid: txid2, cascade: false }) // cascade not set
+      await get.execQueue.current
+      await get.execQueue.publish({ txid: txid1, cascade: true })
+      await new Promise(resolve => get.execQueue.onAck(({ txid }) => {
+        if (txid === txid2) { resolve() }
+      }))
+
+      await get.blobs.pullJigState(Counter.location, () => expect.fail('state should be present'))
+      await get.blobs.pullJigState(instance.location, () => expect.fail('state should be present'))
+    })
+  })
 })
