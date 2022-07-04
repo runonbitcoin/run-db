@@ -18,6 +18,7 @@ const { buildDs, buildBlobs } = require('./test-env')
 const { buildCounter } = require('./test-jigs/counter')
 const { ExecutingSet } = require('../src/executing-set')
 const { txidFromLocation } = require('../src/util/txid-from-location')
+const { buildContainer } = require('./test-jigs/container')
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -549,6 +550,69 @@ describe('Indexer', () => {
         const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
         expect(response.executed).to.eql(true)
         expect(await get.ds.txExists(txid)).to.eql(false)
+      })
+    })
+
+    describe('when there is 2 txs downstream, one enabled and another one not enabled', () => {
+      def('tx1', async () => {
+        const Container = buildContainer()
+        get.run.deploy(Container)
+        await get.run.sync()
+        const txid = txidFromLocation(Container.location)
+        const hex = await get.run.blockchain.fetch(txid)
+
+        return { Container, tx: { txid, buff: Buffer.from(hex, 'hex') } }
+      })
+      def('tx2', async () => {
+        const { Container } = await get.tx1
+        const instance = new Container('holu')
+        await instance.sync()
+
+        const txid = txidFromLocation(instance.location)
+        const hex = await get.run.blockchain.fetch(txid)
+
+        return { instance, tx: { txid, buff: Buffer.from(hex, 'hex') } }
+      })
+
+      def('txDep', async () => {
+        const Counter = await get.Counter
+        const instance = new Counter()
+        await instance.sync()
+
+        const txid = txidFromLocation(instance.location)
+        const hex = await get.run.blockchain.fetch(txid)
+
+        return { instance, tx: { txid, buff: Buffer.from(hex, 'hex') } }
+      })
+
+      def('tx3', async () => {
+        const { Container } = await get.tx1
+        const { instance: aCounter } = await get.txDep
+        const instance = new Container(aCounter)
+        await instance.sync()
+
+        const txid = txidFromLocation(instance.location)
+        const hex = await get.run.blockchain.fetch(txid)
+
+        return { instance, tx: { txid, buff: Buffer.from(hex, 'hex') } }
+      })
+
+      it('only queues only the enabled one', async () => {
+        const { tx: tx1 } = await get.tx1
+        const { tx: tx2 } = await get.tx2
+        const { tx: txDep } = await get.txDep
+        const { tx: tx3 } = await get.tx3
+
+        await get.indexer.trust(tx1.txid)
+
+        expect(await get.ds.txIsExecuted(txidFromLocation((await get.Counter).location))).to.eql(false)
+
+        await get.indexer.indexTransaction(await tx2.buff, null)
+        await get.indexer.indexTransaction(await tx3.buff, null)
+        await get.indexer.indexTransaction(await txDep.buff, null)
+
+        const response = await get.indexer.indexTransaction(await tx1.buff, null)
+        expect(response.enables).to.eql([tx2.txid])
       })
     })
 

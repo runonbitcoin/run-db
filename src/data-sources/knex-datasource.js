@@ -252,7 +252,7 @@ class KnexDatasource {
   }
 
   async getTxAndDeps (txid) {
-    const currentTx = await this.knex(TX.NAME).where(`${TX.txid}`, txid)
+    const currentTx = await this.knex(TX.NAME).where(`${TX.txid}`, txid).first()
     const deps = await this.knex(DEPS.NAME)
       .select(`${TX.NAME}.*`)
       .join(TX.NAME, `${TX.NAME}.txid`, `${DEPS.NAME}.${DEPS.up}`)
@@ -577,7 +577,8 @@ class KnexDatasource {
   async allTrusted (txids) {
     const response = await this.knex(TRUST.NAME)
       .whereIn(TRUST.txid, txids)
-      .count()
+      .count('*', { as: 'count' })
+      .first()
 
     return response.count === txids.length
   }

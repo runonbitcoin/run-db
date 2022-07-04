@@ -7,7 +7,7 @@ class DbTrustList {
     const { tx, deps } = await ds.getTxAndDeps(txid)
 
     const txidsToCheck = [tx, ...deps]
-      .filter(txMetadata => !txMetadata.hasCode)
+      .filter(txMetadata => txMetadata.hasCode)
       .map(txMetadata => txMetadata.txid)
 
     return ds.allTrusted(txidsToCheck)

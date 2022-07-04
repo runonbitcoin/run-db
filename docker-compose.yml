@@ -48,7 +48,7 @@ services:
     volumes:
       - ./src:/app/src
     ports:
-      - 3000:3000
+      - 3001:3000
     environment:
       PORT: 3000
       MAIN_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/rundb_regtest

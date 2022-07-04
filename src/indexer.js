@@ -44,12 +44,13 @@ class Indexer {
     if (txBuff === null) {
       await this.ds.addNewTx(txid, new Date(), null)
       await this.ds.setTransactionExecutionFailed(txid)
+      this.logger.log(`[${txid}] transaction does not exist`)
       const result = new IndexerResult(
         false,
         [],
         [],
         [],
-        await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+        await this._searchEnablementsFor(txid)
       )
       await this.execSet.remove(txid)
       return result
@@ -80,7 +81,7 @@ class Indexer {
   async _doIndexing (txid, txBuf) {
     const executed = await this.ds.txIsExecuted(txid)
     if (executed) {
-      const enables = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+      const enables = await this._searchEnablementsFor(txid)
       this.logger.log(`[${txid}] already executed. enables: ${enables}`)
       return new IndexerResult(true, [], [], [], enables)
     }
@@ -111,7 +112,7 @@ class Indexer {
           [],
           [],
           [],
-          await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+          await this._searchEnablementsFor(txid)
         )
       }
     }
@@ -127,18 +128,33 @@ class Indexer {
     )
   }
 
-  async executeIfPossible (txid) {
-    const deps = await this.ds.fullDepsFor(txid)
-    let canExecuteNow = true
-    if (deps.some(d => !d.isReady())) {
-      canExecuteNow = false
-    } else if (deps.some(d => d.hasFailed())) {
-      canExecuteNow = false
-    } else if (deps.some(d => d.isBanned())) {
-      canExecuteNow = false
-    } else if (!this.trustList.trustedToExecute(txid)) {
-      canExecuteNow = false
+  async _searchEnablementsFor (txid) {
+    const executableDownstram = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
+    const res = []
+    for (const depTxid of executableDownstram) {
+      if (await this._isReadyToExecute(depTxid)) {
+        res.push(depTxid)
+      }
     }
+    return res
+  }
+
+  async _isReadyToExecute (txid) {
+    const deps = await this.ds.fullDepsFor(txid)
+    if (deps.some(d => !d.isReady())) {
+      return false
+    } else if (deps.some(d => d.hasFailed())) {
+      return false
+    } else if (deps.some(d => d.isBanned())) {
+      return false
+    } else if (!await this.trustList.trustedToExecute(txid, this.ds)) {
+      return false
+    }
+    return true
+  }
+
+  async executeIfPossible (txid) {
+    const canExecuteNow = await this._isReadyToExecute(txid)
 
     // const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
     if (canExecuteNow) {
