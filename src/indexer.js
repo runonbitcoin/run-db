@@ -44,7 +44,7 @@ class Indexer {
     if (txBuff === null) {
       await this.ds.addNewTx(txid, new Date(), null)
       await this.ds.setTransactionExecutionFailed(txid)
-      this.logger.log(`[${txid}] transaction does not exist`)
+      this.logger.info(`[${txid}] transaction does not exist`)
       const result = new IndexerResult(
         false,
         [],
@@ -83,7 +83,7 @@ class Indexer {
     const executed = await this.ds.txIsExecuted(txid)
     if (executed) {
       const enables = await this._searchEnablementsFor(txid)
-      this.logger.log(`[${txid}] already executed. enables: ${enables}`)
+      this.logger.info(`[${txid}] already executed. enables: ${enables}`)
       return new IndexerResult(true, [], [], [], enables)
     }
 
