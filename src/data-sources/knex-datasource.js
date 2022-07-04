@@ -6,6 +6,7 @@
 const { HEIGHT_MEMPOOL, CRAWL_HASH, CRAWL_HEIGHT } = require('../constants')
 const { TX, DEPS, EXECUTING, TRUST, BAN, SPEND, JIG, BERRY, CRAWL } = require('./columns')
 const { TxMetadata } = require('../model/tx-metadata')
+const { UnknownTx } = require('../model/unknown-tx')
 
 class KnexDatasource {
   constructor (knex, logger, readonly = false) {
@@ -278,13 +279,19 @@ class KnexDatasource {
 
   async fullDepsFor (txid) {
     const result = await this.knex(DEPS.NAME)
-      .select(`${TX.NAME}.*`)
+      .select(`${TX.NAME}.*`, DEPS.up)
       .select({ isBanned: `${BAN.NAME}.${BAN.txid}` })
-      .join(TX.NAME, `${TX.NAME}.txid`, `${DEPS.NAME}.${DEPS.up}`)
+      .leftJoin(TX.NAME, `${TX.NAME}.txid`, `${DEPS.NAME}.${DEPS.up}`)
       .leftJoin(`${BAN.NAME}`, `${TX.NAME}.${TX.txid}`, `${BAN.NAME}.${BAN.txid}`)
       .where(`${DEPS.NAME}.${DEPS.down}`, txid)
 
-    return result.map(o => TxMetadata.fromObject(o))
+    return result.map(o => {
+      if (o.txid) {
+        return TxMetadata.fromObject(o)
+      } else {
+        return new UnknownTx(o.up)
+      }
+    })
   }
 
   // spends

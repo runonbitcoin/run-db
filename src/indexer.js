@@ -63,6 +63,7 @@ class Indexer {
     const txid = crypto.createHash('sha256').update(
       crypto.createHash('sha256').update(txBuf).digest()
     ).digest().reverse().toString('hex')
+    const start = new Date()
     this.logger.debug(`[${txid}] received`)
     try {
       const time = new Date()
@@ -70,7 +71,7 @@ class Indexer {
 
       const result = await this._doIndexing(txid, txBuf)
       await this.execSet.remove(txid)
-      this.logger.debug(`[${txid}] finished`)
+      this.logger.debug(`[${txid}] finished. ${new Date().valueOf() - start.valueOf()} ms`)
       return result
     } catch (e) {
       await this.execSet.remove(txid)
@@ -143,6 +144,8 @@ class Indexer {
     const deps = await this.ds.fullDepsFor(txid)
     if (deps.some(d => !d.isReady())) {
       return false
+    } else if (deps.some(d => !d.isKnown())) {
+      return false
     } else if (deps.some(d => d.hasFailed())) {
       return false
     } else if (deps.some(d => d.isBanned())) {
@@ -155,26 +158,27 @@ class Indexer {
 
   async executeIfPossible (txid) {
     const canExecuteNow = await this._isReadyToExecute(txid)
+    if (!canExecuteNow) {
+      return false
+    }
 
     // const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
-    if (canExecuteNow) {
-      const trustList = await this.trustList.executionTrustList(this.ds)
-      this.logger.debug(`[${txid}] executing`)
-      const result = await this.executor.execute(txid, trustList)
-      if (result.success) {
-        this.logger.debug(`[${txid}] success`)
-        await this._onIndexed(txid, result.result)
-      } else if (result.missingDeps && result.missingDeps.length > 0) {
-        await this._onMissingDeps(txid, result.missingDeps)
-        this.logger.debug(`[${txid}] failed, missing deps: [ ${result.missingDeps.join(', ')} ].`)
-        return false
-      } else {
-        this.logger.debug(`[${txid}] failed`)
-        await this._onExecuteFailed(txid, result.error, false)
-        return false
-      }
+    const trustList = await this.trustList.executionTrustList(this.ds)
+    this.logger.debug(`[${txid}] executing`)
+    const result = await this.executor.execute(txid, trustList)
+    if (result.success) {
+      this.logger.debug(`[${txid}] success`)
+      await this._onIndexed(txid, result.result)
+      return true
+    } else if (result.missingDeps && result.missingDeps.length > 0) {
+      await this._onMissingDeps(txid, result.missingDeps)
+      this.logger.debug(`[${txid}] failed, missing deps: [ ${result.missingDeps.join(', ')} ].`)
+      return false
+    } else {
+      this.logger.debug(`[${txid}] failed`)
+      await this._onExecuteFailed(txid, result.error, false)
+      return true
     }
-    return canExecuteNow
   }
 
   async storeTx (parsedTx) {

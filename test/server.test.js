@@ -135,7 +135,8 @@ describe('Server', () => {
     describe('when the run execution fails', function () {
       def('network', () => 'main') // this causes the run execution to fail.
 
-      it('returns false in the body', async () => {
+      // The execution fails but still happens and gets indexed.
+      it('returns true in the body', async () => {
         const server = get.server
         const tx = await get.tx
 
@@ -145,7 +146,7 @@ describe('Server', () => {
           .send(tx.buff)
           .expect(200)
 
-        expect(response.body).to.eql({ ok: false })
+        expect(response.body).to.eql({ ok: true })
       })
     })
 

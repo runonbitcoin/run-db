@@ -31,6 +31,10 @@ class TxMetadata {
     return this.hasCode && this._isBanned
   }
 
+  isKnown () {
+    return true
+  }
+
   static fromObject (obj) {
     return new this(
       obj.txid,
