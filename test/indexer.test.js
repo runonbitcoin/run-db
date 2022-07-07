@@ -7,6 +7,7 @@
 const { describe, it, beforeEach, afterEach } = require('mocha')
 const { expect } = require('chai')
 const bsv = require('bsv')
+const nimble = require('@runonbitcoin/nimble')
 const Indexer = require('../src/indexer')
 const Run = require('run-sdk')
 // const { DEFAULT_TRUSTLIST } = require('../src/config')
@@ -168,7 +169,11 @@ describe('Indexer', () => {
       await get.executor.stop()
     })
 
-    describe('when the tx is executable and has no dependencies', () => {
+    describe('when the tx is executable and has no dependencies and the code was trusted', () => {
+      beforeEach(async () => {
+        const Counter = await get.Counter
+        await get.indexer.trust(txidFromLocation(Counter.location))
+      })
       it('pushes the jigs to blob storage', async () => {
         const indexer = get.indexer
         const Counter = await get.Counter
@@ -205,21 +210,49 @@ describe('Indexer', () => {
         expect(response.executed).to.eql(true)
       })
 
-      it('craetes the spend')
+      it('craetes the spend', async () => {
+        const Counter = await get.Counter
 
-      describe('when the tx is in the exec set', () => {
-        it('removes the tx from exec set', async () => {
-          const Counter = await get.Counter
-          const txid = txidFromLocation(Counter.location)
-          await get.indexer.trust(txid)
+        const txid = txidFromLocation(Counter.location)
+        await get.indexer.trust(txid)
 
-          await get.execSet.add(txid)
-          expect(await get.execSet.check(txid)).to.eql(true)
-          await get.indexer.indexTransaction(await get.txBuf, null, null)
-          const coso = await get.execSet.check(txid)
-          expect(coso).to.eql(false)
-        })
+        await get.indexer.indexTransaction(await get.txBuf, null, null)
+
+        expect(await get.ds.getSpendingTxid(`${txid}_o1`)).to.eql(null)
+        expect(await get.ds.getSpendingTxid(`${txid}_o2`)).to.eql(null)
+        expect(await get.ds.searchSpendsForTx(txid)).to.have.length(1)
       })
+
+      it('creates the jigs', async () => {
+        const Counter = await get.Counter
+
+        const txid = txidFromLocation(Counter.location)
+        await get.indexer.trust(txid)
+        const txHex = await get.run.blockchain.fetch(txid)
+
+        await get.indexer.indexTransaction(await get.txBuf, null, null)
+        const metadata1 = await get.ds.getJigMetadata(`${txid}_o1`)
+        expect(metadata1.location).to.eql(`${txid}_o1`)
+        expect(metadata1.class).to.eql('native://Code')
+        expect(metadata1.lock).to.eql(null)
+        const script = nimble.classes.Transaction.fromHex(txHex).outputs[1].script
+        const sha256 = Buffer.from(nimble.functions.sha256(script.toBuffer())).reverse()
+        expect(metadata1.scripthash).to.eql(sha256.toString('hex'))
+      })
+
+      // describe('when the tx is in the exec set', () => {
+      //   it('removes the tx from exec set', async () => {
+      //     const Counter = await get.Counter
+      //     const txid = txidFromLocation(Counter.location)
+      //     await get.indexer.trust(txid)
+      //
+      //     await get.execSet.add(txid)
+      //     expect(await get.execSet.check(txid)).to.eql(true)
+      //     await get.indexer.indexTransaction(await get.txBuf, null, null)
+      //     const coso = await get.execSet.check(txid)
+      //     expect(coso).to.eql(false)
+      //   })
+      // })
     })
 
     describe('when the tx execution fails because there is a missing state on the blob storage', async () => {
@@ -244,6 +277,7 @@ describe('Indexer', () => {
 
         const result = await get.indexer.indexTransaction(txBuf2)
         expect(result.executed).to.eql(false)
+        expect(result.missingDeps).to.eql([txidFromLocation(Counter.location)])
       })
     })
 
@@ -364,6 +398,7 @@ describe('Indexer', () => {
       // def('executor', () => ({
       //   execute: () =>
       // }))
+
     })
 
     describe('when the tx is not executable', () => {
@@ -382,6 +417,7 @@ describe('Indexer', () => {
         bsvTx.sign([aPrivKey])
         return bsvTx
       })
+
       def('txBuf', () => {
         return get.tx.toBuffer()
       })
@@ -396,15 +432,17 @@ describe('Indexer', () => {
         expect(response.missingDeps).to.eql([])
       })
 
-      it('returns empty list for missing trust', async () => {
-        const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
-        expect(response.missingTrust).to.eql([])
-      })
-
       it('it marks the tx as indexed', async () => {
         await get.indexer.indexTransaction(await get.txBuf, null, null)
         const indexed = await get.ds.txIsIndexed(get.tx.hash)
         expect(!!indexed).to.eq(true)
+      })
+
+      it('creates the spends', async () => {
+        const txid = (await get.tx).hash
+        await get.indexer.indexTransaction(await get.txBuf, null, null)
+        expect(await get.ds.getSpendingTxid(`${txid}_o0`)).to.eql(null)
+        expect(await get.ds.searchSpendsForTx(txid)).to.have.length(1)
       })
     })
 
@@ -439,6 +477,56 @@ describe('Indexer', () => {
       })
     })
 
+    describe('when the tx has more than one dep that was not executed before', async () => {
+      def('Container', async () => {
+        const Container = buildContainer()
+        get.run.deploy(Container)
+        await get.run.sync()
+        return Container
+      })
+
+      def('txHex', async () => {
+        const Counter = await get.Counter
+        const Container = await get.Container
+        const aContainer = new Container(Counter)
+        await aContainer.sync()
+        const txid = aContainer.location.split('_')[0]
+        return get.run.blockchain.fetch(txid)
+      })
+
+      it('return all the non executed deps as missing deps', async () => {
+        const Counter = await get.Counter
+        const Container = await get.Container
+        const jig = get.run.inventory.jigs[0]
+
+        const txid1 = txidFromLocation(Counter.location)
+        const buff1 = Buffer.from(await get.run.blockchain.fetch(txid1), 'hex')
+        await get.blobs.pushTx(txid1, buff1)
+
+        const txid2 = txidFromLocation(Container.location)
+        const buff2 = Buffer.from(await get.run.blockchain.fetch(txid2), 'hex')
+        await get.blobs.pushTx(txid2, buff2)
+
+        const txid3 = txidFromLocation(jig.location)
+        const buff3 = Buffer.from(await get.run.blockchain.fetch(txid3), 'hex')
+        await get.blobs.pushTx(txid3, buff3)
+
+        await get.indexer.trust(txid1)
+        await get.indexer.trust(txid2)
+
+        await get.indexer.indexTransaction(buff1)
+        await get.indexer.indexTransaction(buff2)
+
+        await get.ds.setExecutedForTx(txid1, false)
+        await get.ds.setExecutedForTx(txid2, false)
+
+        await get.indexer.indexTransaction(await get.txBuf, null, null)
+
+        const response = await get.indexer.indexTransaction(buff3, null, null)
+        expect(response.missingDeps).to.have.members([txid1, txid2])
+      })
+    })
+
     describe('when the tx was not trusted', () => {
       it('does not save anything to the blob storage', async () => {
         const indexer = get.indexer
@@ -457,50 +545,160 @@ describe('Indexer', () => {
         expect(response.executed).to.eql(false)
       })
 
-      it('returns the missing trust', async () => {
+      it('marks the tx as failed', async () => {
         const Counter = await get.Counter
         const indexer = get.indexer
-        const response = await indexer.indexTransaction(await get.txBuf, null, null)
+        await indexer.indexTransaction(await get.txBuf, null, null)
 
-        expect(response.missingTrust).to.eql([Counter.location.split('_')[0]])
+        const tx = await get.ds.getTx(txidFromLocation(Counter.location), () => expect.fail('should be present'))
+        expect(tx.hasFailed()).to.eql(true)
       })
     })
 
-    describe('when the 2 txs depends on the current txs but one of them has other non executed txs', () => {
-      def('SecondClass', async () => {
-        class SecondClass extends Run.Jig {}
-
-        get.run.deploy(SecondClass)
-        await get.run.sync()
-        return SecondClass
-      })
-
-      def('txHex2', async () => {
+    describe('when the tx depends on another tx that was not trusted', () => {
+      def('instance', async () => {
         const Counter = await get.Counter
-        const SecondClass = await get.SecondClass
-        const { aCounter } = get.run.transaction(() => {
-          const aCounter = new Counter()
-          const aSecond = new SecondClass()
-          return { aCounter, aSecond }
-        })
-        await get.run.sync()
-
-        return await get.run.blockchain.fetch(aCounter.location.split('_')[0])
+        const instance = new Counter()
+        await instance.sync()
+        return instance
+      })
+      def('txHex', async () => {
+        const instance = await get.instance
+        return get.run.blockchain.fetch(txidFromLocation(instance.location))
       })
 
       beforeEach(async () => {
-        const txHex2 = await get.txHex2
         const Counter = await get.Counter
-        const SecondClass = await get.SecondClass
-
-        await get.indexer.trust(Counter.location.split('_')[0])
-        await get.indexer.trust(SecondClass.location.split('_')[0])
-        await get.indexer.indexTransaction(Buffer.from(txHex2, 'hex'))
+        const hex = await get.run.blockchain.fetch(txidFromLocation(Counter.location))
+        await get.indexer.indexTransaction(Buffer.from(hex, 'hex'))
       })
 
-      it.skip('does not includes that as an enablement', async () => {
+      it('does not save anything to the blob storage', async () => {
+        const indexer = get.indexer
+        const instance = await get.instance
+
+        await indexer.indexTransaction(await get.txBuf, null, null)
+
+        const obj = {}
+        const response = await blobStorage.pullJigState(instance.location, () => obj)
+        expect(response).to.eq(obj)
+      })
+
+      it('returns non executed', async () => {
+        const indexer = get.indexer
+        const response = await indexer.indexTransaction(await get.txBuf, null, null)
+
+        expect(response.executed).to.eql(false)
+      })
+
+      it('does not return the untrusted dep as unknown dep', async () => {
+        const indexer = get.indexer
+        const response = await indexer.indexTransaction(await get.txBuf, null, null)
+
+        expect(response.unknownDeps).to.eql([])
+      })
+
+      it('does not return the untrusted dep as missing deps', async () => {
+        const indexer = get.indexer
+        const response = await indexer.indexTransaction(await get.txBuf, null, null)
+
+        expect(response.missingDeps).to.eql([])
+      })
+
+      it('marks the tx as failed', async () => {
+        const instance = await get.instance
+        const indexer = get.indexer
+        await indexer.indexTransaction(await get.txBuf, null, null)
+
+        const tx = await get.ds.getTx(txidFromLocation(instance.location), () => expect.fail('should be present'))
+        expect(tx.hasFailed()).to.eql(true)
+      })
+    })
+
+    describe('when the execution enables another execution', () => {
+      def('instance', async () => {
+        const Counter = await get.Counter
+        const instance = new Counter()
+        await instance.sync()
+        return instance
+      })
+      def('txHex', async () => {
+        const Counter = await get.Counter
+        return get.run.blockchain.fetch(txidFromLocation(Counter.location))
+      })
+
+      beforeEach(async () => {
+        const Counter = await get.Counter
+        await get.indexer.trust(txidFromLocation(Counter.location))
+
+        const instance = await get.instance
+        const hex = await get.run.blockchain.fetch(txidFromLocation(instance.location))
+        await get.indexer.indexTransaction(Buffer.from(hex, 'hex'))
+      })
+
+      it('executes inmediately', async () => {
+        const result = await get.indexer.indexTransaction(await get.txBuf, null)
+        expect(result.executed).to.eql(true)
+        expect(result.success).to.eql(true)
+      })
+
+      it('returns the enablement', async () => {
+        const instance = await get.instance
+
+        const result = await get.indexer.indexTransaction(await get.txBuf, null)
+        expect(result.executed).to.eql(true)
+        expect(result.enables).to.eql([txidFromLocation(instance.location)])
+      })
+    })
+
+    describe('when 2 txs depends on the current txs but one of them has other non executed txs', () => {
+      def('Container', async () => {
+        const Container = buildContainer()
+        get.run.deploy(Container)
+        await get.run.sync()
+        return Container
+      })
+
+      def('aContainer', async () => {
+        const Container = await get.Container
+        const Counter = await get.Counter
+        const instance = new Container(Counter)
+        await instance.sync()
+        return instance
+      })
+
+      def('anotherContainer', async () => {
+        const Container = await get.Container
+        const instance = new Container('something')
+        await instance.sync()
+        return instance
+      })
+
+      def('txHex', async () => {
+        const Container = await get.Container
+        return get.run.blockchain.fetch(txidFromLocation(Container.location))
+      })
+
+      beforeEach(async () => {
+        const aContainer = await get.aContainer
+        const anotherContainer = await get.anotherContainer
+
+        for (const jig of [aContainer, anotherContainer]) {
+          const txid1 = txidFromLocation(jig.location)
+          const txHex = await get.run.blockchain.fetch(txid1)
+          const txBuf = Buffer.from(txHex, 'hex')
+          await get.indexer.indexTransaction(txBuf)
+        }
+
+        await get.indexer.trust(txidFromLocation(aContainer.constructor.location))
+      })
+
+      it('does not includes that as an enablement', async () => {
+        const anotherContainer = await get.anotherContainer // does not depend on other jig.
+
         const result = await get.indexer.indexTransaction(await get.txBuf)
-        expect(result.enables).to.eql([])
+        expect(result.enables).to.have.length(1)
+        expect(result.enables).to.eql([txidFromLocation(anotherContainer.location)])
       })
 
       it('executes immediately', async () => {
@@ -533,13 +731,11 @@ describe('Indexer', () => {
         expect(response.executed).to.eql(true)
         expect(response.enables).to.eql([])
         expect(response.missingDeps).to.eql([])
-        expect(response.missingTrust).to.eql([])
         expect(response.unknownDeps).to.eql([])
 
         expect(response2.executed).to.eql(true)
         expect(response2.enables).to.eql([])
         expect(response2.missingDeps).to.eql([])
-        expect(response2.missingTrust).to.eql([])
         expect(response2.unknownDeps).to.eql([])
       })
 
@@ -550,6 +746,15 @@ describe('Indexer', () => {
         const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
         expect(response.executed).to.eql(true)
         expect(await get.ds.txExists(txid)).to.eql(false)
+      })
+
+      it('removes the tx deps if they were alraedy on the db', async () => {
+        const Counter = await get.Counter
+        const txid = txidFromLocation(Counter.location)
+        await get.ds.addNewTx(txid, null, null)
+        await get.indexer.indexTransaction(await get.txBuf, null, null)
+        const upstream = await get.ds.getUpstreamTxIds(txid)
+        expect(upstream).to.have.length(0)
       })
     })
 
@@ -667,6 +872,82 @@ describe('Indexer', () => {
 
         const txid = instance.location.split('_')[0]
         expect(response.enables).to.eql([txid])
+      })
+    })
+
+    describe('when there is a failed transaction', () => {
+      def('instance', async () => {
+        const Counter = await get.Counter
+        const instance = new Counter()
+        await instance.sync()
+        instance.inc()
+        await instance.sync()
+        return instance
+      })
+
+      beforeEach(async () => {
+        const Counter = await get.Counter
+        const instance = await get.instance
+        const txid = txidFromLocation(Counter.location)
+        const buff = Buffer.from(
+          await get.run.blockchain.fetch(txid),
+          'hex'
+        )
+        await get.indexer.trust(txid)
+        await get.indexer.indexTransaction(buff, null)
+        await get.indexer.indexTransaction(Buffer.from(
+          await get.run.blockchain.fetch(txidFromLocation(instance.origin)), 'hex'
+        ))
+        await get.ds.setTransactionExecutionFailed(txidFromLocation(instance.origin))
+      })
+
+      it('marks the tx as failed', async () => {
+        const instance = await get.instance
+        const txid = txidFromLocation(instance.location)
+        const buff = Buffer.from(
+          await get.run.blockchain.fetch(txid),
+          'hex'
+        )
+
+        await get.indexer.indexTransaction(buff, null)
+        const tx = await get.ds.getTx(txid, () => expect.fail('should be present'))
+        expect(tx.hasFailed()).to.eql(true)
+      })
+
+      it('returns a correct result', async () => {
+        const instance = await get.instance
+        const txid = txidFromLocation(instance.location)
+        const buff = Buffer.from(
+          await get.run.blockchain.fetch(txid),
+          'hex'
+        )
+
+        const result = await get.indexer.indexTransaction(buff, null)
+        expect(result.executed).to.eql(false)
+        expect(result.success).to.eql(false)
+      })
+
+      it('returns an enablement if exists', async () => {
+        const instance = await get.instance
+        const txid = txidFromLocation(instance.location)
+        const buff = Buffer.from(
+          await get.run.blockchain.fetch(txid),
+          'hex'
+        )
+
+        instance.inc()
+        await instance.sync()
+
+        const tipTxid = txidFromLocation(instance.location)
+        const tipBuff = Buffer.from(
+          await get.run.blockchain.fetch(tipTxid),
+          'hex'
+        )
+
+        await get.indexer.indexTransaction(tipBuff, null)
+
+        const result = await get.indexer.indexTransaction(buff, null)
+        expect(result.enables).to.eql([tipTxid])
       })
     })
   })

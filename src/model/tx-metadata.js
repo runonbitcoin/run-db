@@ -20,7 +20,7 @@ class TxMetadata {
   }
 
   hasFailed () {
-    return this.executed && !this.indexed
+    return !!(this.executed && !this.indexed)
   }
 
   isReady () {

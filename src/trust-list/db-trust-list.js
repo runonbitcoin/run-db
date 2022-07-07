@@ -17,6 +17,11 @@ class DbTrustList {
     return ds.isTrusted(txid)
   }
 
+  async allTrusted (txids, ds) {
+    return Promise.all(txids.map(async (txid) => this.isTrusted(txid, ds)))
+      .then(list => list.every(a => a))
+  }
+
   async trust (txid, ds) {
     if (await ds.isTrusted(txid)) return []
 

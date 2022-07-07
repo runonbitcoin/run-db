@@ -117,7 +117,7 @@ async function execute ({ txid, hex, trustList }) {
     const commonLocks = addresses.map(([location, address]) => [location, new Run.util.CommonLock(address)])
     const scripts = customLocks.concat(commonLocks).map(([location, lock]) => [location, lock.script()])
     const scripthashes = scripts.map(([location, script]) => [location, scripthash(script)])
-    return { success: true, cache, classes, locks, scripthashes }
+    return { success: true, cache, classes, locks, scripthashes, missingDeps: [], error: null }
   } catch (e) {
     if (e instanceof RemoteError && e.className === DepNotFound.name) {
       return { success: false, missingDeps: [e.data.txid] }

@@ -3,12 +3,12 @@
  *
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
-
-const crypto = require('crypto')
 const Run = require('run-sdk')
 const bsv = require('bsv')
 const _ = require('lodash')
 const { IndexerResult } = require('./model/indexer-result')
+const nimble = require('@runonbitcoin/nimble')
+const { UnknownTx } = require('./model/unknown-tx')
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
@@ -16,7 +16,6 @@ const { IndexerResult } = require('./model/indexer-result')
 
 class Indexer {
   constructor (ds, blobs, trustList, executor, network, execSet, logger, ignoredApps = []) {
-    this.onFailToIndex = null
     this.pendingRetries = new Map()
     this.execSet = execSet
 
@@ -60,34 +59,10 @@ class Indexer {
   }
 
   async indexTransaction (txBuf, blockHeight = null) {
-    const txid = crypto.createHash('sha256').update(
-      crypto.createHash('sha256').update(txBuf).digest()
-    ).digest().reverse().toString('hex')
     const start = new Date()
-    this.logger.debug(`[${txid}] received`)
-    try {
-      const time = new Date()
-      await this.ds.addNewTx(txid, time, blockHeight)
-
-      const result = await this._doIndexing(txid, txBuf)
-      await this.execSet.remove(txid)
-      this.logger.debug(`[${txid}] finished. ${new Date().valueOf() - start.valueOf()} ms`)
-      return result
-    } catch (e) {
-      await this.execSet.remove(txid)
-      throw e
-    }
-  }
-
-  async _doIndexing (txid, txBuf) {
-    const executed = await this.ds.txIsExecuted(txid)
-    if (executed) {
-      const enables = await this._searchEnablementsFor(txid)
-      this.logger.info(`[${txid}] already executed. enables: ${enables}`)
-      return new IndexerResult(true, [], [], [], enables)
-    }
-
     const parsed = await this.parseTx(txBuf)
+    const txid = parsed.txid
+    this.logger.debug(`[${txid}] received`)
 
     if (this.ignoredApps.includes(parsed.appName)) {
       this.logger.debug(`[${txid}] ignored app tx: ${parsed.appName}`)
@@ -95,37 +70,58 @@ class Indexer {
       return new IndexerResult(true, [], [], [], [])
     }
 
-    await this.storeTx(parsed)
-    if (parsed.executable) {
-      if (this.executor.executing.has(parsed.txid)) {
-        return new IndexerResult(
-          true,
-          [],
-          [],
-          [],
-          []
-        )
+    const currentTx = await this.ds.getTx(txid, async () => this.storeTx(parsed, start, blockHeight))
+
+    this.logger.debug(`[${txid}] executing`)
+
+    const deps = await this._hidrateDeps(parsed.deps)
+
+    const trusted = await this.trustList.allTrusted([currentTx, ...deps].filter(tx => tx.hasCode).map(tx => tx.txid), this.ds)
+
+    const failedDep = deps.some(dep => dep.hasFailed())
+
+    const canExecute = currentTx.executable &&
+      deps.every(dep => dep.isKnown()) &&
+      deps.every(dep => dep.indexed) &&
+      !failedDep &&
+      trusted
+
+    let execResult = null
+
+    if (canExecute) {
+      const trustList = await this.trustList.executionTrustList(this.ds)
+      const result = await this.executor.execute(txid, trustList)
+      execResult = result
+      if (result.success) {
+        await this._onIndexed(txid, result.result)
       }
-      const executed = await this.executeIfPossible(parsed.txid)
-      if (executed) {
-        return new IndexerResult(
-          true,
-          [],
-          [],
-          [],
-          await this._searchEnablementsFor(txid)
-        )
-      }
+    } else if (!trusted || failedDep) {
+      await this._setTransactionExecutionFailed(txid)
     }
-    const missingDeps = await this.ds.nonExecutedDepsFor(parsed.txid)
-    const unknownDeps = await this.ds.getUnknownUpstreamTxIds(parsed.txid)
-    this.logger.debug(`[${txid}] missing deps: [ ${missingDeps.join(', ')} ]. unknown deps: [ ${unknownDeps.join(', ')} ]`)
+
+    this.logger.debug(`[${txid}] finished. ${new Date().valueOf() - start.valueOf()} ms`)
+    const missingDeps = [
+      ...(execResult ? execResult.missingDeps : []),
+      ...deps.filter(dep => !dep.executed).map(dep => dep.txid)
+    ]
+    const success = execResult && execResult.success
+    const enables = success || failedDep || !trusted
+      ? await this._searchEnablementsFor(currentTx.txid)
+      : []
     return new IndexerResult(
-      false,
+      execResult ? execResult.missingDeps.length === 0 : false,
+      !!success,
       missingDeps,
-      unknownDeps,
-      await this.trustList.missingTrustFor(txid, this.ds, parsed.hasCode),
-      []
+      deps.filter(dep => !dep.isKnown()).map(dep => dep.txid),
+      enables
+    )
+  }
+
+  async _hidrateDeps (deps) {
+    return Promise.all(deps.map(async (txid) =>
+      this.ds.getTx(txid, () =>
+        new UnknownTx(txid)
+      ))
     )
   }
 
@@ -133,60 +129,50 @@ class Indexer {
     const executableDownstram = await this.ds.searchDownstreamTxidsReadyToExecute(txid)
     const res = []
     for (const depTxid of executableDownstram) {
-      if (await this._isReadyToExecute(depTxid)) {
+      if (await this._shouldQueuExecution(depTxid)) {
         res.push(depTxid)
       }
     }
     return res
   }
 
-  async _isReadyToExecute (txid) {
+  async _shouldQueuExecution (txid) {
     const deps = await this.ds.fullDepsFor(txid)
     if (deps.some(d => !d.isReady())) {
       return false
     } else if (deps.some(d => !d.isKnown())) {
       return false
     } else if (deps.some(d => d.hasFailed())) {
-      return false
+      return true // We need to mark this tx as failed also.
     } else if (deps.some(d => d.isBanned())) {
       return false
     } else if (!await this.trustList.trustedToExecute(txid, this.ds)) {
       return false
-    }
-    return true
-  }
-
-  async executeIfPossible (txid) {
-    const canExecuteNow = await this._isReadyToExecute(txid)
-    if (!canExecuteNow) {
-      return false
-    }
-
-    // const canExecuteNow = await this.trustList.checkExecutability(txid, this.ds)
-    const trustList = await this.trustList.executionTrustList(this.ds)
-    this.logger.debug(`[${txid}] executing`)
-    const result = await this.executor.execute(txid, trustList)
-    if (result.success) {
-      this.logger.debug(`[${txid}] success`)
-      await this._onIndexed(txid, result.result)
-      return true
-    } else if (result.missingDeps && result.missingDeps.length > 0) {
-      await this._onMissingDeps(txid, result.missingDeps)
-      this.logger.debug(`[${txid}] failed, missing deps: [ ${result.missingDeps.join(', ')} ].`)
-      return false
     } else {
-      this.logger.debug(`[${txid}] failed`)
-      await this._onExecuteFailed(txid, result.error, false)
       return true
     }
   }
 
-  async storeTx (parsedTx) {
-    await this.ds.performOnTransaction(async (ds) => {
+  async storeTx (parsedTx, time, blockHeight) {
+    return this.ds.performOnTransaction(async (ds) => {
       const bytes = parsedTx.txBuf
 
       await this.blobs.pushTx(parsedTx.txid, bytes)
-      await ds.setExecutableForTx(parsedTx.txid, parsedTx.executable)
+      const txMetadata = await ds.insertTx({
+        txid: parsedTx.txid,
+        height: blockHeight,
+        time: time,
+        indexed: !parsedTx.executable, // If the tx is not executable then is already indexed.
+        executed: false,
+        executable: parsedTx.executable,
+        hasCode: parsedTx.hasCode
+      })
+
+      if (parsedTx.executable) {
+        for (const depTxid of parsedTx.deps) {
+          await ds.addDep(depTxid, parsedTx.txid)
+        }
+      }
 
       for (const location of parsedTx.inputs) {
         await ds.upsertSpend(location, parsedTx.txid)
@@ -195,25 +181,11 @@ class Indexer {
         await ds.setAsUnspent(location)
       }
 
-      if (parsedTx.executable) {
-        await ds.setHasCodeForTx(parsedTx.txid, parsedTx.hasCode)
-
-        for (const depTxid of parsedTx.deps) {
-          await ds.addDep(depTxid, parsedTx.txid)
-
-          const failed = await ds.getFailedTx(depTxid)
-          if (failed) {
-            await ds.setTransactionExecutionFailed(parsedTx.txid, ds)
-            return
-          }
-        }
-      } else {
-        await ds.setIndexedForTx(parsedTx.txid, true)
-      }
+      return txMetadata
     })
   }
 
-  async parseTx (txBuf) {
+  parseTx (txBuf) {
     const hex = txBuf.toString('hex')
     let metadata = null
     let bsvtx = null
@@ -230,50 +202,34 @@ class Indexer {
       .filter(([output, _index]) => !output.script.isDataOut() && !output.script.isSafeDataOut())
       .map(([_output, index]) => `${txid}_o${index}`)
 
-    let executable
+    let executable = false
     try {
       metadata = Run.util.metadata(hex)
       executable = true
     } catch (e) {
-      // this.logger.error(`${txid} => ${e.message}`)
-      // await this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
-      // return
-      return {
-        txid,
-        hex,
-        deps: [],
-        inputs: [],
-        outputs: [],
-        hasCode: false,
-        executable: false,
-        txBuf
-      }
+      // noop
     }
 
-    const deps = Run.util.deps(hex)
+    const deps = executable ? Run.util.deps(hex) : []
 
-    const hasCode = metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
-    const appName = metadata.app
+    const hasCode = metadata && metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+    const appName = metadata ? metadata.app : null
 
     return {
-      txid,
-      hex,
+      appName,
       deps,
-      inputs,
-      outputs,
-      hasCode,
       executable,
+      hasCode,
+      hex,
+      inputs: inputs,
+      outputs: outputs,
       txBuf,
-      appName
+      txid
     }
   }
 
   async start () {
     this.logger.debug('Starting indexer')
-    // const txids = await this.ds.findAllExecutingTxids()
-    // for (const txid of txids) {
-    //   await this.executeIfPossible(txid)
-    // }
   }
 
   async stop () {
@@ -315,46 +271,8 @@ class Indexer {
     })
   }
 
-  async _onExecuteFailed (txid, e, shouldRetry = false) {
-    if (shouldRetry) {
-      const timeout = setTimeout(() => { this._onReadyToExecute(txid) }, 10000)
-      this.pendingRetries.set(txid, timeout)
-    } else {
-      this.pendingRetries.delete(txid)
-      this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
-      await this._setTransactionExecutionFailed(txid)
-    }
-    if (this.onFailToIndex) this.onFailToIndex(txid, e)
-  }
-
-  async _onReadyToExecute (txid) {
-    await this.executor.execute(txid)
-      .catch((e) =>
-        console.warn(`error executing tx ${txid}: ${e.message}`)
-      )
-  }
-
-  async _setTransactionExecutionFailed (txid, ds = null) {
-    ds = ds || this.ds
-    await ds.setExecutedForTx(txid, 1)
-    await ds.setIndexedForTx(txid, 0)
-    await ds.removeTxFromExecuting(txid)
-
-    // We try executing downstream transactions if this was marked executable but it wasn't.
-    // This allows an admin to manually change executable status in the database.
-
-    // let executable = false
-    // try {
-    //   const rawTx = await this.getTransactionHex(txid)
-    //   Run.util.metadata(rawTx)
-    //   executable = true
-    // } catch (e) { }
-
-    // if (!executable) {
-    const downstream = await ds.searchDownstreamForTxid(txid)
-    for (const downtxid of downstream) {
-      await this._setTransactionExecutionFailed(downtxid, ds)
-    }
+  async _setTransactionExecutionFailed (txid = null) {
+    await this.ds.setTransactionExecutionFailed(txid)
   }
 
   async _onMissingDeps (txid, deptxids) {

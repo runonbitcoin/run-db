@@ -37,7 +37,7 @@ class KnexDatasource {
       const newDs = new KnexDatasource(trx, this.logger, this.readonly)
       newDs.insideTx = true
       try {
-        await fn(newDs)
+        return await fn(newDs)
       } catch (e) {
         console.error(e)
         throw e
@@ -45,9 +45,33 @@ class KnexDatasource {
     })
   }
 
+  async getTx (txid, ifNone) {
+    const tx = await this.knex(TX.NAME).where(TX.txid, txid).first()
+    if (tx) {
+      return TxMetadata.fromObject(tx)
+    } else {
+      return ifNone()
+    }
+  }
+
   async txExists (txid) {
     const row = await this.knex(TX.NAME).where(TX.txid, txid).first(TX.txid)
     return !!row
+  }
+
+  async insertTx (txData) {
+    const data = {
+      [TX.txid]: txData.txid,
+      [TX.height]: txData.height,
+      [TX.time]: txData.time,
+      [TX.indexed]: txData.indexed,
+      [TX.executed]: txData.executed,
+      [TX.executable]: txData.executable,
+      [TX.hasCode]: txData.hasCode
+    }
+    await this.knex(TX.NAME)
+      .insert(data)
+    return TxMetadata.fromObject(data)
   }
 
   async checkTxIsDownloaded (txid) {
@@ -101,6 +125,16 @@ class KnexDatasource {
       : query.ignore()
 
     await query
+    return new TxMetadata(
+      txid,
+      height,
+      time,
+      false,
+      false,
+      false,
+      false,
+      false
+    )
   }
 
   async setTxHeight (txid, height) {
@@ -301,6 +335,11 @@ class KnexDatasource {
     return row && row[SPEND.spendTxid]
   }
 
+  async searchSpendsForTx (txid) {
+    const rows = await this.knex(SPEND.NAME).where(SPEND.spendTxid, txid)
+    return rows
+  }
+
   async upsertSpend (location, txid) {
     await this.knex(SPEND.NAME)
       .insert({ [SPEND.location]: location, [SPEND.spendTxid]: txid })
@@ -332,11 +371,11 @@ class KnexDatasource {
   }
 
   async searchDownstreamTxidsReadyToExecute (txid) {
+    const txs = await this.knex(TX.NAME).select('*')
     return this.knex(DEPS.NAME)
       .innerJoin(TX.NAME, TX.txid, `${DEPS.NAME}.${DEPS.down}`)
       .where(`${TX.NAME}.${TX.executable}`, true)
       .where(`${TX.NAME}.${TX.executed}`, false)
-      .where(`${TX.NAME}.${TX.indexed}`, false)
       .where(`${DEPS.NAME}.${DEPS.up}`, txid)
       .limit(100)
       .pluck(`${TX.NAME}.${TX.txid}`)
@@ -358,6 +397,14 @@ class KnexDatasource {
       .where(TX.executable, true)
       .where(TX.executed, false)
       .where(TX.hasCode, true)
+      .select(DEPS.up)
+
+    return rows.map(r => r.up)
+  }
+
+  async getUpstreamTxIds (txid) {
+    const rows = await this.knex(DEPS.NAME)
+      .where(DEPS.down, txid)
       .select(DEPS.up)
 
     return rows.map(r => r.up)
