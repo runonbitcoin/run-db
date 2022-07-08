@@ -15,6 +15,9 @@ class ExecutionWorker {
         if (cascade) {
           await this._handleIndexResult(result)
         }
+        if (result.executed) {
+          await this.execSet.remove(txid)
+        }
         return { txid, success: result.executed }
       } catch (e) {
         console.warn(e)

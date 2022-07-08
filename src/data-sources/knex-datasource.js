@@ -205,17 +205,18 @@ class KnexDatasource {
   }
 
   async searchNonExecutedTxs (limit) {
-    return this.knex(DEPS.NAME)
-      .select('downTx.txid')
-      .leftJoin('tx as upTx', 'upTx.txid', 'deps.up')
-      .leftJoin('tx as downTx', 'downTx.txid', 'deps.down')
-      .where('downTx.executed', false)
-      .where('downTx.indexed', false)
-      // .where('downTx.executable', true)
-      .groupBy('downTx.txid')
-      .havingRaw('bool_and("upTx"."indexed" = true and "upTx"."executed" = true) = true')
-      .limit(limit)
-      .pluck('downTx.txid')
+    // return this.knex(DEPS.NAME)
+    //   .select('downTx.txid')
+    //   .leftJoin('tx as upTx', 'upTx.txid', 'deps.up')
+    //   .leftJoin('tx as downTx', 'downTx.txid', 'deps.down')
+    //   .where('downTx.executed', false)
+    //   .where('downTx.indexed', false)
+    //   // .where('downTx.executable', true)
+    //   .groupBy('downTx.txid')
+    //   .havingRaw('bool_and("upTx"."indexed" = true and "upTx"."executed" = true) = true')
+    //   .limit(limit)
+    //   .pluck('downTx.txid')
+    return this.knex(TX.NAME).where(TX.executed, false).where(TX.executable, true).limit(limit).pluck(TX.txid)
   }
 
   async hasFailedDep (txid) {
@@ -336,8 +337,7 @@ class KnexDatasource {
   }
 
   async searchSpendsForTx (txid) {
-    const rows = await this.knex(SPEND.NAME).where(SPEND.spendTxid, txid)
-    return rows
+    return this.knex(SPEND.NAME).where(SPEND.spendTxid, txid)
   }
 
   async upsertSpend (location, txid) {
@@ -371,7 +371,6 @@ class KnexDatasource {
   }
 
   async searchDownstreamTxidsReadyToExecute (txid) {
-    const txs = await this.knex(TX.NAME).select('*')
     return this.knex(DEPS.NAME)
       .innerJoin(TX.NAME, TX.txid, `${DEPS.NAME}.${DEPS.down}`)
       .where(`${TX.NAME}.${TX.executable}`, true)

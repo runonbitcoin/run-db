@@ -7,7 +7,6 @@ const Run = require('run-sdk')
 const bsv = require('bsv')
 const _ = require('lodash')
 const { IndexerResult } = require('./model/indexer-result')
-const nimble = require('@runonbitcoin/nimble')
 const { UnknownTx } = require('./model/unknown-tx')
 
 // ------------------------------------------------------------------------------------------------
@@ -72,8 +71,6 @@ class Indexer {
 
     const currentTx = await this.ds.getTx(txid, async () => this.storeTx(parsed, start, blockHeight))
 
-    this.logger.debug(`[${txid}] executing`)
-
     const deps = await this._hidrateDeps(parsed.deps)
 
     const trusted = await this.trustList.allTrusted([currentTx, ...deps].filter(tx => tx.hasCode).map(tx => tx.txid), this.ds)
@@ -90,12 +87,15 @@ class Indexer {
 
     if (canExecute) {
       const trustList = await this.trustList.executionTrustList(this.ds)
-      const result = await this.executor.execute(txid, trustList)
-      execResult = result
-      if (result.success) {
-        await this._onIndexed(txid, result.result)
+      execResult = await this.executor.execute(txid, trustList)
+      currentTx.executed = execResult.missingDeps.length === 0
+      if ((await this.executor.execute(txid, trustList)).success) {
+        await this._onIndexed(txid, (await this.executor.execute(txid, trustList)).result)
+      } else {
+        await this._setTransactionExecutionFailed(txid)
       }
     } else if (!trusted || failedDep) {
+      currentTx.executed = true
       await this._setTransactionExecutionFailed(txid)
     }
 
@@ -108,13 +108,16 @@ class Indexer {
     const enables = success || failedDep || !trusted
       ? await this._searchEnablementsFor(currentTx.txid)
       : []
-    return new IndexerResult(
-      execResult ? execResult.missingDeps.length === 0 : false,
+
+    const indexerResult = new IndexerResult(
+      currentTx.executed,
       !!success,
       missingDeps,
       deps.filter(dep => !dep.isKnown()).map(dep => dep.txid),
       enables
     )
+    this.logger.info(`[${txid}] ${currentTx.executed}`)
+    return indexerResult
   }
 
   async _hidrateDeps (deps) {
@@ -146,10 +149,8 @@ class Indexer {
       return true // We need to mark this tx as failed also.
     } else if (deps.some(d => d.isBanned())) {
       return false
-    } else if (!await this.trustList.trustedToExecute(txid, this.ds)) {
-      return false
     } else {
-      return true
+      return await this.trustList.trustedToExecute(txid, this.ds)
     }
   }
 

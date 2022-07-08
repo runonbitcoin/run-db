@@ -25,9 +25,6 @@ const { buildContainer } = require('./test-jigs/container')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-// const fetch = txid => { return { hex: require('./txns.json')[txid] } }
-const indexed = (indexer, txid) => new Promise((resolve) => { indexer.onIndex = x => txid === x && resolve() })
-// const failed = (indexer, txid) => new Promise((resolve) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
 // ------------------------------------------------------------------------------------------------
@@ -61,48 +58,6 @@ describe('Indexer', () => {
   afterEach(async () => {
     await get.ds.tearDown()
     await get.blobs.tearDown()
-  })
-
-  it.skip('mark a transaction as failed when a dependency already failed', async () => {
-    const run = new Run({ network: 'mock' })
-
-    class Counter extends Run.Jig {
-      init () { this.count = 0 }
-
-      inc () { this.count += 1 }
-    }
-
-    run.deploy(Counter)
-    await run.sync()
-    const instance = new Counter()
-    await run.sync()
-    instance.inc()
-    await run.sync()
-
-    const txid1 = Counter.location.split('_')[0]
-    const txid2 = instance.origin.split('_')[0]
-    const txid3 = instance.location.split('_')[0]
-
-    const txHex1 = await run.blockchain.fetch(txid1)
-    const txHex2 = await run.blockchain.fetch(txid2)
-    const txHex3 = await run.blockchain.fetch(txid3)
-
-    const executor = new Executor('test', 1, null, logger)
-    const indexer = new Indexer(run.blockchain, executor, 1, 1, logger, 0, Infinity, [])
-    await indexer.start()
-    const promise = indexed(indexer, txid2)
-    await null.trust(txid1)
-    await null.addTransaction(txid1, txHex1)
-    await null.addTransaction(txid2, txHex2)
-    await promise
-    await null.setTransactionExecutionFailed(txid2)
-
-    await null.addTransaction(txid3, txHex3)
-
-    const metadata = await null.getTxMetadata(txid3)
-    expect(metadata.executable).to.eql(0)
-
-    await indexer.stop()
   })
 
   describe('#indexTransaction', () => {
@@ -538,11 +493,11 @@ describe('Indexer', () => {
         expect(response).to.eql(null)
       })
 
-      it('returns non executed', async () => {
+      it('returns that was executed', async () => {
         const indexer = get.indexer
         const response = await indexer.indexTransaction(await get.txBuf, null, null)
 
-        expect(response.executed).to.eql(false)
+        expect(response.executed).to.eql(true)
       })
 
       it('marks the tx as failed', async () => {
@@ -584,11 +539,11 @@ describe('Indexer', () => {
         expect(response).to.eq(obj)
       })
 
-      it('returns non executed', async () => {
+      it('returns executed', async () => { // because this is the final exec state in this trust state
         const indexer = get.indexer
         const response = await indexer.indexTransaction(await get.txBuf, null, null)
 
-        expect(response.executed).to.eql(false)
+        expect(response.executed).to.eql(true)
       })
 
       it('does not return the untrusted dep as unknown dep', async () => {
@@ -875,7 +830,7 @@ describe('Indexer', () => {
       })
     })
 
-    describe('when there is a failed transaction', () => {
+    describe('when there is a failed dependency', () => {
       def('instance', async () => {
         const Counter = await get.Counter
         const instance = new Counter()
@@ -923,7 +878,7 @@ describe('Indexer', () => {
         )
 
         const result = await get.indexer.indexTransaction(buff, null)
-        expect(result.executed).to.eql(false)
+        expect(result.executed).to.eql(true)
         expect(result.success).to.eql(false)
       })
 

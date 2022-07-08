@@ -120,9 +120,9 @@ async function execute ({ txid, hex, trustList }) {
     return { success: true, cache, classes, locks, scripthashes, missingDeps: [], error: null }
   } catch (e) {
     if (e instanceof RemoteError && e.className === DepNotFound.name) {
-      return { success: false, missingDeps: [e.data.txid] }
+      return { success: false, missingDeps: [e.data.txid], e: null }
     } else {
-      return { success: false, error: e }
+      return { success: false, error: e, missingDeps: [] }
     }
   }
 }

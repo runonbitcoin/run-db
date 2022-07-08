@@ -7,6 +7,10 @@ class TrustAllTrustList {
     return true
   }
 
+  async allTrusted (_txids, _ds) {
+    return true
+  }
+
   async trust (txid, _ds) {
     return [txid]
   }
