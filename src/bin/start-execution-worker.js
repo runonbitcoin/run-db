@@ -74,7 +74,7 @@ let worker = null
 async function main () {
   rabbitConnection = await ampq.connect(RABBITMQ_URI)
   const rabbitChannel = await rabbitConnection.createChannel()
-  await rabbitChannel.prefetch(1)
+  await rabbitChannel.prefetch(WORKERS)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
   trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
   const execSet = new ExecutingSet(ds)

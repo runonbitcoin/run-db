@@ -47,7 +47,12 @@ class BitcoinNodeConnection extends BlockchainApi {
   }
 
   async onMempoolTx (fn) {
-    this.zmq.subscribe('hashtx', fn)
+    this.zmq.subscribe('hashtx', async (txid) => {
+      const rawTx = await this.fetch(txid)
+      if (this._isRunTx(rawTx.toString('hex'))) {
+        return fn(rawTx, null)
+      }
+    })
   }
 
   async onNewBlock (fn) {

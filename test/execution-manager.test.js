@@ -13,6 +13,7 @@ const bsv = require('bsv')
 const { ExecutionWorker } = require('../src/execution-worker')
 const { buildDs, buildBlobs, buildExecutor } = require('./test-env')
 const { ExecutingSet } = require('../src/executing-set')
+const { ExecutionResult } = require('../src/model/execution-result')
 
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 
@@ -226,13 +227,13 @@ describe('ExecutionManager', () => {
       execute: async () => {
         return new Promise((resolve) => {
           startExecResolve()
-          finishExecPromise.then(() => resolve({ success: true, result: { cache: {} } }))
+          finishExecPromise.then(() => resolve(new ExecutionResult(true, [], { success: true, cache: {}, missingDeps: [] }, null)))
         })
       },
       executing: new Set()
     }))
 
-    it('adds the tx to executing set and when it finishes it gets remobed', async () => {
+    it('adds the tx to executing set and when it finishes it gets removed', async () => {
       const tx = await get.someRunTx
       const finishIndexPromise = get.manager.indexTxNow(tx.buff)
 

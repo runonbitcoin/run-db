@@ -15,7 +15,6 @@ const { UnknownTx } = require('./model/unknown-tx')
 
 class Indexer {
   constructor (ds, blobs, trustList, executor, network, execSet, logger, ignoredApps = []) {
-    this.pendingRetries = new Map()
     this.execSet = execSet
 
     this.logger = logger
@@ -65,7 +64,7 @@ class Indexer {
 
     if (this.ignoredApps.includes(parsed.appName)) {
       this.logger.debug(`[${txid}] ignored app tx: ${parsed.appName}`)
-      await this.ds.deleteTx(txid)
+      await this._setTransactionExecutionFailed(txid)
       return new IndexerResult(true, [], [], [], [])
     }
 
@@ -77,7 +76,8 @@ class Indexer {
 
     const failedDep = deps.some(dep => dep.hasFailed())
 
-    const canExecute = currentTx.executable &&
+    const shouldExecute = currentTx.executable &&
+      !currentTx.executed &&
       deps.every(dep => dep.isKnown()) &&
       deps.every(dep => dep.indexed) &&
       !failedDep &&
@@ -85,17 +85,19 @@ class Indexer {
 
     let execResult = null
 
-    if (canExecute) {
+    if (shouldExecute) {
       const trustList = await this.trustList.executionTrustList(this.ds)
       execResult = await this.executor.execute(txid, trustList)
       currentTx.executed = execResult.missingDeps.length === 0
-      if ((await this.executor.execute(txid, trustList)).success) {
-        await this._onIndexed(txid, (await this.executor.execute(txid, trustList)).result)
+      currentTx.indexed = execResult.success
+      if (execResult.success) {
+        await this._onIndexed(txid, execResult.result)
       } else {
         await this._setTransactionExecutionFailed(txid)
       }
-    } else if (!trusted || failedDep) {
+    } else if ((!trusted || failedDep) && !currentTx.executed) {
       currentTx.executed = true
+      currentTx.indexed = false
       await this._setTransactionExecutionFailed(txid)
     }
 
@@ -111,7 +113,7 @@ class Indexer {
 
     const indexerResult = new IndexerResult(
       currentTx.executed,
-      !!success,
+      !currentTx.hasFailed(),
       missingDeps,
       deps.filter(dep => !dep.isKnown()).map(dep => dep.txid),
       enables
@@ -187,45 +189,50 @@ class Indexer {
   }
 
   parseTx (txBuf) {
-    const hex = txBuf.toString('hex')
-    let metadata = null
-    let bsvtx = null
-
-    if (!hex) { throw new Error('No hex') }
-    bsvtx = new bsv.Transaction(hex)
-    const txid = bsvtx.hash
-
-    const inputs = bsvtx.inputs.map(input => {
-      return `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
-    })
-
-    const outputs = _.zip(bsvtx.outputs, _.range(bsvtx.outputs.length))
-      .filter(([output, _index]) => !output.script.isDataOut() && !output.script.isSafeDataOut())
-      .map(([_output, index]) => `${txid}_o${index}`)
-
-    let executable = false
     try {
-      metadata = Run.util.metadata(hex)
-      executable = true
+      const hex = txBuf.toString('hex')
+      let metadata = null
+      let bsvtx = null
+
+      if (!hex) { throw new Error('No hex') }
+      bsvtx = new bsv.Transaction(hex)
+      const txid = bsvtx.hash
+
+      const inputs = bsvtx.inputs.map(input => {
+        return `${input.prevTxId.toString('hex')}_o${input.outputIndex}`
+      })
+
+      const outputs = _.zip(bsvtx.outputs, _.range(bsvtx.outputs.length))
+        .filter(([output, _index]) => !output.script.isDataOut() && !output.script.isSafeDataOut())
+        .map(([_output, index]) => `${txid}_o${index}`)
+
+      let executable = false
+      try {
+        metadata = Run.util.metadata(hex)
+        executable = true
+      } catch (e) {
+        // noop
+      }
+
+      const deps = executable ? Run.util.deps(hex) : []
+
+      const hasCode = metadata && metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
+      const appName = metadata ? metadata.app : null
+
+      return {
+        appName,
+        deps,
+        executable,
+        hasCode,
+        hex,
+        inputs: inputs,
+        outputs: outputs,
+        txBuf,
+        txid
+      }
     } catch (e) {
-      // noop
-    }
-
-    const deps = executable ? Run.util.deps(hex) : []
-
-    const hasCode = metadata && metadata.exec.some(cmd => cmd.op === 'DEPLOY' || cmd.op === 'UPGRADE')
-    const appName = metadata ? metadata.app : null
-
-    return {
-      appName,
-      deps,
-      executable,
-      hasCode,
-      hex,
-      inputs: inputs,
-      outputs: outputs,
-      txBuf,
-      txid
+      console.error(e)
+      throw e
     }
   }
 
@@ -233,14 +240,9 @@ class Indexer {
     this.logger.debug('Starting indexer')
   }
 
-  async stop () {
-    for (const entry of this.pendingRetries.entries()) {
-      clearTimeout(entry[1])
-    }
-  }
+  async stop () {}
 
   async _onIndexed (txid, result) {
-    this.pendingRetries.delete(txid)
     if (!await this.ds.txExists(txid)) return // Check not re-orged
     this.logger.debug(`[${txid}] Executed`)
 
@@ -272,7 +274,7 @@ class Indexer {
     })
   }
 
-  async _setTransactionExecutionFailed (txid = null) {
+  async _setTransactionExecutionFailed (txid) {
     await this.ds.setTransactionExecutionFailed(txid)
   }
 

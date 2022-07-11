@@ -694,22 +694,13 @@ describe('Indexer', () => {
         expect(response2.unknownDeps).to.eql([])
       })
 
-      it('removes the transaction if it was alraedy on the db', async () => {
-        const Counter = await get.Counter
-        const txid = txidFromLocation(Counter.location)
-        await get.ds.addNewTx(txid, null, null)
-        const response = await get.indexer.indexTransaction(await get.txBuf, null, null)
-        expect(response.executed).to.eql(true)
-        expect(await get.ds.txExists(txid)).to.eql(false)
-      })
-
-      it('removes the tx deps if they were alraedy on the db', async () => {
+      it('marks the tx as failed', async () => {
         const Counter = await get.Counter
         const txid = txidFromLocation(Counter.location)
         await get.ds.addNewTx(txid, null, null)
         await get.indexer.indexTransaction(await get.txBuf, null, null)
-        const upstream = await get.ds.getUpstreamTxIds(txid)
-        expect(upstream).to.have.length(0)
+        const tx = await get.ds.getTx(txid)
+        expect(tx.hasFailed()).to.eql(true)
       })
     })
 
