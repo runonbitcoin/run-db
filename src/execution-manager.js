@@ -18,10 +18,8 @@ class ExecutionManager {
   async indexTxNow (txBuff, blockHeight = null) {
     const txid = await this.blobs.pushTx(null, txBuff)
     const rQueue = await this._execReplyQueue()
-    this.executingSet.add(txid)
-    const result = await rQueue.publishAndAwaitResponse({ txid, blockHeight: blockHeight })
-    this.executingSet.remove(txid)
-    return result
+    await this.executingSet.add(txid)
+    return rQueue.publishAndAwaitResponse({ txid, blockHeight: blockHeight })
   }
 
   // async indexTxid (txBuff, blockHeight = null) {
