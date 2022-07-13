@@ -5,28 +5,21 @@
  */
 
 const ampq = require('amqplib')
-const Indexer = require('../indexer')
 const {
   RABBITMQ_URI,
-  BLOB_DB_CONNECTION_URI,
-  MAIN_DB_CONNECTION_URI,
-  WORKERS,
-  NETWORK
+  MAIN_DB_CONNECTION_URI
 } = require('../config')
 
 const {
   KnexDatasource,
   knex,
-  KnexBlobStorage,
-  TrustAllTrustList,
-  RabbitQueue,
-  ExecutionWorker,
-  execution: { Executor }
+  RabbitQueue
 } = require('../index')
 const { ExecutingSet } = require('../executing-set')
+const { PostIndexWorker } = require('../post-index-worker')
+const { PostIndexer } = require('../post-indexer')
 
 const logger = console
-const network = NETWORK
 const knexInstance = knex({
   client: 'pg',
   connection: MAIN_DB_CONNECTION_URI,
@@ -36,35 +29,14 @@ const knexInstance = knex({
   },
   pool: {
     min: 1,
-    max: 2
-  }
-})
-const knexBlob = knex({
-  client: 'pg',
-  connection: BLOB_DB_CONNECTION_URI,
-  migrations: {
-    tableName: 'migrations',
-    directory: 'blobs-migrations'
-  },
-  pool: {
-    min: 1,
-    max: 2
-  }
-})
-const blobs = new KnexBlobStorage(knexBlob)
-const ds = new KnexDatasource(knexInstance)
-const trustList = new TrustAllTrustList()
-const executor = new Executor(network, WORKERS, blobs, ds, logger, {
-  cacheProviderPath: require.resolve('../worker/knex-cache-provider'),
-  workerEnv: {
-    BLOB_DB_CLIENT: 'pg',
-    BLOB_DB_CONNECTION_URI: BLOB_DB_CONNECTION_URI
+    max: 4
   }
 })
 
-const indexer = new Indexer(ds, blobs, trustList, executor, network, logger)
+const ds = new KnexDatasource(knexInstance)
+const execSet = new ExecutingSet(ds)
+const postIndexer = new PostIndexer(ds, logger)
 let execQueue = null
-let trustQueue = null
 let postIndexQueue = null
 let rabbitConnection = null
 let worker = null
@@ -75,20 +47,15 @@ let worker = null
 async function main () {
   rabbitConnection = await ampq.connect(RABBITMQ_URI)
   const rabbitChannel = await rabbitConnection.createChannel()
-  await rabbitChannel.prefetch(WORKERS)
+  await rabbitChannel.prefetch(1)
   execQueue = new RabbitQueue(rabbitChannel, 'exectx')
-  trustQueue = new RabbitQueue(rabbitChannel, 'trusttx')
   postIndexQueue = new RabbitQueue(rabbitChannel, 'postIndexTx')
-  const execSet = new ExecutingSet(ds)
-  worker = new ExecutionWorker(indexer, execSet, execQueue, trustQueue, postIndexQueue)
+  worker = new PostIndexWorker(postIndexer, execSet, execQueue, postIndexQueue, logger)
 
   await execQueue.setUp()
-  await trustQueue.setUp()
   await postIndexQueue.setUp()
   await ds.setUp()
-  await blobs.setUp()
-  await executor.start()
-  await indexer.start()
+  await postIndexer.setUp()
   await worker.setUp()
 }
 
@@ -99,14 +66,9 @@ async function main () {
 async function shutdown () {
   logger.debug('Shutting down')
   await worker.tearDown()
-  await executor.stop()
-  await blobs.tearDown()
   await ds.tearDown()
   if (execQueue !== null) {
     await execQueue.tearDown()
-  }
-  if (trustQueue !== null) {
-    await trustQueue.tearDown()
   }
   if (postIndexQueue !== null) {
     await postIndexQueue.tearDown()

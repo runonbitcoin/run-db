@@ -47,11 +47,12 @@ describe('Crawler', () => {
   def('execSet', () => new ExecutingSet(get.ds))
 
   def('indexer', () => {
-    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger)
+    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
   })
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
+  def('postIndexQueue', () => new MemoryQueue())
 
   def('indexManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
@@ -94,7 +95,7 @@ describe('Crawler', () => {
 
   def('startHeight', () => 0)
 
-  def('execWorker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue))
+  def('execWorker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue, get.postIndexQueue))
 
   beforeEach(async () => {
     await get.ds.setUp()

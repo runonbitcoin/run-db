@@ -42,7 +42,7 @@ describe('Server', () => {
   def('executor', () => new Executor(get.network, 1, get.blobs, get.ds, logger, {}))
   def('trustList', () => new DbTrustList())
   def('execSet', () => new ExecutingSet(get.ds))
-  def('indexer', () => new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger))
+  def('indexer', () => new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, logger))
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())

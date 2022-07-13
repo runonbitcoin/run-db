@@ -1,10 +1,7 @@
 class IndexerResult {
-  constructor (executed, success, missingDeps, unknownDeps, enables) {
+  constructor (executed, success) {
     this.executed = executed
     this.success = success
-    this.missingDeps = missingDeps
-    this.unknownDeps = unknownDeps
-    this.enables = enables
   }
 }
 

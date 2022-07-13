@@ -7,9 +7,6 @@ const Run = require('run-sdk')
 const { beforeEach, afterEach } = require('mocha')
 const { ExecutionManager } = require('../src/execution-manager')
 const { MemoryQueue } = require('../src/queues/memory-queu')
-const { buildTxSize } = require('./test-jigs/tx-size')
-const { buildContainer } = require('./test-jigs/container')
-const bsv = require('bsv')
 const { ExecutionWorker } = require('../src/execution-worker')
 const { buildDs, buildBlobs, buildExecutor } = require('./test-env')
 const { ExecutingSet } = require('../src/executing-set')
@@ -30,7 +27,7 @@ describe('ExecutionManager', () => {
 
   def('executor', () => buildExecutor(get.network, get.blobs, get.ds))
   def('indexer', () => {
-    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, get.execSet, logger)
+    return new Indexer(get.ds, get.blobs, get.trustList, get.executor, get.network, logger)
   })
 
   def('api', () => {
@@ -41,6 +38,7 @@ describe('ExecutionManager', () => {
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
+  def('postIndexQueue', () => new MemoryQueue())
   def('execSet', () => new ExecutingSet(get.ds))
   def('manager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
@@ -81,7 +79,7 @@ describe('ExecutionManager', () => {
   })
 
   def('worker', () => {
-    return new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue)
+    return new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue, get.postIndexQueue)
   })
 
   let emptyQueue
@@ -116,101 +114,19 @@ describe('ExecutionManager', () => {
       expect(await get.ds.txIsIndexed(tx.txid)).to.eql(true)
     })
 
-    it('queues its enablements', async () => {
+    it('queues its post processing', async () => {
       const tx = await get.someRunTx
-      const childTx = await get.childRunTx
 
       const events = []
-      get.execQueue.subscribe((event) => {
+      get.postIndexQueue.subscribe((event) => {
         events.push(event)
       })
 
       await get.manager.indexTxNow(tx.buff)
 
       await emptyQueue
-      expect(events).to.have.length(2)
-      expect(events[0].txid).to.eql(tx.txid)
-      expect(events[1].txid).to.eql(childTx.txid)
-    })
-  })
-
-  describe('when the tx depends on an unknown transaction', () => {
-    def('deployTx', async () => {
-      const TxSize = buildTxSize()
-      const Container = buildContainer()
-      get.run.transaction(() => {
-        get.run.deploy(TxSize)
-        get.run.deploy(Container)
-      })
-      await get.run.sync()
-      const txid = TxSize.location.split('_')[0]
-      const hex = await get.run.blockchain.fetch(txid)
-      return { txid, hex, buff: Buffer.from(hex, 'hex') }
-    })
-
-    def('classes', async () => {
-      await get.deployTx
-      const TxSize = get.run.inventory.code.find(code => code.name === 'TxSize')
-      const Container = get.run.inventory.code.find(code => code.name === 'Container')
-      return { TxSize, Container }
-    })
-
-    def('randomTx', async () => {
-      const randomTxTxid = await get.run.blockchain.fund(bsv.PrivateKey.fromRandom().toAddress(), 10000)
-      return {
-        txid: randomTxTxid,
-        hex: await get.run.blockchain.fetch(randomTxTxid)
-      }
-    })
-
-    def('instanceTx', async () => {
-      const { TxSize, Container } = await get.classes
-      const { txid: randomTxTxid } = await get.randomTx
-      const berry = await TxSize.load(randomTxTxid)
-      const jig = new Container(berry)
-      await jig.sync()
-
-      const txid = jig.location.split('_')[0]
-      const hex = await get.run.blockchain.fetch(txid)
-      return { txid, hex, buff: Buffer.from(hex, 'hex') }
-    })
-
-    beforeEach(async () => {
-      const { txid: deployTxTxid, buff: rawDeployTx } = await get.deployTx
-      await get.indexer.trust(deployTxTxid)
-
-      await get.indexer.trust(deployTxTxid)
-      await get.manager.indexTxNow(rawDeployTx)
-    })
-
-    it('queues the unknown transaction', async () => {
-      const { buff } = await get.instanceTx
-      const { txid: randomTxTxid } = await get.randomTx
-
-      const prom = new Promise(resolve => {
-        get.execQueue.onAck((event) => {
-          if (event.txid === randomTxTxid) { resolve(event) }
-        })
-      })
-
-      await get.manager.indexTxNow(buff)
-
-      const event = await prom
-      expect(event.txid).to.eql(randomTxTxid)
-    })
-  })
-
-  describe('when the tx was not executed because of missing dep', async () => {
-    it('does not queue its found deps', async () => {
-      const childTx = await get.childRunTx
-      const events = []
-      get.execQueue.subscribe((event) => {
-        events.push(event)
-      })
-
-      await get.manager.indexTxNow(childTx.buff)
       expect(events).to.have.length(1)
-      expect(events[0].txid).to.eql(childTx.txid)
+      expect(events[0].txid).to.eql(tx.txid)
     })
   })
 

@@ -219,6 +219,15 @@ class KnexDatasource {
     return this.knex(TX.NAME).where(TX.executed, false).where(TX.executable, true).limit(limit).pluck(TX.txid)
   }
 
+  async searchExecutingThatAreReady () {
+    return this.knex(EXECUTING.NAME)
+      .join(DEPS.NAME, DEPS.down, `${EXECUTING.NAME}.${EXECUTING.txid}`)
+      .join(TX.NAME, `${TX.NAME}.${TX.txid}`, `${DEPS.NAME}.${DEPS.up}`)
+      .groupBy(`${EXECUTING.NAME}.${EXECUTING.txid}`)
+      .havingRaw('bool_and(tx.indexed) = true')
+      .pluck(`${EXECUTING.NAME}.${EXECUTING.txid}`)
+  }
+
   async hasFailedDep (txid) {
     const result = this.knex(TX.NAME)
       .join(DEPS.NAME, `${DEPS.NAME}.${DEPS.up}`, `${TX.NAME}.${TX.txid}`)
@@ -376,7 +385,7 @@ class KnexDatasource {
       .where(`${TX.NAME}.${TX.executable}`, true)
       .where(`${TX.NAME}.${TX.executed}`, false)
       .where(`${DEPS.NAME}.${DEPS.up}`, txid)
-      .limit(100)
+      .limit(10000)
       .pluck(`${TX.NAME}.${TX.txid}`)
   }
 

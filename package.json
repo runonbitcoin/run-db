@@ -27,6 +27,7 @@
     "lint": "standard --fix",
     "start": "node --experimental-worker src/bin/start.js",
     "start-execution-worker": "node --experimental-worker src/bin/start-execution-worker.js",
+    "start-post-index-worker": "node --experimental-worker src/bin/start-post-index-worker.js",
     "start-crawler": "node --experimental-worker src/bin/start-crawler.js",
     "start-api": "node --experimental-worker src/bin/start-api.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",

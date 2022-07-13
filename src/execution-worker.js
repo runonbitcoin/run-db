@@ -1,8 +1,9 @@
 class ExecutionWorker {
-  constructor (indexer, execSet, execQueue, trustQueue) {
+  constructor (indexer, execSet, execQueue, trustQueue, postIndexQueue) {
     this.indexer = indexer
     this.execQueue = execQueue
     this.trustQueue = trustQueue
+    this.postIndexQueue = postIndexQueue
     this.execSet = execSet
     this.execSubscription = null
     this.trustSubscription = null
@@ -10,19 +11,14 @@ class ExecutionWorker {
 
   async setUp () {
     this.execSubscription = await this.execQueue.subscribe(async ({ txid, blockHeight, cascade = true }) => {
-      try {
-        const result = await this.indexer.indexTxid(txid, blockHeight)
-        if (cascade) {
-          await this._handleIndexResult(result)
-        }
-        if (result.executed) {
-          await this.execSet.remove(txid)
-        }
-        return { txid, success: result.executed }
-      } catch (e) {
-        console.warn(e)
-        return { txid, success: false }
+      const result = await this.indexer.indexTxid(txid, blockHeight)
+      if (result.executed) {
+        await this.execSet.remove(txid)
       }
+      if (cascade) {
+        await this.postIndexQueue.publish({ txid, executed: result.executed, success: result.success })
+      }
+      return { txid, success: result.executed }
     })
     this.trustSubscription = await this.trustQueue.subscribe(async ({ txid, trust }) => {
       if (trust) {
@@ -42,22 +38,6 @@ class ExecutionWorker {
     if (this.trustSubscription !== null) {
       await this.trustSubscription.cancel()
     }
-  }
-
-  async _handleIndexResult (result) {
-    const list = Array.from(new Set([...result.unknownDeps, ...result.missingDeps]))
-    const newTxidsToIndex = await Promise.all(list.map(async txid => {
-      return await this.execSet.check(txid) ? null : txid // We only want the ones that are not there.
-    }))
-      .then(list => list.filter(txid => txid))
-      .then(list => [...list, ...result.enables]) // the enable ones are always included to avoid race conditions.
-
-    const promises = newTxidsToIndex.map(async txid => {
-      await this.execSet.add(txid)
-      return this.execQueue.publish({ txid })
-    })
-
-    await Promise.all(promises)
   }
 }
 
