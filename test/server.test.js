@@ -46,7 +46,8 @@ describe('Server', () => {
 
   def('execQueue', () => new MemoryQueue())
   def('trustQueue', () => new MemoryQueue())
-  def('worker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue))
+  def('postIndexQueue', () => new MemoryQueue())
+  def('worker', () => new ExecutionWorker(get.indexer, get.execSet, get.execQueue, get.trustQueue, get.postIndexQueue))
   def('execManager', () => new ExecutionManager(get.blobs, get.execQueue, get.trustQueue, get.execSet))
 
   def('run', () => new Run({ network: 'mock', cache: new Map() }))
