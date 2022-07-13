@@ -22,6 +22,8 @@ const { ExecutionManager } = require('./execution-manager')
 const { ExecutionWorker } = require('./execution-worker')
 const { KnexBlobStorage } = require('./data-sources/knex-blob-storage')
 const { KnexDatasource } = require('./data-sources')
+const { PostIndexWorker } = require('./post-index-worker')
+const { PostIndexer } = require('./post-indexer')
 const { RabbitQueue } = require('./queues/rabbit-queue')
 const { RunConnectBlockchainApi } = require('./blockchain-api/run-connect')
 const { TrustAllTrustList } = require('./trust-list')
@@ -40,6 +42,8 @@ module.exports = {
   Indexer,
   KnexBlobStorage,
   KnexDatasource,
+  PostIndexWorker,
+  PostIndexer,
   RabbitQueue,
   RunConnectBlockchainApi,
   RunConnectFetcher,
