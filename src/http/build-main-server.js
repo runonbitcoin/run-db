@@ -188,6 +188,18 @@ const buildMainServer = (ds, blobs, execManager, logger) => {
     res.send({ ok: true })
   })
 
+  server.post('/unblock-executing', async (req, res) => {
+    const txsToExec = await ds.searchExecutingThatAreReady()
+    console.log(txsToExec)
+    const queue = execManager.execQueue
+    await Promise.all(
+      txsToExec.map(async txid => {
+        await queue.publish({ txid })
+      })
+    )
+    res.send({ ok: true })
+  })
+
   server.post('/exec-txid/:txid', async (req, res) => {
     const txid = req.params.txid
     const queue = execManager.execQueue
