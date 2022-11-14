@@ -31,7 +31,7 @@
     "start-crawler": "node --experimental-worker src/bin/start-crawler.js",
     "start-api": "node --experimental-worker src/bin/start-api.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha",
-    "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
+    "test:cover": "nyc -r=text -r=lcovonly yarn test",
     "bump": "npm version patch && git push --follow-tags && npm publish",
     "migrate": "knex migrate:up",
     "migrate:down": "knex migrate:down",
