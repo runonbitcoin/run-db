@@ -8,3 +8,13 @@ run.db*
 *.sqlite3*
 .runcache
 docker-compose.override.yml
+
+
+# yarn 2
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
