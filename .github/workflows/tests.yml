@@ -28,6 +28,7 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
+        sudo apt-get install -y tar
         yarn install
 
     - name: Lint
@@ -68,6 +69,7 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
+        sudo apt-get install -y tar
         yarn install
 
     - name: Test Node
