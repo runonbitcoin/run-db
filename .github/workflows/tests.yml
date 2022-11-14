@@ -28,7 +28,7 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        yarn install --immutable --immutable-cache --check-cache
+        yarn install
 
     - name: Lint
       run: yarn run lint
@@ -51,6 +51,7 @@ jobs:
     - name: Setup Node 16
       uses: actions/setup-node@v1
       with:
+
         node-version: '16.x'
 
     - name: Checkout
@@ -68,7 +69,7 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        yarn install --immutable --immutable-cache --check-cache
+        yarn install
 
     - name: Test Node
       run: yarn run test
