@@ -23,20 +23,19 @@ jobs:
         cache-version: 1
       with:
         path: node_modules
-        key: v${{ env.cache-version }}-node16-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        key: v${{ env.cache-version }}-node16-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        sudo apt-get install -y tar
-        yarn install
+        npm install
 
     - name: Lint
-      run: yarn run lint
+      run: npm run lint
 
     - name: Cover Tests
       run:
-        yarn run test:cover
+        npm run test:cover
 
     - name: Publish Coverage
       uses: codecov/codecov-action@v1
@@ -64,13 +63,12 @@ jobs:
         cache-version: 1
       with:
         path: node_modules
-        key: v${{ env.cache-version }}-node16-${{ runner.os }}-${{ hashFiles('**/yarn.lock') }}
+        key: v${{ env.cache-version }}-node16-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        sudo apt-get install -y tar
-        yarn install
+        npm ci
 
     - name: Test Node
-      run: yarn run test
+      run: npm run test
