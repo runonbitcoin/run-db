@@ -1,15 +1,15 @@
 version: '3'
 services:
-  #  bitcoind:
-  #    image: hojarasca/bitcoinsv-regtest:1.0.10
-  #    volumes:
-  #      - bitcoind-data:/bitcoin/data
-  #    environment:
-  #      RPCUSER: rundb
-  #      RPCPASSWORD: rundb
-  #    ports:
-  #      - 18332:18332
-  #      - 28332:28332
+  bitcoind:
+    image: hojarasca/bitcoinsv-regtest:1.0.10
+    volumes:
+      - bitcoind-data:/bitcoin/data
+    environment:
+      RPCUSER: rundb
+      RPCPASSWORD: rundb
+    ports:
+      - 18332:18332
+      - 28332:28332
 
   crawler:
     build:
@@ -22,9 +22,9 @@ services:
       BLOB_DB_CONNECTION_URI: postgres://someuser:sosecret@psql:5432/blobs_regtest
       RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672
       NETWORK: test
-      BITCOIND_REST_URL: http://bitcoind:18332/rest
-      ZMQ_URL: tcp://bitcoind:28332
-      RPC_URL: http://rundb:rundb@bitcoind:18332
+      BITCOIND_REST_URL: ${BITCOIND_REST_URL}
+      RPC_URL: ${RPC_URL}
+      ZMQ_URL: ${ZMQ_URL}
 
 
   post-index-worker:

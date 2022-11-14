@@ -28,15 +28,14 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        echo "//npm.pkg.github.com/:_authToken=${{ secrets.AUTH_TOKEN }}" > ~/.npmrc
-        npm ci
+        yarn install --immutable --immutable-cache --check-cache
 
     - name: Lint
-      run: npx standard
+      run: yarn run lint
 
     - name: Cover Tests
       run:
-        npm run test:cover
+        yarn run test:cover
 
     - name: Publish Coverage
       uses: codecov/codecov-action@v1
@@ -69,8 +68,7 @@ jobs:
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        echo "//npm.pkg.github.com/:_authToken=${{ secrets.AUTH_TOKEN }}" > ~/.npmrc
-        npm ci
+        yarn ci
 
     - name: Test Node
-      run: npm run test
+      run: yarn run test

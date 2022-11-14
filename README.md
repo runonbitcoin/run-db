@@ -4,8 +4,6 @@
 
 [![tests](https://github.com/runonbitcoin/run-db/workflows/tests/badge.svg)](https://github.com/runonbitcoin/run-db/actions) [![codecov](https://codecov.io/gh/runonbitcoin/run-db/branch/master/graph/badge.svg?token=auXAJR3INN)](https://codecov.io/gh/runonbitcoin/run-db)
 
-![](demo.gif)
-
 Crawls the blockchain and indexes RUN state.
 
 Using Run-DB, you can self-host the State APIs that Run uses to work well.
@@ -19,16 +17,16 @@ Use Run-DB to:
 
 ## Requirements
 
-Node 10+
+Node 14+
 
 ## Getting started
 
-1. Install `npm run install`
-2. Download a db snapshot: `wget https://run.network/run-db-snapshots/main/latest -O run.db` (*optional*)
-3. Run `npm run start`
-4. Install a
-   trustlist: `curl -s https://api.run.network/v1/main/trust | curl -H "Content-Type: application/json" -X POST -d @- http://localhost:8000/trust` (*
-   optional*)
+You can simply make your
+
+1. Install `yarn install`
+2. Run get a sql database up and r
+3. Run `yarn start`
+
 
 **Note**: For testnet, you may use `test` in place of `main` in the above commands.
 
