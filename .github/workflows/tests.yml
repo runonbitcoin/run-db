@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - name: Setup Node 10
+    - name: Setup Node 16
       uses: actions/setup-node@v1
       with:
-        node-version: '10.x'
+        node-version: '16.x'
 
     - name: Checkout
       uses: actions/checkout@v2
@@ -44,14 +44,14 @@ jobs:
         file: coverage/lcov.info
 
   node_12_tests:
-    name: Node 12 Tests
+    name: Node 16 Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - name: Setup Node 12
+    - name: Setup Node 16
       uses: actions/setup-node@v1
       with:
-        node-version: '12.x'
+        node-version: '16.x'
 
     - name: Checkout
       uses: actions/checkout@v2
@@ -63,12 +63,12 @@ jobs:
         cache-version: 1
       with:
         path: node_modules
-        key: v${{ env.cache-version }}-node12-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+        key: v${{ env.cache-version }}-node16-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     - name: Install
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
       run: |
-        yarn ci
+        yarn install --immutable --immutable-cache --check-cache
 
     - name: Test Node
       run: yarn run test
