@@ -2,10 +2,30 @@ const { describe, it, beforeEach } = require('mocha')
 const { expect } = require('chai')
 require('chai').use(require('chai-as-promised'))
 const BitcoinNodeConnection = require('../src/bitcoin-node-connection')
-const bsv = require('bsv')
+import * as bsv from 'bsv'
 const Run = require('run-sdk')
 
+interface Block {
+  hex?: string;
+  size?: number;
+  nextBlockHeight?: number;
+  height: number;
+  hash: string;
+  time: number;
+  previousblockhash?: string;
+  txs: bsv.Transaction[];
+}
+
 class TestBitcoinRpc {
+
+  knownTxs: Map<string, any>;
+
+  unconfirmedTxs: bsv.Transaction[];
+
+  nextBlockHeight: number;
+
+  blocks: Block[];
+
   constructor () {
     this.knownTxs = new Map()
     this.unconfirmedTxs = []
@@ -63,7 +83,7 @@ class TestBitcoinRpc {
   closeBlock (size = null) {
     const blockTime = new Date().getTime()
     const previousBlock = this.blocks[this.blocks.length - 1]
-    const blockData = {
+    const blockData: Block = {
       height: this.nextBlockHeight,
       hash: null,
       time: blockTime,
@@ -97,6 +117,11 @@ class TestBitcoinRpc {
 }
 
 class TestZmq {
+
+  pendingTxs: bsv.Transaction[];
+
+  handler: (txhex: string) => void;
+
   constructor () {
     this.handler = null
     this.pendingTxs = []
@@ -147,7 +172,7 @@ const buildRandomRunTx = async (run) => {
   return new bsv.Transaction(await tx.export())
 }
 
-const buildBlock = (transactions, prevHash = Buffer.alloc(32).fill('1'), hash) => {
+const buildBlock = (transactions, prevHash: Buffer | string = Buffer.alloc(32).fill('1'), hash?: string) => {
   const block = bsv.Block.fromObject({
     transactions,
     header: {
