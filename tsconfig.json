@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "esModuleInterop": true,
+    "target": "es2020",
+    "lib": [
+      "es2020", "DOM"
+    ],
+    "allowJs": true,
+    "module": "commonjs",
+    "outDir": "dist",
+		"sourceRoot": ".",
+    "inlineSourceMap": true,
+    "types": ["node"]
+  },
+  "ts-node": {
+    "esm": true
+  },
+  "include": ["/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/test"
+  ]
+}
