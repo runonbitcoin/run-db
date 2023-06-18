@@ -23,11 +23,19 @@ const DirectServer = require('./direct-server')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const logger = {}
-logger.info = console.info.bind(console)
-logger.warn = console.warn.bind(console)
-logger.error = console.error.bind(console)
-logger.debug = DEBUG ? console.debug.bind(console) : () => {}
+interface Logger {
+  debug: (msg: string) => void;
+  warn: () => void;
+  error: () => void;
+  info: () => void;
+}
+
+const logger: Logger = {
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  debug: DEBUG ? console.debug.bind(console) : () => {}
+}
 
 let api = null
 switch (API) {

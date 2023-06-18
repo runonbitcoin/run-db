@@ -15,9 +15,11 @@ const Database = require('../src/database')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const fetch = txid => { return { hex: require('./txns.json')[txid] } }
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const crawled = (indexer) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
+function indexed(indexer, txid): Promise<void> {
+  return new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve()})
+}
+
+const crawled = (indexer, index: number) => new Promise((resolve, reject) => { indexer.onBlock = height => resolve(height) })
 const reorged = (indexer) => new Promise((resolve, reject) => { indexer.onReorg = newHeight => resolve(newHeight) })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const database = new Database(':memory:', logger, false)
@@ -30,6 +32,9 @@ afterEach(() => database.close())
 // ------------------------------------------------------------------------------------------------
 
 describe('Crawler', () => {
+
+  const fetch = txid => { return { hex: require('./txns.json')[txid] } }
+
   it('add txids', async () => {
     const txid = '3f9de452f0c3c96be737d42aa0941b27412211976688967adb3174ee18b04c64'
     function getNextBlock (height, hash) {
