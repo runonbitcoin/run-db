@@ -53,7 +53,6 @@
     "chai-as-promised": "^7.1.1",
     "mocha": "^8.3.2",
     "nyc": "^15.1.0",
-    "semantic-release": "^21.0.5",
     "standard": "^16.0.3",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.3"
