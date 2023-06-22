@@ -1,13 +1,15 @@
 
-import { describe, it , beforeEach } from 'mochoa'
+import { describe, it , beforeEach } from 'mocha'
 
 import { expect } from 'chai'
 
-import * as chai from 'chai'
+//import * as chai from 'chai'
 
-import * as promised fromn 'chai-as-promised'
+const chai = require('chai')
 
-chai.use(promised)
+//import * as promised from 'chai-as-promised'
+
+chai.use(require('chai-as-promised'))
 
 import BitcoinNodeConnection from '../src/bitcoin-node-connection'
 
@@ -171,6 +173,7 @@ const buildRandomTx = () => {
 
 const buildRandomRunTx = async (run) => {
   class Foo extends Run.Jig {
+    attr: any;
     init (attr) {
       this.attr = attr
     }

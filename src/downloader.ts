@@ -8,7 +8,28 @@
 // Downloader
 // ------------------------------------------------------------------------------------------------
 
-class Downloader {
+import { Transaction } from './api'
+
+export default class Downloader {
+
+  onDownloadTransaction: (txid: string, hex: string, height: number, time: number) => void;
+
+  onFailedToDownloadTransaction: (txid: string, error: Error) => void;
+
+  onRetryingDownload: (txid: string, secondsToRetry: number) => void;
+
+  fetching: Set<string>;
+
+  queued: Set<string>;
+
+  waitingToRetry: Set<string>;
+
+  fetchFunction: (txid: string) => Promise<Transaction>;
+
+  numParallelDownloads: number;
+
+  attempts: Map<string, number>;
+
   constructor (fetchFunction, numParallelDownloads) {
     this.onDownloadTransaction = null
     this.onFailedToDownloadTransaction = null
@@ -115,4 +136,3 @@ class Downloader {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Downloader
