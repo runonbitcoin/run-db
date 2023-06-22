@@ -23,12 +23,7 @@ const DirectServer = require('./direct-server')
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-interface Logger {
-  debug: (msg: string) => void;
-  warn: () => void;
-  error: () => void;
-  info: () => void;
-}
+import { Logger } from './logger'
 
 const logger: Logger = {
   info: console.info.bind(console),
