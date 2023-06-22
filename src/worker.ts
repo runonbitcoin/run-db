@@ -4,10 +4,14 @@
  * Background worker that executes RUN transactions
  */
 
-const { parentPort, workerData } = require('worker_threads')
-const crypto = require('crypto')
+import { parentPort, workerData } from 'worker_threads'
+
+import crypto from 'crypto'
+
 const Run = require('run-sdk')
-const bsv = require('bsv')
+
+import { bsv } from 'scrypt-ts'
+
 const Bus = require('./bus')
 
 // ------------------------------------------------------------------------------------------------

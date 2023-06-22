@@ -12,7 +12,7 @@ import { bsv } from 'scrypt-ts'
 
 import { Logger } from './logger'
 
-import Worker from './worker'
+import { Worker } from 'worker_threads'
 
 // ------------------------------------------------------------------------------------------------
 // Globals

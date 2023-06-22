@@ -2,10 +2,10 @@
 const { DEBUG } = require('./config')
   
 export interface Logger {
-  debug: (msg: string) => void;
+  debug: (key: string, value?: any) => void;
   warn: () => void;
   error: (error: Error) => void;
-  info: (key: string) => void;
+  info: (key: string, value?: any) => void;
 }
 
 export const logger: Logger = {

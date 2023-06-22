@@ -4,8 +4,10 @@
  * Entry point
  */
 
-const Indexer = require('./indexer')
+import Indexer from './indexer'
+
 const Server = require('./server')
+
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY

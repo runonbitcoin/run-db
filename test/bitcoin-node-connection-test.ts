@@ -1,8 +1,13 @@
-const { describe, it, beforeEach } = require('mocha')
 
-const { expect } = require('chai')
+import { describe, it , beforeEach } from 'mochoa'
 
-require('chai').use(require('chai-as-promised'))
+import { expect } from 'chai'
+
+import * as chai from 'chai'
+
+import * as promised fromn 'chai-as-promised'
+
+chai.use(promised)
 
 import BitcoinNodeConnection from '../src/bitcoin-node-connection'
 
@@ -10,7 +15,7 @@ import { bsv } from 'scrypt-ts'
 
 import { Transaction } from '../src/api'
 
-const Run = require('run-sdk')
+import * as Run from 'run-sdk'
 
 interface Block {
   hex?: string;

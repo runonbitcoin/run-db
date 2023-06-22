@@ -25,7 +25,7 @@ abstract class AbstractApi {
   // If there is a next block, return: { height, hash, txids, txhexs? }
   // If there is no next block yet, return null
   // If the current block passed was reorged, return { reorg: true }
-  abstract getNextBlock(currentHeight: number, currentHash: string): Promise<NextBlock | Reorg | null>
+  abstract getNextBlock(currentHeight: number, currentHash: string): Promise<NextBlock | null>
 
   // Begins listening for mempool transactions
   // The callback should be called with txid and optionally rawtx when mempool tx is found
@@ -42,14 +42,12 @@ export default abstract class Api extends AbstractApi {
 // ------------------------------------------------------------------------------------------------
 
 export interface NextBlock {
-  height: number;
-  hash: string;
-  txids: string[];
+  height?: number;
+  hash?: string;
+  txids?: string[];
   txhexs?: string[];
-}
-
-interface Reorg {
-  reorg: boolean;
+  reorg?: boolean;
+  time?: number;
 }
 
 export interface Transaction {
