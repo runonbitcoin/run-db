@@ -1,43 +1,43 @@
 /**
- * index.js
+ * index.ts
  *
  * Entry point
  */
 
-const Indexer = require('./indexer')
+import Indexer from './indexer'
+
 const Server = require('./server')
+
 const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
 } = require('./config')
-const MatterCloud = require('./mattercloud')
-const Planaria = require('./planaria')
-const RunConnectFetcher = require('./run-connect')
-const BitcoinNodeConnection = require('./bitcoin-node-connection')
-const BitcoinRpc = require('./bitcoin-rpc')
-const BitcoinZmq = require('./bitcoin-zmq')
-const Database = require('./database')
-const DirectServer = require('./direct-server')
+
+import MatterCloud from './mattercloud'
+
+import Planaria from './planaria'
+
+import RunConnectFetcher from './run-connect'
+
+import Api from './api'
+
+import BitcoinNodeConnection from './bitcoin-node-connection'
+
+import BitcoinRpc from './bitcoin-rpc'
+
+import BitcoinZmq from './bitcoin-zmq'
+
+import Database from './database'
+
+import DirectServer from './direct-server'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-interface Logger {
-  debug: (msg: string) => void;
-  warn: () => void;
-  error: () => void;
-  info: () => void;
-}
+import { logger } from './logger'
+let api: Api;
 
-const logger: Logger = {
-  info: console.info.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-  debug: DEBUG ? console.debug.bind(console) : () => {}
-}
-
-let api = null
 switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
@@ -52,7 +52,6 @@ switch (API) {
     api = new BitcoinNodeConnection(new BitcoinZmq(ZMQ_URL), new BitcoinRpc(RPC_URL))
     break
   case 'run': api = new RunConnectFetcher(); break
-  case 'none': api = {}; break
   default: throw new Error(`Unknown API: ${API}`)
 }
 

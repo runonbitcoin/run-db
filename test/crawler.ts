@@ -6,10 +6,11 @@
 
 const { describe, it, beforeEach, afterEach } = require('mocha')
 const { expect } = require('chai')
-const Indexer = require('../src/indexer')
+import Indexer from '../src/indexer';
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals

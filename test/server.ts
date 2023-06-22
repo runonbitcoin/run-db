@@ -8,11 +8,11 @@ import { describe, it, beforeEach, afterEach } from 'mocha'
 require('chai').use(require('chai-as-promised'))
 const { expect } = require('chai')
 const axios = require('axios')
-const Indexer = require('../src/indexer')
+import Indexer from '../src/indexer'
 const Server = require('../src/server')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals

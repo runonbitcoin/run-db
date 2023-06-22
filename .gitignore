@@ -7,3 +7,5 @@ run.db*
 .idea
 *.sqlite3
 .runcache
+**.swp
+**.swo

@@ -13,8 +13,11 @@ const fetch = require('node-fetch')
 const AbortController = require('abort-controller')
 const es = require('event-stream')
 global.EventSource = require('eventsource')
-const { default: ReconnectingEventSource } = require('reconnecting-eventsource')
+
+import ReconnectingEventSource from 'reconnecting-eventsource'
 const RunConnectFetcher = require('./run-connect')
+
+import Api, { Transaction } from './api'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -27,12 +30,36 @@ const RUN_VERSION = '05'
 // Planaria
 // ------------------------------------------------------------------------------------------------
 
-class Planaria {
+export default class Planaria extends Api {
+
+  token: string;
+
+  abortController: AbortController;
+
+  recrawlInterval: number;
+
+  maxReorgDepth: number;
+
+  runConnectFetcher: typeof RunConnectFetcher;
+
+  txns: Transaction[];
+
+  network: string;
+
+  mempoolEvents: ReconnectingEventSource;
+
+  recrawlTimerId: NodeJS.Timeout;
+
+  lastCrawlHeight: number;
+
+  pendingReorg: boolean
+
   constructor (token, logger) {
+    super()
     this.token = token
     this.logger = logger
     this.abortController = new AbortController()
-    this.recrawlInterveral = 30000
+    this.recrawlInterval = 30000
     this.maxReorgDepth = 10
     this.runConnectFetcher = new RunConnectFetcher()
 
@@ -125,7 +152,7 @@ class Planaria {
 
     const b64query = Buffer.from(JSON.stringify(query), 'utf8').toString('base64')
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const url = `https://txo.bitsocket.network/s/${b64query}`
 
       this.mempoolEvents = new ReconnectingEventSource(url)
@@ -152,7 +179,7 @@ class Planaria {
 
   async _recrawl () {
     const scheduleRecrawl = () => {
-      this.recrawlTimerId = setTimeout(this._recrawl.bind(this), this.recrawlInterveral)
+      this.recrawlTimerId = setTimeout(this._recrawl.bind(this), this.recrawlInterval)
     }
 
     return this._crawl()
@@ -161,7 +188,7 @@ class Planaria {
       })
       .catch(e => {
         this.logger.error(e)
-        this.logger.info('Retrying crawl in ' + this.recrawlInterveral / 1000 + ' seconds')
+        this.logger.info('Retrying crawl in ' + this.recrawlInterval / 1000 + ' seconds')
         scheduleRecrawl()
       })
   }
@@ -193,7 +220,7 @@ class Planaria {
       signal: this.abortController.signal
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       fetch('https://txo.bitbus.network/block', options)
         .then(res => {
           // Accumulate a block's transaction into a pending list until we reach the next block
@@ -259,4 +286,3 @@ class Planaria {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Planaria
