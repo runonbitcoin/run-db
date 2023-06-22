@@ -21,16 +21,18 @@
   ],
   "license": "MIT",
   "repository": "git://github.com/runonbitcoin/run-db.git",
-  "main": "src/index.js",
+  "main": "src/index.ts",
   "scripts": {
     "lint": "standard --fix",
-    "start": "node --experimental-worker .",
+    "start": "node -r ts-node/register --experimental-worker .",
     "retryTx": "node --experimental-worker src/retry-tx.js",
-    "test": "node --experimental-worker node_modules/mocha/bin/mocha",
+    "test": "node --experimental-worker node_modules/mocha/bin/mocha --require ts-node/register test/*.ts",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
     "bump": "npm version patch && git push --follow-tags && npm publish"
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.4",
+    "@types/node": "^20.3.1",
     "abort-controller": "^3.0.0",
     "axios": "^0.21.1",
     "better-sqlite3": "^7.4.1",
@@ -43,7 +45,8 @@
     "morgan": "^1.10.0",
     "node-fetch": "^2.6.1",
     "reconnecting-eventsource": "^1.1.0",
-    "run-sdk": "^0.6.35"
+    "run-sdk": "^0.6.35",
+    "scrypt-ts": "^0.2.2-beta.2"
   },
   "optionalDependencies": {
     "zeromq": "^5.2.8"
@@ -53,6 +56,8 @@
     "chai-as-promised": "^7.1.1",
     "mocha": "^8.3.2",
     "nyc": "^15.1.0",
-    "standard": "^16.0.3"
+    "standard": "^16.0.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.3"
   }
 }

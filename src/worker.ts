@@ -5,9 +5,13 @@
  */
 
 const { parentPort, workerData } = require('worker_threads')
+
 const crypto = require('crypto')
+
 const Run = require('run-sdk')
-const bsv = require('bsv')
+
+const { bsv } = require('scrypt-ts')
+
 const Bus = require('./bus')
 
 // ------------------------------------------------------------------------------------------------

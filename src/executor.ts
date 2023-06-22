@@ -4,14 +4,40 @@
  * Executes RUN transactions and calculates state
  */
 
-const { Worker } = require('worker_threads')
+import { Worker } from 'worker_threads'
+
 const Bus = require('./bus')
+
+import Database from './database'
+
+import { Logger } from './logger'
 
 // ------------------------------------------------------------------------------------------------
 // Executor
 // ------------------------------------------------------------------------------------------------
 
-class Executor {
+export default class Executor {
+
+  network: string;
+  
+  numWorkers: number;
+
+  database: Database;
+
+  logger: Logger;
+
+  onIndexed: (txid: string, result: any) => void;
+
+  onExecuteFailed: (txid: string, error: Error) => void;
+
+  onMissingDeps: (txid: string, missingDeps: string[]) => void;
+
+  workers: Worker[];
+
+  workerRequests: any[]; //TODO: resolve any to actual type
+
+  executing: Set<string>;
+
   constructor (network, numWorkers, database, logger) {
     this.network = network
     this.numWorkers = numWorkers
@@ -31,9 +57,9 @@ class Executor {
     for (let i = 0; i < this.numWorkers; i++) {
       this.logger.debug('Starting worker', i)
 
-      const path = require.resolve('./worker.js')
+      const path = require.resolve('./worker.ts')
 
-      const worker = new Worker(path, { workerData: { id: i, network: this.network } })
+      const worker: any = new Worker(path, { workerData: { id: i, network: this.network } })
 
       worker.id = i
       worker.available = true
@@ -66,11 +92,11 @@ class Executor {
   async execute (txid) {
     if (this.executing.has(txid)) return
 
-    this.logger.debug('Enqueueing', txid, 'for execution')
+    this.logger.debug(`Enqueueing ${txid} for execution`)
 
     this.executing.add(txid)
 
-    const worker = await this._requestWorker()
+    const worker: any = await this._requestWorker()
 
     worker.missingDeps = new Set()
 
@@ -100,7 +126,7 @@ class Executor {
   }
 
   _requestWorker () {
-    const worker = this.workers.find(worker => worker.available)
+    const worker: any = this.workers.find((worker: any) => worker.available)
 
     if (worker) {
       worker.available = false
@@ -140,4 +166,3 @@ class Executor {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Executor

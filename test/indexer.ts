@@ -4,14 +4,17 @@
  * Tests for the Indexer
  */
 
-const { describe, it, beforeEach, afterEach } = require('mocha')
+import { describe, it, beforeEach, afterEach } from 'mocha'
+
 const { expect } = require('chai')
-const bsv = require('bsv')
-const Indexer = require('../src/indexer')
+
+import { bsv } from 'scrypt-ts'
+import Indexer from '../src/indexer'
 const Run = require('run-sdk')
 const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -19,8 +22,8 @@ const Database = require('../src/database')
 
 const fetch = txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const failed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
+const indexed = (indexer, txid): Promise<void> => new Promise<void>((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
+const failed = (indexer, txid) => new Promise<void>((resolve, reject) => { indexer.onFailToIndex = x => txid === x && resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const database = new Database(':memory:', logger, false)
 
@@ -43,8 +46,8 @@ describe('Indexer', () => {
     const txid = '9bb02c2f34817fec181dcf3f8f7556232d3fac9ef76660326f0583d57bf0d102'
     expect(database.getTransactionHex(txid)).to.equal(fetch(txid).hex)
     expect(database.getTransactionHeight(txid)).to.equal(null)
-    expect(database.getTransactionTime(txid)).to.be.greaterThan(new Date() / 1000 - 3)
-    expect(database.getTransactionTime(txid)).to.be.lessThan(new Date() / 1000 + 3)
+    expect(database.getTransactionTime(txid)).to.be.greaterThan(new Date().getTime() / 1000 - 3)
+    expect(database.getTransactionTime(txid)).to.be.lessThan(new Date().getTime() / 1000 + 3)
     await indexer.stop()
   })
 
@@ -52,10 +55,18 @@ describe('Indexer', () => {
 
   it('index jig sent to pubkey', async () => {
     new Run({ network: 'mock' }) // eslint-disable-line
-    class A extends Jig { init (owner) { this.owner = owner } }
+    class A extends Jig {
+      init (owner) { this.owner = owner }
+    }
     const tx = new Run.Transaction()
     const pubkey = new bsv.PrivateKey('testnet').toPublicKey().toString()
-    tx.update(() => new A(pubkey))
+
+    tx.update(() => {
+      //@ts-ignore
+      new A(pubkey) //TODO: Reconcile "received 1 argument but expected 0"
+                    // should class Jig allow for any as arguments?
+    })
+
     const rawtx = await tx.export()
     const api = { fetch: txid => { return { hex: rawtx } } }
     const indexer = new Indexer(database, api, 'test', 1, 1, logger, 0, Infinity, [])

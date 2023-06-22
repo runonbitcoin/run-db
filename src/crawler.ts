@@ -8,7 +8,44 @@
 // Crawler
 // ------------------------------------------------------------------------------------------------
 
-class Crawler {
+import Api from './api'
+
+import { Logger } from './logger'
+
+export default class Crawler {
+
+  api: Api;
+
+  logger: Logger;
+
+  height: number;
+
+  hash: string;
+
+  pollForNewBlocksInterval: number;
+
+  pollForNewBlocksTimerId: NodeJS.Timer;
+
+  expireMempoolTransactionsInterval: number;
+
+  expireMempoolTransactionsTimerId: NodeJS.Timer;
+
+  rewindCount: number;
+
+  started: boolean;
+
+  listeningForMempool: boolean;
+
+  onCrawlError: (error: Error) => void;
+
+  onCrawlBlockTransactions: (height: number, hash: string, time: number, txids: string[], txhexs: string[]) => void;
+
+  onRewindBlocks: (newHeight: number) => void;
+
+  onMempoolTransaction: (txid: string, rawtx: string) => void;
+
+  onExpireMempoolTransactions: () => void;
+
   constructor (api, logger) {
     this.api = api
     this.logger = logger
@@ -145,4 +182,3 @@ class Crawler {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Crawler

@@ -4,16 +4,64 @@
  * Main object that discovers, downloads, executes and stores RUN transactions
  */
 
-const Database = require('./database')
-const Downloader = require('./downloader')
-const Executor = require('./executor')
-const Crawler = require('./crawler')
+import Database from './database'
+
+import Downloader from './downloader'
+
+import Executor from './executor'
+
+import Crawler from './crawler'
+
+import { Logger } from './logger'
+
+import Api from './api'
 
 // ------------------------------------------------------------------------------------------------
 // Indexer
 // ------------------------------------------------------------------------------------------------
 
-class Indexer {
+export default class Indexer {
+
+  downloader: Downloader;
+
+  executor: Executor;
+
+  crawler: Crawler;
+
+  defaultTrustlist: string[];
+
+  onCrawlError: (error: Error) => void;
+
+  onCrawlBlockTransactions: () => void;
+
+  onRewindBlocks: () => void;
+
+  onMempoolTransaction: () => void;
+  
+  onDownload: (txid: string) => void;
+
+  onFailToDownload: (txid: string) => void;
+
+  onIndex: (txid: string) => void;
+
+  onFailToIndex: (txid: string, error: Error) => void;
+
+  onBlock: (height: number) => void;
+
+  onReorg: (height: number) => void;
+
+  api: Api;
+
+  database: Database;
+
+  logger: Logger;
+
+  network: string;
+
+  startHeight: number;
+
+  mempoolExpiration: number;
+
   constructor (database, api, network, numParallelDownloads, numParallelExecutes, logger, startHeight, mempoolExpiration, defaultTrustlist) {
     this.onDownload = null
     this.onFailToDownload = null
@@ -91,12 +139,12 @@ class Indexer {
   }
 
   _onFailedToDownloadTransaction (txid, e) {
-    this.logger.error('Failed to download', txid, e.toString())
+    this.logger.error(new Error(`Failed to download ${txid} ${e.toString()}`))
     if (this.onFailToDownload) this.onFailToDownload(txid)
   }
 
   _onRetryingDownload (txid, secondsToRetry) {
-    this.logger.info('Retrying download', txid, 'after', secondsToRetry, 'seconds')
+    this.logger.info(`Retrying download ${txid} after ${secondsToRetry} seconds`)
   }
 
   _onIndexed (txid, result) {
@@ -107,7 +155,7 @@ class Indexer {
   }
 
   _onExecuteFailed (txid, e) {
-    this.logger.error(`Failed to execute ${txid}: ${e.toString()}`)
+    this.logger.error(new Error(`Failed to execute ${txid}: ${e.toString()}`))
     this.database.setTransactionExecutionFailed(txid)
     if (this.onFailToIndex) this.onFailToIndex(txid, e)
   }
@@ -156,7 +204,7 @@ class Indexer {
   }
 
   _onCrawlError (e) {
-    this.logger.error(`Crawl error: ${e.toString()}`)
+    this.logger.error(new Error(`Crawl error: ${e.toString()}`))
   }
 
   _onCrawlBlockTransactions (height, hash, time, txids, txhexs) {
@@ -198,4 +246,3 @@ class Indexer {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Indexer

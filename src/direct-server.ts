@@ -4,11 +4,29 @@
  * Serves GET requets directly from the database and proxies other requests to the normal server
  */
 
-const { Worker } = require('worker_threads')
+import { Worker } from 'worker_threads'
+
 const Bus = require('./bus')
 
-class DirectServer {
-  constructor (dbPath, port, logger, database) {
+import { Logger } from './logger'
+
+import Database from './database'
+
+import { join } from 'path'
+
+export default class DirectServer {
+
+  dbPath: string;
+
+  port: number;
+
+  logger: Logger;
+
+  database: Database;
+
+  worker: Worker;
+
+  constructor (dbPath: string, port: number, logger: Logger, database: Database) {
     this.dbPath = dbPath
     this.port = port
     this.logger = logger
@@ -18,7 +36,7 @@ class DirectServer {
 
   async start () {
     if (this.worker) return
-    const path = require.resolve('./direct-server-worker.js')
+    const path = join(__dirname, './direct-server-worker.ts')
     const workerData = { dbPath: this.dbPath, port: this.port }
     this.worker = new Worker(path, { workerData })
 
@@ -48,4 +66,3 @@ class DirectServer {
   }
 }
 
-module.exports = DirectServer

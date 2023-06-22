@@ -4,15 +4,15 @@
  * Tests for src/server.js
  */
 
-const { describe, it, beforeEach, afterEach } = require('mocha')
+import { describe, it, beforeEach, afterEach } from 'mocha'
 require('chai').use(require('chai-as-promised'))
 const { expect } = require('chai')
 const axios = require('axios')
-const Indexer = require('../src/indexer')
+import Indexer from '../src/indexer'
 const Server = require('../src/server')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -20,9 +20,9 @@ const Database = require('../src/database')
 
 const fetch = async txid => { return { hex: require('./txns.json')[txid] } }
 const api = { fetch }
-const downloaded = (indexer, txid) => new Promise((resolve, reject) => { indexer.onDownload = x => txid === x && resolve() })
-const indexed = (indexer, txid) => new Promise((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
-const listening = (server) => new Promise((resolve, reject) => { server.onListening = () => resolve() })
+const downloaded = (indexer, txid) => new Promise<void>((resolve, reject) => { indexer.onDownload = x => txid === x && resolve() })
+const indexed = (indexer, txid) => new Promise<void>((resolve, reject) => { indexer.onIndex = x => txid === x && resolve() })
+const listening = (server) => new Promise<void>((resolve, reject) => { server.onListening = () => resolve() })
 const logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
 const database = new Database(':memory:', logger, false)
 

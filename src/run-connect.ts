@@ -4,18 +4,29 @@
  * Run Connect API. Currently it only supports fetches.
  */
 
-const axios = require('axios')
+import axios from 'axios'
 
 // ------------------------------------------------------------------------------------------------
 // RunConnectFetcher
 // ------------------------------------------------------------------------------------------------
 
-class RunConnectFetcher {
-  async connect (height, network) {
+import Api from './api'
+
+export default class RunConnectFetcher extends Api {
+
+  network: string;
+
+  async connect (height: number, network: string) {
     this.network = network
   }
 
-  async fetch (txid) {
+  async disconnect() { throw new Error('not implemented') } 
+
+  async getNextBlock() { return null } 
+
+  async listenForMempool() { throw new Error('not implemented') } 
+
+  async fetch (txid: string): Promise<RunFetchResult> {
     const response = await axios.get(`https://api.run.network/v1/${this.network}/tx/${txid}`)
     const hex = response.data.hex
     const height = typeof response.data.blockheight === 'number' ? response.data.blockheight : null
@@ -26,4 +37,8 @@ class RunConnectFetcher {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = RunConnectFetcher
+interface RunFetchResult {
+  hex: string;
+  height: number | null;
+  time: number | null;
+}

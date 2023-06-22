@@ -1,6 +1,12 @@
-const zmq = require('zeromq')
 
-class BitcoinZmq {
+import zmq from 'zeromq'
+
+export default class BitcoinZmq {
+
+  sock: zmq.Socket;
+
+  url: string;
+
   constructor (url) {
     this.sock = zmq.socket('sub')
     this.url = url
@@ -22,4 +28,3 @@ class BitcoinZmq {
   }
 }
 
-module.exports = BitcoinZmq

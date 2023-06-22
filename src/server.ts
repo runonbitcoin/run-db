@@ -4,14 +4,25 @@
  * Express server that exposes the Indexer
  */
 
+import crypto from 'crypto'
+
 const express = require('express')
+
 const morgan = require('morgan')
+
 const bodyParser = require('body-parser')
-const bsv = require('bsv')
-const crypto = require('crypto')
+
+import { bsv } from 'scrypt-ts'
+
 const cors = require('cors')
+
 const { Writable } = require('stream')
+
 const Run = require('run-sdk')
+
+import Database from './database'
+
+import { Logger } from './logger'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -23,7 +34,20 @@ const calculateScripthash = x => crypto.createHash('sha256').update(Buffer.from(
 // Server
 // ------------------------------------------------------------------------------------------------
 
+type ExpressListener = any;
+
 class Server {
+
+  listener: ExpressListener;
+
+  database: Database;
+
+  logger: Logger;
+
+  port: number;
+
+  onListening: () => void;
+
   constructor (database, logger, port) {
     this.database = database
     this.logger = logger

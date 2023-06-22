@@ -18,7 +18,10 @@ const httpPost = async (url, jsonBody) => {
   return response
 }
 
-class BitcoinRpc {
+export default class BitcoinRpc {
+
+  baseUrl: string;
+
   /**
    * Creates an instance to connect with a given rpc url.
    *
@@ -76,4 +79,3 @@ class BitcoinRpc {
   }
 }
 
-module.exports = BitcoinRpc
