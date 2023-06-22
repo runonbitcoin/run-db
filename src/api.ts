@@ -56,8 +56,8 @@ export interface Transaction {
   txid?: string;
   hash?: string;
   hex: string;
-  height: number | null;
-  time: number;
+  height?: number | null;
+  time?: number;
 }
 
 

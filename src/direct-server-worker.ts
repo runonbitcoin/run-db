@@ -7,7 +7,7 @@
 const { parentPort, workerData } = require('worker_threads')
 const Server = require('./server')
 const Bus = require('./bus')
-const Database = require('./database')
+import Database from './database'
 
 const logger = {
   info: (...args) => Bus.sendRequest(parentPort, 'info', ...args),
@@ -16,8 +16,8 @@ const logger = {
   debug: (...args) => Bus.sendRequest(parentPort, 'debug', ...args)
 }
 
-const readonly = true
-const database = new Database(workerData.dbPath, logger, readonly)
+const readonly: boolean = true
+const database: Database = new Database(workerData.dbPath, logger, readonly)
 const server = new Server(database, logger, workerData.port)
 
 database.trust = (txid) => Bus.sendRequest(parentPort, 'trust', txid)

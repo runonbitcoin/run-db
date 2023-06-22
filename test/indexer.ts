@@ -12,7 +12,8 @@ const Indexer = require('../src/indexer')
 const Run = require('run-sdk')
 const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals

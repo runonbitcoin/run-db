@@ -24,7 +24,7 @@
   "main": "src/index.ts",
   "scripts": {
     "lint": "standard --fix",
-    "start": "ts-node .",
+    "start": "node -r ts-node/register --experimental-worker .",
     "retryTx": "node --experimental-worker src/retry-tx.js",
     "test": "node --experimental-worker node_modules/mocha/bin/mocha --require ts-node/register test/*.ts",
     "test:cover": "nyc -r=text -r=lcovonly -x=test/** node --experimental-worker node_modules/mocha/bin/mocha",
@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.4",
+    "@types/node": "^20.3.1",
     "abort-controller": "^3.0.0",
     "axios": "^0.21.1",
     "better-sqlite3": "^7.4.1",

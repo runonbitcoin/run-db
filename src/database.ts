@@ -666,7 +666,7 @@ export default class Database {
     })
   }
 
-  addTransaction (txid, txhex, height, time) {
+  addTransaction (txid: string, txhex?:string, height?:number, time?: number) {
     this.transaction(() => {
       this.addNewTransaction(txid)
       if (height) this.setTransactionHeight(txid, height)

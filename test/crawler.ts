@@ -9,7 +9,8 @@ const { expect } = require('chai')
 const Indexer = require('../src/indexer')
 const txns = require('./txns.json')
 const { DEFAULT_TRUSTLIST } = require('../src/config')
-const Database = require('../src/database')
+
+import Database from '../src/database'
 
 // ------------------------------------------------------------------------------------------------
 // Globals

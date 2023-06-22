@@ -1,8 +1,15 @@
 const { describe, it, beforeEach } = require('mocha')
+
 const { expect } = require('chai')
+
 require('chai').use(require('chai-as-promised'))
-const BitcoinNodeConnection = require('../src/bitcoin-node-connection')
-import * as bsv from 'bsv'
+
+import BitcoinNodeConnection from '../src/bitcoin-node-connection'
+
+import { bsv } from 'scrypt-ts'
+
+import { Transaction } from '../src/api'
+
 const Run = require('run-sdk')
 
 interface Block {
@@ -20,7 +27,7 @@ class TestBitcoinRpc {
 
   knownTxs: Map<string, any>;
 
-  unconfirmedTxs: bsv.Transaction[];
+  unconfirmedTxs: Transaction[];
 
   nextBlockHeight: number;
 
@@ -145,11 +152,11 @@ class TestZmq {
 }
 
 const buildRandomTx = () => {
-  const tx = bsv.Transaction()
+  const tx = new bsv.Transaction()
     .from({
       txId: Buffer.alloc(32).fill(1).toString('hex'),
       outputIndex: 0,
-      script: bsv.Script.fromASM('0 0'),
+      script: bsv.Script.fromASM('0 0').toHex(),
       satoshis: 2000
     })
     .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
@@ -173,6 +180,7 @@ const buildRandomRunTx = async (run) => {
 }
 
 const buildBlock = (transactions, prevHash: Buffer | string = Buffer.alloc(32).fill('1'), hash?: string) => {
+  //@ts-ignore
   const block = bsv.Block.fromObject({
     transactions,
     header: {
@@ -187,8 +195,8 @@ const buildBlock = (transactions, prevHash: Buffer | string = Buffer.alloc(32).f
 
 describe('BitcoinNodeConnection', () => {
   it('initializes', () => {
-    const bitcoinZmq = new TestZmq()
-    const bitcoinRpc = new TestBitcoinRpc()
+    const bitcoinZmq: any = new TestZmq()
+    const bitcoinRpc: any = new TestBitcoinRpc()
     const instance = new BitcoinNodeConnection(bitcoinZmq, bitcoinRpc)
     expect(instance).not.to.equal(null)
   })
@@ -352,15 +360,15 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('does not process txs with invalid outputs for bsv1.x', async () => {
-      const tx = bsv.Transaction()
+      const tx = new bsv.Transaction()
         .from({
           txId: Buffer.alloc(32).fill(1).toString('hex'),
           outputIndex: 0,
-          script: bsv.Script.fromASM('0 0'),
+          script: bsv.Script.fromASM('0 0').toHex(),
           satoshis: 20005
         })
         .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
-        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: Buffer.from('6a304502204b13f000b2f046a17fe77976ad4bc6c6055194745b434757eef9faf8bc5de9a8022100b1c2fdce9df149cc8de3dda5ea680dab46888d28abca9b8abac7a8d6d37e4e6a', 'hex') }))
+        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: bsv.Script.fromHex('6a304502204b13f000b2f046a17fe77976ad4bc6c6055194745b434757eef9faf8bc5de9a8022100b1c2fdce9df149cc8de3dda5ea680dab46888d28abca9b8abac7a8d6d37e4e6a') }))
 
       bitcoinRpc.registerUnconfirmedTx(tx.hash, tx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
@@ -370,15 +378,15 @@ describe('BitcoinNodeConnection', () => {
     })
 
     it('does not consider outptus with less than 4 chunks', async () => {
-      const tx = bsv.Transaction()
+      const tx = new bsv.Transaction()
         .from({
           txId: Buffer.alloc(32).fill(1).toString('hex'),
           outputIndex: 0,
-          script: bsv.Script.fromASM('0 0'),
+          script: bsv.Script.fromASM('0 0').toHex(),
           satoshis: 20005
         })
         .to(bsv.Address.fromPrivateKey(bsv.PrivateKey.fromRandom()), 1000)
-        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: Buffer.from('51', 'hex') })) // >> OP_TRUE
+        .addOutput(new bsv.Transaction.Output({ satoshis: 600, script: bsv.Script.fromHex('51') })) // >> OP_TRUE
 
       bitcoinRpc.registerUnconfirmedTx(tx.hash, tx.toBuffer().toString('hex'))
       bitcoinRpc.closeBlock()
