@@ -8,16 +8,33 @@
 // Bitcoin Node
 // ------------------------------------------------------------------------------------------------
 
-const bsv = require('bsv')
+import { bsv } from 'scrypt-ts'
+
 const { metadata } = require('run-sdk').util
 
-class BitcoinNodeConnection {
-  constructor (zmq, rpc) {
+import Api from './api'
+
+import BitcoinZmq from './bitcoin-zmq'
+
+import BitcoinRpc from './bitcoin-rpc'
+
+export default class BitcoinNodeConnection extends Api {
+
+  zmq: BitcoinZmq;
+
+  rpc: BitcoinRpc;
+
+  constructor (zmq: BitcoinZmq, rpc: BitcoinRpc) {
+
+    super()
+
     this.zmq = zmq
+
     this.rpc = rpc
+
   }
 
-  async connect (_height, _network) {
+  async connect (height, network) {
     await this.zmq.connect()
   }
 
@@ -62,7 +79,7 @@ class BitcoinNodeConnection {
 
   async listenForMempool (mempoolTxCallback) {
     this.zmq.subscribeRawTx((txhex) => {
-      const tx = bsv.Transaction(txhex)
+      const tx = new bsv.Transaction(txhex)
 
       if (this._isRunTx(tx.toBuffer().toString('hex'))) {
         mempoolTxCallback(tx.hash, tx.toBuffer().toString('hex'))
@@ -95,8 +112,8 @@ class BitcoinNodeConnection {
 
     return {
       height: requestedHeight,
-      hash: bsvBlock.id.toString('hex'),
-      previousblockhash: bsvBlock.header.prevHash.reverse().toString('hex'),
+      hash: bsvBlock.hash,
+      previousblockhash: bsvBlock.header.prevHash,
       time: bsvBlock.header.time,
       txs: bsvBlock.transactions
     }
@@ -119,4 +136,3 @@ class BitcoinNodeConnection {
   }
 }
 
-module.exports = BitcoinNodeConnection

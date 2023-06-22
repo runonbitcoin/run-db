@@ -1,5 +1,5 @@
 /**
- * index.js
+ * index.ts
  *
  * Entry point
  */
@@ -15,27 +15,27 @@ import MatterCloud from './mattercloud'
 
 import Planaria from './planaria'
 
-const RunConnectFetcher = require('./run-connect')
-const BitcoinNodeConnection = require('./bitcoin-node-connection')
-const BitcoinRpc = require('./bitcoin-rpc')
-const BitcoinZmq = require('./bitcoin-zmq')
-const Database = require('./database')
-const DirectServer = require('./direct-server')
+import RunConnectFetcher from './run-connect'
+
+import Api from './api'
+
+import BitcoinNodeConnection from './bitcoin-node-connection'
+
+import BitcoinRpc from './bitcoin-rpc'
+
+import BitcoinZmq from './bitcoin-zmq'
+
+import Database from './database'
+
+import DirectServer from './direct-server'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-import { Logger } from './logger'
+import { logger } from './logger'
+let api: Api;
 
-const logger: Logger = {
-  info: console.info.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-  debug: DEBUG ? console.debug.bind(console) : () => {}
-}
-
-let api = null
 switch (API) {
   case 'mattercloud': api = new MatterCloud(MATTERCLOUD_KEY, logger); break
   case 'planaria': api = new Planaria(PLANARIA_TOKEN, logger); break
@@ -50,7 +50,6 @@ switch (API) {
     api = new BitcoinNodeConnection(new BitcoinZmq(ZMQ_URL), new BitcoinRpc(RPC_URL))
     break
   case 'run': api = new RunConnectFetcher(); break
-  case 'none': api = {}; break
   default: throw new Error(`Unknown API: ${API}`)
 }
 

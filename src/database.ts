@@ -4,21 +4,27 @@
  * Layer between the database and the application
  */
 
-const Sqlite3Database = require('better-sqlite3')
+import Sqlite3Database, { Statement, Database as iDatabase } from 'better-sqlite3'
+
 const Run = require('run-sdk')
-const bsv = require('bsv')
+
+import { bsv } from 'scrypt-ts'
+
+import { Logger } from './logger'
+
+import Worker from './worker'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const HEIGHT_MEMPOOL = -1
+const HEIGHT_MEMPOOL: number = -1
 const HEIGHT_UNKNOWN = null
 
 // The + in the following 2 queries before downloaded improves performance by NOT using the
 // tx_downloaded index, which is rarely an improvement over a simple filter for single txns.
 // See: https://www.sqlite.org/optoverview.html
-const IS_READY_TO_EXECUTE_SQL = `
+const IS_READY_TO_EXECUTE_SQL: string = `
       SELECT (
         downloaded = 1
         AND executable = 1
@@ -38,7 +44,7 @@ const IS_READY_TO_EXECUTE_SQL = `
       WHERE txid = ?
     `
 
-const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL = `
+const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL: string = `
       SELECT down
       FROM deps
       JOIN tx
@@ -63,7 +69,174 @@ const GET_DOWNSTREADM_READY_TO_EXECUTE_SQL = `
 // Database
 // ------------------------------------------------------------------------------------------------
 
-class Database {
+export default class Database {
+
+  static HEIGHT_MEMPOOL = HEIGHT_MEMPOOL
+
+  static HEIGHT_UNKNOWN = HEIGHT_UNKNOWN
+
+  readonly: boolean;
+
+  path: string;
+
+  onRequestDownload: (txid: string) => void;
+
+  onDeleteTransaction: (txid: string) => void;
+
+  onReadyToExecute: (txid: string) => void;
+
+  onAddTransaction: (txid: string) => void;
+
+  onBanTransaction: (txid: string) => void;
+
+  onUnbanTransaction: (txid: string) => void;
+
+  onTrustTransaction: (txid: string) => void;
+
+  onUntrustTransaction: (txid: string) => void;
+
+  onUnindexTransaction: (txid: string) => void;
+
+  getTransactionHasCodeStmt: Statement;
+
+  markExecutingStmt: Statement;
+
+  getTransactionHeightStmt: Statement;
+
+  getTransactionTimeStmt: Statement;
+
+  getTransactionHexStmt: Statement;
+
+  getDownstreamReadyToExecuteStmt: Statement;
+
+  setJigScripthashStmt: Statement;
+
+  setJigLockStmt: Statement;
+
+  setJigClassStmt: Statement;
+
+  setBerryStateStmt: Statement;
+
+  setJigStateStmt: Statement;
+
+  setUnspentStmt: Statement;
+
+  setSpendStmt: Statement;
+
+  setTransactionHasCodeStmt: Statement;
+
+  setTransactionBytesStmt: Statement;
+
+  setTransactionTimeStmt: Statement;
+
+  setTransactionHeightStmt: Statement;
+
+  addNewTransactionStmt: Statement;
+
+  deleteBerryStatesStmt: Statement;
+
+  deleteJigStatesStmt: Statement;
+
+  getTransactionIndexedStmt: Statement;
+
+  unconfirmTransactionStmt: Statement;
+
+  getDownstreamStmt: Statement;
+
+  deleteDepsStmt: Statement;
+
+  unspendOutputsStmt: Statement;
+
+  deleteSpendsStmt: Statement;
+
+  isReadyToExecuteStmt: Statement;
+
+  getTransactionExecutableStmt: Statement;
+
+  setTransactionExecutableStmt: Statement;
+
+  getUpstreamStmt: Statement;
+
+  unmarkExecutingStmt: Statement;
+
+  setTransactionIndexedStmt: Statement;
+
+  setTransactionExecutedStmt: Statement;
+
+  setHashStmt: Statement;
+
+  setHeightStmt: Statement;
+
+  getHashStmt: Statement;
+
+  getAllUnspentStmt: Statement;
+
+  getJigStateStmt: Statement;
+
+  getTransactionFailedStmt: Statement;
+
+  addDepStmt: Statement;
+
+  getSpendStmt: Statement;
+
+  banStmt: Statement;
+
+  unbanStmt: Statement;
+
+  isBannedStmt: Statement;
+
+  getBerryStateStmt: Statement;
+
+  isTrustedStmt: Statement;
+
+  getNumUnspentStmt: Statement;
+
+  getAllUnspentByClassLockScripthashStmt: Statement;
+
+  getAllUnspentByLockScripthashStmt: Statement;
+
+  getAllUnspentByClassScripthashStmt: Statement;
+
+  getAllUnspentByClassLockStmt: Statement;
+
+  getHeightStmt: Statement;
+
+  getBanlistStmt: Statement;
+
+  getTrustlistStmt: Statement;
+
+  getUpstreamUnexecutedCodeStmt: Statement;
+
+  getAllUnspentByScripthashStmt: Statement;
+
+  getAllUnspentByLockStmt: Statement;
+
+  getAllUnspentByClassStmt: Statement;
+
+  getTransactionsDownloadedCountStmt: Statement;
+
+  getTransactionsIndexedCountStmt: Statement;
+
+  getTransactionsToDownloadStmt: Statement; 
+
+  getMempoolTransactionsBeforeTimeStmt: Statement;
+
+  getTransactionsAboveHeightStmt: Statement;
+
+  getTransactionDownloadedStmt: Statement;
+
+  hasTransactionStmt: Statement;
+
+  setTrustedStmt: Statement;
+
+  deleteTransactionStmt: Statement;
+
+  logger: Logger;
+  
+  db: iDatabase;
+
+  worker: Worker;
+
   constructor (path, logger, readonly = false) {
     this.path = path
     this.logger = logger
@@ -312,13 +485,13 @@ class Database {
         )`
       ).run()
 
-      const txids = this.db.prepare('SELECT txid FROM tx').all().map(row => row.txid)
+      const txids = this.db.prepare('SELECT txid FROM tx').all().map((row: any) => row.txid)
       const gettx = this.db.prepare('SELECT * FROM tx WHERE txid = ?')
       const insert = this.db.prepare('INSERT INTO tx_v2 (txid, height, time, bytes, has_code, executable, executed, indexed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
 
       this.logger.info('Migrating data')
       for (const txid of txids) {
-        const row = gettx.get(txid)
+        const row: any= gettx.get(txid)
         const bytes = row.hex ? Buffer.from(row.hex, 'hex') : null
         insert.run(row.txid, row.height, row.time, bytes, row.has_code, row.executable, row.executed, row.indexed)
       }
@@ -445,12 +618,12 @@ class Database {
       const ready = []
       for (let i = 0; i < txids.length; i++) {
         const txid = txids[i]
-        const row = isReadyToExecuteStmt.get(txid)
+        const row: any = isReadyToExecuteStmt.get(txid)
         if (row && row.ready) ready.push(txid)
         if (i % 1000 === 0) console.log('Checking to execute', i, 'of', txids.length)
       }
 
-      this.logger.info('Marking', ready.length, 'transactions to execute')
+      this.logger.info(`Marking ${ready.length} transactions to execute`)
       this.db.prepare('CREATE TABLE IF NOT EXISTS executing (txid TEXT UNIQUE)').run()
       const markExecutingStmt = this.db.prepare('INSERT OR IGNORE INTO executing (txid) VALUES (?)')
       ready.forEach(txid => markExecutingStmt.run(txid))
@@ -535,12 +708,12 @@ class Database {
 
       metadata = Run.util.metadata(hex)
     } catch (e) {
-      this.logger.error(`${txid} => ${e.message}`)
+      this.logger.error(new Error(`${txid} => ${e.message}`))
       this.storeParsedNonExecutableTransaction(txid, hex, inputs, outputs)
       return
     }
 
-    const deps = new Set()
+    const deps = new Set<string>()
 
     for (let i = 0; i < metadata.in; i++) {
       const prevtxid = bsvtx.inputs[i].prevTxId.toString('hex')
@@ -620,7 +793,9 @@ class Database {
         this.addNewTransaction(deptxid)
         this.addDepStmt.run(deptxid, txid)
 
-        if (this.getTransactionFailedStmt.get(deptxid).failed) {
+        const result: any = this.getTransactionFailedStmt.get(deptxid)
+
+        if (result.failed) {
           this.setTransactionExecutionFailed(txid)
           return
         }
@@ -769,10 +944,25 @@ class Database {
   }
 
   getTransactionsAboveHeight (height) { return this.getTransactionsAboveHeightStmt.raw(true).all(height).map(row => row[0]) }
+
   getMempoolTransactionsBeforeTime (time) { return this.getMempoolTransactionsBeforeTimeStmt.raw(true).all(time).map(row => row[0]) }
+
   getTransactionsToDownload () { return this.getTransactionsToDownloadStmt.raw(true).all().map(row => row[0]) }
-  getDownloadedCount () { return this.getTransactionsDownloadedCountStmt.get().count }
-  getIndexedCount () { return this.getTransactionsIndexedCountStmt.get().count }
+
+  getDownloadedCount () {
+
+    const result: any = this.getTransactionsDownloadedCountStmt.get()
+
+    return result.count
+
+  }
+  getIndexedCount () {
+
+    const result: any = this.getTransactionsIndexedCountStmt.get()
+
+    return result.count
+
+  }
 
   // --------------------------------------------------------------------------
   // spends
@@ -792,7 +982,8 @@ class Database {
 
     this.addDepStmt.run(deptxid, txid)
 
-    if (this.getTransactionFailedStmt.get(deptxid).failed) {
+    const result: any = this.getTransactionFailedStmt.get(deptxid)
+    if (result.failed) {
       this.setTransactionExecutionFailed(deptxid)
     }
   }
@@ -849,7 +1040,8 @@ class Database {
   }
 
   getNumUnspent () {
-    return this.getNumUnspentStmt.get().unspent
+    let result: any = this.getNumUnspentStmt.get()
+    return result.unspent
   }
 
   // --------------------------------------------------------------------------
@@ -964,7 +1156,7 @@ class Database {
 
     while (missing.size > 0) {
       Array.from(missing).forEach(txid => {
-        const row = this.isReadyToExecuteStmt.get(txid)
+        const row: any = this.isReadyToExecuteStmt.get(txid)
         if (row && row.ready) {
           missing.delete(txid)
           if (this.onReadyToExecute) this.onReadyToExecute(txid)
@@ -974,12 +1166,14 @@ class Database {
           const depTxids = this.getUpstreamStmt.raw(true).all(txid).map(r => r[0])
           depTxids.forEach(depTxid => {
             // Because we are retrying, we execute again failed deps.
-            if (this.getTransactionFailedStmt.get(depTxid).failed) {
+            let getTransactionFailedResult: any = this.getTransactionFailedStmt.get(depTxid)
+            if (getTransactionFailedResult.failed) {
               this.setTransactionExecutedStmt.run(0, depTxid)
               this.setTransactionIndexedStmt.run(0, depTxid)
               this.setTransactionExecutableStmt.run(1, depTxid)
             }
-            if (this.getTransactionExecutableStmt.get(depTxid).executable) {
+            let getTransactionExecutableResult: any = this.getTransactionExecutableStmt.get(depTxid)
+            if (getTransactionExecutableResult.executable) {
               missing.add(depTxid)
               this.markExecutingStmt.run(depTxid)
             }
@@ -1000,7 +1194,7 @@ class Database {
   }
 
   _checkExecutability (txid) {
-    const row = this.isReadyToExecuteStmt.get(txid)
+    const row: any = this.isReadyToExecuteStmt.get(txid)
     if (row && row.ready) {
       this.markExecutingStmt.run(txid)
       if (this.onReadyToExecute) this.onReadyToExecute(txid)
@@ -1010,7 +1204,4 @@ class Database {
 
 // ------------------------------------------------------------------------------------------------
 
-Database.HEIGHT_MEMPOOL = HEIGHT_MEMPOOL
-Database.HEIGHT_UNKNOWN = HEIGHT_UNKNOWN
 
-module.exports = Database

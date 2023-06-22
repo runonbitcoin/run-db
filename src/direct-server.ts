@@ -5,10 +5,26 @@
  */
 
 const { Worker } = require('worker_threads')
+
 const Bus = require('./bus')
 
-class DirectServer {
-  constructor (dbPath, port, logger, database) {
+import { Logger } from './logger'
+
+import Database from './database'
+
+export default class DirectServer {
+
+  dbPath: string;
+
+  port: number;
+
+  logger: Logger;
+
+  database: Database;
+
+  worker: Worker;
+
+  constructor (dbPath: string, port: number, logger: Logger, database: Database) {
     this.dbPath = dbPath
     this.port = port
     this.logger = logger
@@ -48,4 +64,3 @@ class DirectServer {
   }
 }
 
-module.exports = DirectServer
