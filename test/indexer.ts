@@ -7,8 +7,9 @@
 import { describe, it, beforeEach, afterEach } from 'mocha'
 
 const { expect } = require('chai')
-const bsv = require('bsv')
-const Indexer = require('../src/indexer')
+
+import { bsv } from 'scrypt-ts'
+import Indexer from '../src/indexer'
 const Run = require('run-sdk')
 const { Jig } = Run
 const { DEFAULT_TRUSTLIST } = require('../src/config')

@@ -4,27 +4,28 @@
  * Entry point
  */
 
-const Indexer = require('./indexer')
+import Indexer from './indexer'
+
 const {
   DB, NETWORK, FETCH_LIMIT, WORKERS, START_HEIGHT,
   MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
 } = require('./config')
-const RunConnectFetcher = require('./run-connect')
-const Database = require('./database')
+
+import RunConnectFetcher from './run-connect'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
 // ------------------------------------------------------------------------------------------------
 
-const logger = {}
-logger.info = console.info.bind(console)
-logger.warn = console.warn.bind(console)
-logger.error = console.error.bind(console)
-logger.debug = DEBUG ? console.debug.bind(console) : () => {}
+import { logger } from './logger'
 
-const api = new RunConnectFetcher()
+import Api from './api'
 
-const database = new Database(DB, logger, false)
+import Database from './database'
+
+const api: Api = new RunConnectFetcher()
+
+const database: Database = new Database(DB, logger, false)
 
 const indexer = new Indexer(database, api, NETWORK, FETCH_LIMIT, WORKERS, logger,
   START_HEIGHT, MEMPOOL_EXPIRATION, DEFAULT_TRUSTLIST)
@@ -42,7 +43,7 @@ async function main () {
   console.log(`re executing tx: ${targetTxid}`)
   database.open()
 
-  const promise = new Promise(resolve => {
+  const promise = new Promise<void>(resolve => {
     indexer.onIndex = (txid) => txid === targetTxid && resolve()
   })
 

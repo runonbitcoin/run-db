@@ -38,10 +38,10 @@ export default class Downloader {
     this.fetchFunction = fetchFunction
     this.numParallelDownloads = numParallelDownloads
 
-    this.queued = new Set() // txid
-    this.fetching = new Set() // txid
-    this.waitingToRetry = new Set() // txid
-    this.attempts = new Map() // txid -> attempts
+    this.queued = new Set<string>() // txid
+    this.fetching = new Set<string>() // txid
+    this.waitingToRetry = new Set<string>() // txid
+    this.attempts = new Map<string, number>() // txid -> attempts
   }
 
   stop () {

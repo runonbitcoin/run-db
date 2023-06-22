@@ -17,7 +17,7 @@ import { bsv } from 'scrypt-ts'
 
 import { Transaction } from '../src/api'
 
-import * as Run from 'run-sdk'
+import Run from 'run-sdk'
 
 interface Block {
   hex?: string;

@@ -5,6 +5,7 @@
  */
 
 import { Worker } from 'worker_threads'
+
 const Bus = require('./bus')
 
 import Database from './database'
