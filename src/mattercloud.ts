@@ -4,8 +4,12 @@
  * MatterCloud API
  */
 
-const axios = require('axios')
-const bsv = require('bsv')
+import axios from 'axios'
+
+import { bsv } from 'scrypt-ts'
+
+import Api, { Transaction } from './api'
+
 global.EventSource = require('eventsource')
 const { default: ReconnectingEventSource } = require('reconnecting-eventsource')
 
@@ -19,8 +23,15 @@ const RUN_0_6_FILTER = '006a0372756e0105'
 // MatterCloud
 // ------------------------------------------------------------------------------------------------
 
-class MatterCloud {
+export default class MatterCloud extends Api {
+
+  suffix: string;
+
+  mempoolEvents: typeof ReconnectingEventSource;
+
   constructor (apiKey, logger) {
+    super()
+
     this.suffix = apiKey ? `?api_key=${apiKey}` : ''
     this.logger = logger
     this.mempoolEvents = null
@@ -37,7 +48,7 @@ class MatterCloud {
     }
   }
 
-  async fetch (txid) {
+  async fetch (txid): Promise<Transaction> {
     const response = await axios.get(`https://api.mattercloud.net/api/v3/main/tx/${txid}${this.suffix}`)
 
     const hex = response.data.rawtx
@@ -82,7 +93,7 @@ class MatterCloud {
   async listenForMempool (mempoolTxCallback) {
     this.logger.info('Listening for mempool via MatterCloud SSE')
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       this.mempoolEvents = new ReconnectingEventSource(`https://stream.mattercloud.io/mempool?filter=${RUN_0_6_FILTER}`)
 
       this.mempoolEvents.onerror = (e) => reject(e)
@@ -105,4 +116,3 @@ class MatterCloud {
 
 // ------------------------------------------------------------------------------------------------
 
-module.exports = MatterCloud

@@ -17,9 +17,7 @@ global.EventSource = require('eventsource')
 import ReconnectingEventSource from 'reconnecting-eventsource'
 const RunConnectFetcher = require('./run-connect')
 
-import { Logger } from './logger'
-
-import Api from './api'
+import Api, { Transaction } from './api'
 
 // ------------------------------------------------------------------------------------------------
 // Globals
@@ -32,11 +30,9 @@ const RUN_VERSION = '05'
 // Planaria
 // ------------------------------------------------------------------------------------------------
 
-class Planaria extends Api {
+export default class Planaria extends Api {
 
   token: string;
-
-  logger: Logger;
 
   abortController: AbortController;
 
@@ -46,7 +42,7 @@ class Planaria extends Api {
 
   runConnectFetcher: typeof RunConnectFetcher;
 
-  txns: Txn[];
+  txns: Transaction[];
 
   network: string;
 
@@ -288,13 +284,5 @@ class Planaria extends Api {
   };
 }
 
-interface Txn {
-  txid: string;
-  hash: string;
-  height: number | null;
-  time: number;
-}
-
 // ------------------------------------------------------------------------------------------------
 
-module.exports = Planaria

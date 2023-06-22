@@ -43,7 +43,8 @@
     "morgan": "^1.10.0",
     "node-fetch": "^2.6.1",
     "reconnecting-eventsource": "^1.1.0",
-    "run-sdk": "^0.6.35"
+    "run-sdk": "^0.6.35",
+    "scrypt-ts": "^0.2.2-beta.2"
   },
   "optionalDependencies": {
     "zeromq": "^5.2.8"

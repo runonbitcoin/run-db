@@ -8,7 +8,9 @@
 // Api
 // ------------------------------------------------------------------------------------------------
 
-export default abstract class Api {
+import { Logger } from './logger'
+
+abstract class AbstractApi {
   // Connect to the API at a particular block height and network
   abstract connect(height: number, network: string): Promise<void>
 
@@ -16,7 +18,7 @@ export default abstract class Api {
   abstract disconnect(): Promise<void>
 
   // Returns the rawtx of the txid, or throws an error
-  abstract fetch(txid: string): Promise<string>
+  abstract fetch(txid: string): Promise<Transaction>
 
   // Gets the next relevant block of transactions to add
   // currHash may be null
@@ -31,6 +33,12 @@ export default abstract class Api {
   abstract listenForMempool (mempoolTxCallback: Function): Promise<void>
 }
 
+export default abstract class Api extends AbstractApi {
+
+  logger: Logger;
+
+}
+
 // ------------------------------------------------------------------------------------------------
 
 export interface NextBlock {
@@ -43,3 +51,13 @@ export interface NextBlock {
 interface Reorg {
   reorg: boolean;
 }
+
+export interface Transaction {
+  txid?: string;
+  hash?: string;
+  hex: string;
+  height: number | null;
+  time: number;
+}
+
+

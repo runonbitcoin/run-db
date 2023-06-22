@@ -10,8 +10,11 @@ const {
   API, DB, NETWORK, PORT, FETCH_LIMIT, WORKERS, MATTERCLOUD_KEY, PLANARIA_TOKEN, START_HEIGHT,
   MEMPOOL_EXPIRATION, ZMQ_URL, RPC_URL, DEFAULT_TRUSTLIST, DEBUG, SERVE_ONLY
 } = require('./config')
-const MatterCloud = require('./mattercloud')
-const Planaria = require('./planaria')
+
+import MatterCloud from './mattercloud'
+
+import Planaria from './planaria'
+
 const RunConnectFetcher = require('./run-connect')
 const BitcoinNodeConnection = require('./bitcoin-node-connection')
 const BitcoinRpc = require('./bitcoin-rpc')
